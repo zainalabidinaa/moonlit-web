@@ -135,3 +135,36 @@ export interface AdminStats {
   totalWatchedItems: number;
   activeUsers: number;
 }
+
+export interface SystemAddon {
+  id: string;
+  manifest_url: string;
+  name: string | null;
+  updated_at: string;
+}
+
+export interface Collection {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  folders?: Folder[];
+}
+
+export interface Folder {
+  id: string;
+  collection_id: string;
+  name: string;
+  cover_image: string | null;
+  focus_gif: string | null;
+  sort_order: number;
+  created_at: string;
+  folder_catalogs?: FolderCatalog[];
+}
+
+export interface FolderCatalog {
+  id: string;
+  folder_id: string;
+  catalog_id: string;
+  media_type: string;
+}
