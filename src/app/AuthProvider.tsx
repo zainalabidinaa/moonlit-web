@@ -70,7 +70,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function loadAddons(profileId: string) {
     try {
       const urls = await getInstalledAddons(profileId);
-      const targetUrls = urls.length > 0 ? urls : DEFAULT_ADDONS;
+      // Always merge with DEFAULT_ADDONS so core addons (streams, metadata) are present
+      const merged = [...new Set([...DEFAULT_ADDONS, ...urls])];
+      const targetUrls = merged;
       const manifests = await Promise.allSettled(
         targetUrls.map(u => fetchManifest(u))
       );
