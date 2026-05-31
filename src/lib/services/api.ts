@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { LunaProfile, WatchProgressEntry, LibraryItem, InviteCode, AdminStats } from '../types';
+import { LunaProfile, WatchProgressEntry, LibraryItem, InviteCode, AdminStats, SystemAddon, Collection, Folder, FolderCatalog } from '../types';
 
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -219,4 +219,109 @@ export async function generateInviteCode(userId: string, maxUses: number = 1): P
 
 export async function revokeInviteCode(code: string) {
   await supabase.from('invite_codes').update({ is_active: false }).eq('code', code);
+}
+
+// ---- Collections (public reads) ----
+
+export async function getCollections(): Promise<Collection[]> {
+  const { data } = await supabase
+    .from('collections')
+    .select('*, folders(*, folder_catalogs(*))')
+    .order('sort_order');
+  return (data || []).map((c: any) => ({
+    ...c,
+    folders: (c.folders || []).sort((a: any, b: any) => a.sort_order - b.sort_order)
+  }));
+}
+
+export async function getFolder(folderId: string): Promise<Folder | null> {
+  const { data } = await supabase
+    .from('folders')
+    .select('*, folder_catalogs(*)')
+    .eq('id', folderId)
+    .single();
+  return data || null;
+}
+
+export async function getSystemAddon(): Promise<SystemAddon | null> {
+  const { data } = await supabase
+    .from('system_addon')
+    .select('*')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .single();
+  return data || null;
+}
+
+// ---- Admin writes ----
+
+export async function upsertSystemAddon(manifestUrl: string, name: string): Promise<void> {
+  const { data: existing } = await supabase
+    .from('system_addon')
+    .select('id')
+    .limit(1)
+    .single();
+
+  if (existing) {
+    await supabase
+      .from('system_addon')
+      .update({ manifest_url: manifestUrl, name, updated_at: new Date().toISOString() })
+      .eq('id', existing.id);
+  } else {
+    await supabase.from('system_addon').insert({ manifest_url: manifestUrl, name });
+  }
+}
+
+export async function createCollection(name: string, sortOrder: number): Promise<Collection> {
+  const { data, error } = await supabase
+    .from('collections')
+    .insert({ name, sort_order: sortOrder })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateCollection(id: string, updates: { name?: string; sort_order?: number }): Promise<void> {
+  await supabase.from('collections').update(updates).eq('id', id);
+}
+
+export async function deleteCollection(id: string): Promise<void> {
+  await supabase.from('collections').delete().eq('id', id);
+}
+
+export async function createFolder(
+  collectionId: string,
+  name: string,
+  coverImage: string,
+  focusGif: string,
+  sortOrder: number
+): Promise<Folder> {
+  const { data, error } = await supabase
+    .from('folders')
+    .insert({ collection_id: collectionId, name, cover_image: coverImage, focus_gif: focusGif, sort_order: sortOrder })
+    .select()
+    .single();
+  if (error) throw error;
+  return data;
+}
+
+export async function updateFolder(
+  id: string,
+  updates: { name?: string; cover_image?: string; focus_gif?: string; sort_order?: number }
+): Promise<void> {
+  await supabase.from('folders').update(updates).eq('id', id);
+}
+
+export async function deleteFolder(id: string): Promise<void> {
+  await supabase.from('folders').delete().eq('id', id);
+}
+
+export async function setFolderCatalogs(folderId: string, catalogs: { catalog_id: string; media_type: string }[]): Promise<void> {
+  await supabase.from('folder_catalogs').delete().eq('folder_id', folderId);
+  if (catalogs.length > 0) {
+    await supabase.from('folder_catalogs').insert(
+      catalogs.map(c => ({ folder_id: folderId, catalog_id: c.catalog_id, media_type: c.media_type }))
+    );
+  }
 }
