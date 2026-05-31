@@ -85,12 +85,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   async function handleSignIn(email: string, password: string) {
-    const { data } = await supabase.auth.signInWithPassword({ email, password });
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
     if (data.user) await loadProfiles(data.user.id);
   }
 
   async function handleSignUp(email: string, password: string, inviteCode: string) {
-    const { data } = await supabase.auth.signUp({ email, password });
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    if (error) throw error;
     if (data.user) {
       await supabase.from('invite_codes').update({
         used_by: data.user.id,
