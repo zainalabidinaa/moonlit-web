@@ -107,13 +107,30 @@ export default function Player({
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
         hlsErrorCount = 0;
+        // Try to grab tracks immediately (some streams have them ready here)
         const tracks = hls.audioTracks.map((t, i) => ({ id: i, name: t.name || t.lang || 'Unknown', lang: t.lang || 'unknown' }));
         const subs = hls.subtitleTracks.map((t, i) => ({ id: i, name: t.name || t.lang || 'Unknown', lang: t.lang || 'unknown' }));
-        setAudioTracks(tracks);
-        setSubtitleTracks(subs);
-        setActiveAudioTrack(hls.audioTrack);
-        setActiveSubtitle(hls.subtitleTrack);
+        if (tracks.length > 0) {
+          setAudioTracks(tracks);
+          if (hls.audioTrack >= 0) setActiveAudioTrack(hls.audioTrack);
+        }
+        if (subs.length > 0) {
+          setSubtitleTracks(subs);
+          setActiveSubtitle(hls.subtitleTrack);
+        }
         video.play().catch(() => {});
+      });
+
+      hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => {
+        const tracks = hls.audioTracks.map((t, i) => ({ id: i, name: t.name || t.lang || 'Unknown', lang: t.lang || 'unknown' }));
+        setAudioTracks(tracks);
+        if (hls.audioTrack >= 0) setActiveAudioTrack(hls.audioTrack);
+      });
+
+      hls.on(Hls.Events.SUBTITLE_TRACKS_UPDATED, () => {
+        const subs = hls.subtitleTracks.map((t, i) => ({ id: i, name: t.name || t.lang || 'Unknown', lang: t.lang || 'unknown' }));
+        setSubtitleTracks(subs);
+        setActiveSubtitle(hls.subtitleTrack);
       });
 
       hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, d) => setActiveAudioTrack(d.id));
@@ -364,16 +381,22 @@ export default function Player({
               onClick={() => { setShowAudioMenu(!showAudioMenu); setShowSubMenu(false); }}
               className="text-xs px-2.5 py-1.5 rounded-md bg-white/10 hover:bg-white/15 text-white/70 hover:text-white transition-colors"
             >
-              {audioTracks.find(t => t.id === activeAudioTrack)?.lang || 'Audio'}
+              {audioTracks.length > 0
+                ? (audioTracks.find(t => t.id === activeAudioTrack)?.lang || 'Audio')
+                : 'Audio'}
             </button>
-            {showAudioMenu && audioTracks.length > 0 && (
-              <div className="absolute top-full right-0 mt-1 bg-neutral-900 border border-white/10 rounded-lg overflow-hidden min-w-[140px] shadow-xl">
-                {audioTracks.map(t => (
-                  <button key={t.id} onClick={() => switchAudio(t.id)}
-                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${t.id === activeAudioTrack ? 'text-luna-accent' : 'text-white/70'}`}>
-                    {t.name} ({t.lang})
-                  </button>
-                ))}
+            {showAudioMenu && (
+              <div className="absolute top-full right-0 mt-1 bg-neutral-900 border border-white/10 rounded-lg overflow-hidden min-w-[160px] shadow-xl">
+                {audioTracks.length > 0 ? (
+                  audioTracks.map(t => (
+                    <button key={t.id} onClick={() => switchAudio(t.id)}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${t.id === activeAudioTrack ? 'text-luna-accent' : 'text-white/70'}`}>
+                      {t.name} ({t.lang})
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-xs text-white/30">No audio tracks</div>
+                )}
               </div>
             )}
           </div>
@@ -384,20 +407,24 @@ export default function Player({
               onClick={() => { setShowSubMenu(!showSubMenu); setShowAudioMenu(false); }}
               className="text-xs px-2.5 py-1.5 rounded-md bg-white/10 hover:bg-white/15 text-white/70 hover:text-white transition-colors"
             >
-              {activeSubtitle >= 0 ? 'CC' : 'Off'}
+              CC
             </button>
             {showSubMenu && (
-              <div className="absolute top-full right-0 mt-1 bg-neutral-900 border border-white/10 rounded-lg overflow-hidden min-w-[140px] shadow-xl">
+              <div className="absolute top-full right-0 mt-1 bg-neutral-900 border border-white/10 rounded-lg overflow-hidden min-w-[160px] shadow-xl">
                 <button onClick={() => switchSubtitle(-1)}
                   className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${activeSubtitle < 0 ? 'text-luna-accent' : 'text-white/70'}`}>
                   Off
                 </button>
-                {subtitleTracks.map(t => (
-                  <button key={t.id} onClick={() => switchSubtitle(t.id)}
-                    className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${t.id === activeSubtitle ? 'text-luna-accent' : 'text-white/70'}`}>
-                    {t.name} ({t.lang})
-                  </button>
-                ))}
+                {subtitleTracks.length > 0 ? (
+                  subtitleTracks.map(t => (
+                    <button key={t.id} onClick={() => switchSubtitle(t.id)}
+                      className={`w-full text-left px-3 py-2 text-xs hover:bg-white/10 transition-colors ${t.id === activeSubtitle ? 'text-luna-accent' : 'text-white/70'}`}>
+                      {t.name} ({t.lang})
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-xs text-white/30">No subtitle tracks</div>
+                )}
               </div>
             )}
           </div>
