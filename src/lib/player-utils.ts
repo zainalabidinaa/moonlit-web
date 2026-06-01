@@ -6,6 +6,10 @@ export function getStreamUrl(stream: Pick<StreamItem, 'url' | 'externalUrl'>): s
   return stream.url || stream.externalUrl;
 }
 
+export function getPlayableStreamUrl(stream: Pick<StreamItem, 'url'>): string | undefined {
+  return stream.url;
+}
+
 export function getInitialSourceType(_url: string): VidstackSourceType {
   return 'application/x-mpegurl';
 }

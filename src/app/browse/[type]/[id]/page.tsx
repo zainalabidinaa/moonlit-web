@@ -9,7 +9,7 @@ import { MetaDetail, StreamItem, Season } from '@/lib/types';
 import { fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
 import { isInLibrary, toggleLibrary, getWatchProgress } from '@/lib/services/api';
 import { cacheStreams } from '@/lib/stream-cache';
-import { getStreamUrl } from '@/lib/player-utils';
+import { getPlayableStreamUrl } from '@/lib/player-utils';
 
 const PlayIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -121,7 +121,7 @@ export default function DetailPage({ params }: { params: { type: string; id: str
   }
 
   function handlePlay(stream: StreamItem) {
-    const streamUrl = getStreamUrl(stream);
+    const streamUrl = getPlayableStreamUrl(stream);
     if (!streamUrl) return;
     const mediaId = selectedEpisodeId || resolved.id;
     const cacheKey = `${resolved.type}:${mediaId}`;
@@ -137,12 +137,12 @@ export default function DetailPage({ params }: { params: { type: string; id: str
     const id = streamId || resolved.id;
     setAutoPlaying(true);
     const allStreams = await fetchStreamsFromAll(resolved.type, id, addons);
-    const playable = allStreams.filter(s => (s.url || s.externalUrl) && !s.infoHash && !s.behaviorHints?.notWebReady);
+    const playable = allStreams.filter(s => getPlayableStreamUrl(s) && !s.infoHash && !s.behaviorHints?.notWebReady);
     const picked = playable[0];
     if (picked) {
       const cacheKey = `${resolved.type}:${id}`;
       cacheStreams(cacheKey, allStreams);
-      const streamUrl = getStreamUrl(picked)!;
+      const streamUrl = getPlayableStreamUrl(picked)!;
       const encodedUrl = encodeURIComponent(streamUrl);
       const ep = streamId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === streamId) : null;
       const watchTitle = ep ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}` : (detail?.name || '');

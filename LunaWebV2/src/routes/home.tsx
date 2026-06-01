@@ -10,7 +10,7 @@ import { Collection, FeaturedHomeItem, HomeCatalogRow, MetaDetail, MetaPreview, 
 import { getWatchProgress, getSystemAddon, getCollections } from '@/lib/services/api';
 import { fetchCatalog, fetchManifest, fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
 import { cacheStreams } from '@/lib/stream-cache';
-import { formatContinueWatchingTitle, getStreamUrl } from '@/lib/player-utils';
+import { formatContinueWatchingTitle, getPlayableStreamUrl } from '@/lib/player-utils';
 import { buildHomeRows, pickFeaturedItems } from './home-data';
 
 const MAIN_NAMES = ['Popular Movies', 'Popular TV Shows', 'Trending Movies', 'Trending TV Shows'];
@@ -206,12 +206,12 @@ export default function HomePage() {
     setCwLoading(item.id);
     try {
       const streams = await fetchStreamsFromAll(item.media_type, item.media_id, addons);
-      const playable = streams.filter(s => (s.url || s.externalUrl) && !s.infoHash && !s.behaviorHints?.notWebReady);
+      const playable = streams.filter(s => getPlayableStreamUrl(s) && !s.infoHash && !s.behaviorHints?.notWebReady);
       const picked = playable[0];
       if (picked) {
         const cacheKey = `${item.media_type}:${item.media_id}`;
         cacheStreams(cacheKey, streams);
-        const streamUrl = getStreamUrl(picked)!;
+        const streamUrl = getPlayableStreamUrl(picked)!;
         const displayName = item.name ?? cwMetas?.[item.media_id]?.name ?? baseId;
         const parts = item.media_id.split(':');
         const watchTitle = formatContinueWatchingTitle({ mediaId: item.media_id, mediaType: item.media_type, name: displayName });

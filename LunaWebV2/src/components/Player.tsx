@@ -354,7 +354,7 @@ function PlayerUI({
               <div className="p-3 space-y-2">
                 {streams.map((s, i) => {
                   const meta = parseStreamMeta(s);
-                  const streamUrl = s.url || s.externalUrl || '';
+                  const streamUrl = s.url || '';
                   const activeUrl = currentStream.url || currentStream.externalUrl || '';
                   const isActive = streamUrl ? streamMatchesUrl(s, activeUrl) : s.title === currentStream.title;
                   const sourceLabel = [meta.debrid, meta.indexer].filter(Boolean).join(' · ') || s.addonName || 'Unknown';

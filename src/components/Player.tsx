@@ -264,7 +264,7 @@ function PlayerUI({
               </button>
             </div>
             {(() => {
-              const compatible = streams.filter(s => (s.url || s.externalUrl) && !s.infoHash && !s.behaviorHints?.notWebReady);
+              const compatible = streams.filter(s => s.url && !s.infoHash && !s.behaviorHints?.notWebReady);
               if (compatible.length === 0) return (
                 <div className="px-4 py-10 text-center">
                   <p className="text-white/40 text-sm">No playable streams</p>
@@ -281,7 +281,7 @@ function PlayerUI({
                     const info = s.description?.replace(/\[.*?\]/g, '').trim() || s.title || s.name || 'Unknown';
                     return (
                       <button
-                        key={s.url || s.externalUrl || `${name}-${i}`}
+                        key={s.url || `${name}-${i}`}
                         onClick={() => { setShowSources(false); onSwitchStream(s); }}
                         className={`w-full text-left px-4 py-3.5 mx-2 my-1 rounded-2xl border transition-colors ${isActive ? 'border-luna-accent/70 bg-luna-accent/10' : 'border-white/8 bg-white/[0.035] hover:bg-white/[0.07]'}`}
                       >

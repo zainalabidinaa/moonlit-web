@@ -4,6 +4,7 @@ import { StreamItem } from './types';
 import {
   getFallbackSourceType,
   formatContinueWatchingTitle,
+  getPlayableStreamUrl,
   getStreamUrl,
   getInitialSourceType,
   streamMatchesUrl,
@@ -27,6 +28,11 @@ describe('player utils', () => {
   it('reads a playable stream URL from url or externalUrl', () => {
     expect(getStreamUrl({ url: 'https://example.com/a.mp4' })).toBe('https://example.com/a.mp4');
     expect(getStreamUrl({ externalUrl: 'https://example.com/b.mp4' })).toBe('https://example.com/b.mp4');
+  });
+
+  it('does not treat externalUrl as playable inside the video player', () => {
+    expect(getPlayableStreamUrl({ url: 'https://example.com/a.mp4' })).toBe('https://example.com/a.mp4');
+    expect(getPlayableStreamUrl({ externalUrl: 'https://example.com/player-page' })).toBeUndefined();
   });
 
   it('matches cached streams by url or externalUrl', () => {
