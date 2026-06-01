@@ -320,17 +320,17 @@ export default function Player({
     const interval = setInterval(() => {
       const p = playerRef.current;
       if (p && p.currentTime > 0) {
-        updateWatchProgress(currentProfile.id, mediaId, mediaType, p.currentTime, p.duration || 0, false);
+        updateWatchProgress(currentProfile.id, mediaId, mediaType, p.currentTime, p.duration || 0, false, title);
       }
     }, 10000);
     return () => clearInterval(interval);
-  }, [currentProfile, mediaId, mediaType]);
+  }, [currentProfile, mediaId, mediaType, title]);
 
   const onEnded = useCallback(() => {
     const p = playerRef.current;
     if (!currentProfile || !p) return;
-    updateWatchProgress(currentProfile.id, mediaId, mediaType, p.currentTime, p.duration || 0, true);
-  }, [currentProfile, mediaId, mediaType]);
+    updateWatchProgress(currentProfile.id, mediaId, mediaType, p.currentTime, p.duration || 0, true, title);
+  }, [currentProfile, mediaId, mediaType, title]);
 
   const onCanPlay = useCallback(() => {
     if (startPosition && startPosition > 0 && playerRef.current) {
