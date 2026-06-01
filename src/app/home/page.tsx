@@ -4,17 +4,21 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthProvider';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
-import { FolderContentRow } from '@/components/FolderContentRow';
-import { Collection } from '@/lib/types';
-import { getCollections, getWatchProgress, getSystemAddon } from '@/lib/services/api';
+import { MediaRow } from '@/components/MediaRow';
+import { FeaturedHomeItem, HomeCatalogRow, MetaDetail, WatchProgressEntry } from '@/lib/types';
+import { getWatchProgress, getSystemAddon } from '@/lib/services/api';
+import { fetchCatalog, fetchManifest, fetchMeta } from '@/lib/stremio';
+import { buildHomeRows, pickFeaturedItem } from './home-data';
 import Link from 'next/link';
 
 export default function HomePage() {
   const { currentProfile, user, isLoading } = useAuth();
   const router = useRouter();
-  const [collections, setCollections] = useState<Collection[]>([]);
-  const [addonBaseUrl, setAddonBaseUrl] = useState('');
-  const [continueWatching, setContinueWatching] = useState<any[]>([]);
+  const [rows, setRows] = useState<HomeCatalogRow[]>([]);
+  const [featured, setFeatured] = useState<FeaturedHomeItem | null>(null);
+  const [featuredMeta, setFeaturedMeta] = useState<MetaDetail | null>(null);
+  const [hasSystemAddon, setHasSystemAddon] = useState(true);
+  const [continueWatching, setContinueWatching] = useState<WatchProgressEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -22,29 +26,93 @@ export default function HomePage() {
     if (!user) { router.replace('/auth'); return; }
     if (!currentProfile) { router.replace('/profiles'); return; }
     loadData();
-  }, [currentProfile, isLoading]);
+  }, [currentProfile, isLoading, user, router]);
 
   async function loadData() {
     setLoading(true);
     try {
-      const [cols, progress, systemAddon] = await Promise.all([
-        getCollections(),
+      const [progress, systemAddon] = await Promise.all([
         getWatchProgress(currentProfile!.id),
         getSystemAddon(),
       ]);
 
-      setCollections(cols);
       setContinueWatching(
         progress
-          .filter((p: any) => !p.completed && p.position_seconds > 0)
-          .sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
+          .filter((entry) => !entry.completed && entry.position_seconds > 0)
+          .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       );
 
-      if (systemAddon?.manifest_url) {
-        setAddonBaseUrl(systemAddon.manifest_url.replace('/manifest.json', ''));
+      if (!systemAddon?.manifest_url) {
+        setHasSystemAddon(false);
+        setRows([]);
+        setFeatured(null);
+        setFeaturedMeta(null);
+        return;
       }
-    } catch {}
-    setLoading(false);
+
+      setHasSystemAddon(true);
+
+      const manifest = await fetchManifest(systemAddon.manifest_url);
+      if (!manifest.transportUrl) {
+        setRows([]);
+        setFeatured(null);
+        setFeaturedMeta(null);
+        return;
+      }
+
+      const allCatalogs = manifest.catalogs || [];
+      const catalogResults = await Promise.allSettled(
+        allCatalogs.map(async (catalog) => {
+          const extras: Record<string, string> = {};
+          if (catalog.extra) {
+            for (const e of catalog.extra) {
+              if (e.options && e.options.length > 0) {
+                extras[e.name] = e.options[0];
+              }
+            }
+          }
+          return {
+            key: `${catalog.type}:${catalog.id}`,
+            fallbackKey: catalog.id,
+            items: await fetchCatalog(manifest.transportUrl!, catalog.type, catalog.id, extras),
+          };
+        })
+      );
+
+      const catalogItemsById: Record<string, HomeCatalogRow['items']> = {};
+      for (const result of catalogResults) {
+        if (result.status !== 'fulfilled') {
+          continue;
+        }
+
+        catalogItemsById[result.value.key] = result.value.items;
+        if (!(result.value.fallbackKey in catalogItemsById)) {
+          catalogItemsById[result.value.fallbackKey] = result.value.items;
+        }
+      }
+
+      const nextRows = buildHomeRows(manifest, catalogItemsById);
+      const nextFeatured = pickFeaturedItem(nextRows);
+
+      setRows(nextRows);
+      setFeatured(nextFeatured);
+
+      const canFetchMeta = manifest.resources?.some((resource) =>
+        (typeof resource === 'string' ? resource : resource.name) === 'meta'
+      );
+
+      if (nextFeatured && canFetchMeta) {
+        setFeaturedMeta(await fetchMeta(manifest.transportUrl, nextFeatured.item.type, nextFeatured.item.id));
+      } else {
+        setFeaturedMeta(null);
+      }
+    } catch {
+      setRows([]);
+      setFeatured(null);
+      setFeaturedMeta(null);
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (loading) {
@@ -60,13 +128,48 @@ export default function HomePage() {
   return (
     <Sidebar>
       <div className="px-6 pt-24 pb-12">
+        {featured && (
+          <section className="mb-10 rounded-3xl border border-white/10 bg-luna-elevated/70 p-6">
+            <p className="text-xs uppercase tracking-[0.2em] text-luna-muted mb-3">Featured</p>
+            <div className="flex flex-col gap-6 md:flex-row md:items-center">
+              {featured.item.poster && (
+                <img
+                  src={featured.item.poster}
+                  alt={featured.item.name}
+                  className="h-56 w-40 rounded-2xl object-cover bg-luna-bg"
+                />
+              )}
+              <div className="max-w-2xl">
+                <h1 className="text-3xl font-bold text-white">{featuredMeta?.name || featured.item.name}</h1>
+                <p className="mt-2 text-sm text-luna-muted">
+                  From {featured.row.title}
+                  {featuredMeta?.imdbRating ? ` • IMDb ${featuredMeta.imdbRating}` : ''}
+                  {featuredMeta?.runtime ? ` • ${featuredMeta.runtime}` : ''}
+                </p>
+                {(featuredMeta?.description || featured.item.description) && (
+                  <p className="mt-4 max-w-xl text-sm leading-6 text-luna-muted/90">
+                    {featuredMeta?.description || featured.item.description}
+                  </p>
+                )}
+                <div className="mt-5">
+                  <Link
+                    href={`/browse/${featured.item.type}/${featured.item.id}`}
+                    className="inline-flex items-center rounded-full bg-white px-5 py-2.5 text-sm font-semibold text-black transition-colors hover:bg-white/90"
+                  >
+                    Open title
+                  </Link>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* Continue Watching */}
         {continueWatching.length > 0 && (
           <section className="mb-10">
             <h2 className="text-base font-semibold text-white mb-4">Continue Watching</h2>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-              {continueWatching.slice(0, 10).map((item: any) => {
+              {continueWatching.slice(0, 10).map((item) => {
                 const pct = item.duration_seconds > 0
                   ? (item.position_seconds / item.duration_seconds) * 100
                   : 0;
@@ -97,24 +200,17 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* Collections → each folder becomes its own content row */}
-        {addonBaseUrl ? (
-          collections
-            .filter(c => c.folders && c.folders.length > 0)
-            .map(collection => (
-            <section key={collection.id} className="mb-2">
-              <h2 className="text-lg font-bold text-white mb-1 mt-8">{collection.name}</h2>
-              {[...(collection.folders || [])]
-                .sort((a, b) => a.sort_order - b.sort_order)
-                .map(folder => (
-                  <FolderContentRow
-                    key={folder.id}
-                    folder={folder}
-                    addonBaseUrl={addonBaseUrl}
-                  />
-                ))}
-            </section>
-          ))
+        {hasSystemAddon ? (
+          rows.length > 0 ? (
+            rows.map((row, i) => (
+              <MediaRow key={row.id} title={row.title} items={row.items} defaultCollapsed={i < 4} />
+            ))
+          ) : (
+            <div className="flex flex-col items-center justify-center py-32 text-luna-muted">
+              <p className="text-sm">No home catalogs available yet.</p>
+              <p className="text-xs mt-1 opacity-60">The configured addon did not return any initial rows.</p>
+            </div>
+          )
         ) : (
           <div className="flex flex-col items-center justify-center py-32 text-luna-muted">
             <p className="text-sm">No system addon configured.</p>

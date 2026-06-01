@@ -81,9 +81,22 @@ export interface AddonManifest {
   description?: string;
   types?: string[];
   resources?: (string | { name: string; types?: string[] })[];
-  catalogs?: { type: string; id: string; name?: string }[];
+  catalogs?: { type: string; id: string; name?: string; extra?: { name: string; isRequired?: boolean; options?: string[] }[] }[];
   transportUrl?: string;
   logo?: string;
+}
+
+export interface HomeCatalogRow {
+  id: string;
+  title: string;
+  type: string;
+  catalogId: string;
+  items: MetaPreview[];
+}
+
+export interface FeaturedHomeItem {
+  row: HomeCatalogRow;
+  item: MetaPreview;
 }
 
 export interface LunaProfile {
