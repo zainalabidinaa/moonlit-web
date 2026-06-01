@@ -75,3 +75,46 @@ body {
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
 }
+
+/* ─── Luna Player — Monochrome Vidstack Theme ─── */
+.luna-player {
+  /* Accent / brand colour: pure white, no purple */
+  --media-brand: #ffffff;
+  --media-focus-ring-color: rgba(255, 255, 255, 0.4);
+
+  /* Scrubber */
+  --media-slider-track-bg: rgba(255, 255, 255, 0.15);
+  --media-slider-track-fill-bg: #ffffff;
+  --media-slider-thumb-bg: #ffffff;
+  --media-slider-thumb-shadow: 0 0 0 3px rgba(255,255,255,0.2);
+  --media-slider-preview-bg: rgba(0, 0, 0, 0.8);
+
+  /* Controls overlay */
+  --media-controls-bg: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.88) 0%,
+    rgba(0, 0, 0, 0.3) 50%,
+    transparent 100%
+  );
+  --media-controls-color: rgba(255, 255, 255, 0.85);
+
+  /* Buttons */
+  --media-button-hover-bg: rgba(255, 255, 255, 0.08);
+  --media-button-color: rgba(255, 255, 255, 0.8);
+
+  /* Menus (subtitle / audio / quality panels) */
+  --media-menu-bg: #141414;
+  --media-menu-border: 1px solid rgba(255, 255, 255, 0.08);
+  --media-menu-border-radius: 14px;
+  --media-menu-item-hover-bg: rgba(255, 255, 255, 0.06);
+
+  /* Captions */
+  --media-user-font-size: 16px;
+  --media-cue-bg: rgba(0, 0, 0, 0.8);
+  --media-cue-color: #ffffff;
+  --media-cue-border-radius: 4px;
+  --media-cue-padding: 0.2em 0.5em;
+
+  /* Font */
+  --media-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+}
