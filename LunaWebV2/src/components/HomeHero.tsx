@@ -103,7 +103,8 @@ export function HomeHero({ featuredItems, activeIndex, metas, onIndexChange }: H
         {/* Buttons row */}
         <div className="flex items-center gap-3">
           <Link
-            to={`/browse/${featured.item.type}/${featured.item.id}`}
+            to="/browse/$type/$id"
+            params={{ type: featured.item.type, id: featured.item.id }}
             className="inline-flex items-center gap-2 rounded-full bg-white px-6 py-3 text-sm font-bold text-black hover:bg-white/90 transition-colors"
           >
             <svg
@@ -117,7 +118,8 @@ export function HomeHero({ featuredItems, activeIndex, metas, onIndexChange }: H
             Watch Now
           </Link>
           <Link
-            to={`/browse/${featured.item.type}/${featured.item.id}`}
+            to="/browse/$type/$id"
+            params={{ type: featured.item.type, id: featured.item.id }}
             className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 backdrop-blur-sm px-6 py-3 text-sm font-bold text-white hover:bg-white/20 transition-colors"
           >
             + My List

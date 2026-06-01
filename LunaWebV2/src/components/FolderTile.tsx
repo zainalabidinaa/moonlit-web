@@ -29,7 +29,8 @@ export function FolderTile({ folder, showGlow = false }: FolderTileProps) {
 
   return (
     <Link
-      to={`/collections/${folder.id}`}
+      to="/collections/$folderId"
+      params={{ folderId: folder.id }}
       className="flex-shrink-0 group cursor-pointer"
       style={{ width: `${width}px` }}
     >

@@ -7,7 +7,8 @@ function MediaCard({ item }: { item: MetaPreview }) {
 
   return (
     <Link
-      to={`/browse/${item.type}/${item.id}`}
+      to="/browse/$type/$id"
+      params={{ type: item.type, id: item.id }}
       className="flex-shrink-0 group cursor-pointer"
     >
       <div
