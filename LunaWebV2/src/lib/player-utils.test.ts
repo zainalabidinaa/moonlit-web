@@ -2,20 +2,26 @@ import { describe, expect, it } from 'vitest';
 
 import { StreamItem } from './types';
 import {
+  getFallbackSourceType,
   formatContinueWatchingTitle,
   getStreamUrl,
-  getVidstackSourceType,
+  getInitialSourceType,
   streamMatchesUrl,
 } from './player-utils';
 
 describe('player utils', () => {
   it('detects HLS streams from m3u8 URLs', () => {
-    expect(getVidstackSourceType('https://example.com/movie/master.m3u8')).toBe('application/x-mpegurl');
+    expect(getInitialSourceType('https://example.com/movie/master.m3u8')).toBe('application/x-mpegurl');
   });
 
-  it('treats direct/debrid file URLs as direct video instead of HLS', () => {
-    expect(getVidstackSourceType('https://debrid.example.com/cache/movie.mp4?token=abc')).toBe('video/mp4');
-    expect(getVidstackSourceType('https://debrid.example.com/cache/movie.mkv')).toBe('video/mp4');
+  it('starts unknown direct/debrid URLs as HLS because some providers hide HLS behind signed URLs', () => {
+    expect(getInitialSourceType('https://debrid.example.com/cache/movie.mp4?token=abc')).toBe('application/x-mpegurl');
+    expect(getInitialSourceType('https://debrid.example.com/cache/movie.mkv')).toBe('application/x-mpegurl');
+  });
+
+  it('falls back from HLS to direct video after provider error', () => {
+    expect(getFallbackSourceType('application/x-mpegurl')).toBe('video/mp4');
+    expect(getFallbackSourceType('video/mp4')).toBeNull();
   });
 
   it('reads a playable stream URL from url or externalUrl', () => {

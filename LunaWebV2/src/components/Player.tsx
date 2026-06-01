@@ -18,7 +18,7 @@ import { StreamItem } from '@/lib/types';
 import { SubtitleItem } from '@/lib/stremio';
 import { updateWatchProgress } from '@/lib/services/api';
 import { useAuth } from '@/app/AuthProvider';
-import { getVidstackSourceType, streamMatchesUrl, VidstackSourceType } from '@/lib/player-utils';
+import { getFallbackSourceType, getInitialSourceType, streamMatchesUrl, VidstackSourceType } from '@/lib/player-utils';
 
 interface PlayerProps {
   streamUrl: string;
@@ -460,10 +460,10 @@ export default function Player({
   const playerRef = useRef<MediaPlayerInstance>(null);
   const { currentProfile } = useAuth();
 
-  const [srcType, setSrcType] = useState<VidstackSourceType>(() => getVidstackSourceType(streamUrl));
+  const [srcType, setSrcType] = useState<VidstackSourceType>(() => getInitialSourceType(streamUrl));
   const src = { src: streamUrl, type: srcType };
 
-  useEffect(() => { setSrcType(getVidstackSourceType(streamUrl)); }, [streamUrl]);
+  useEffect(() => { setSrcType(getInitialSourceType(streamUrl)); }, [streamUrl]);
 
   const onProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
     if (isHLSProvider(provider)) {
@@ -481,7 +481,8 @@ export default function Player({
   }, [currentStream]);
 
   const onError = useCallback(() => {
-    if (srcType === 'application/x-mpegurl') setSrcType('video/mp4');
+    const fallback = getFallbackSourceType(srcType);
+    if (fallback) setSrcType(fallback);
   }, [srcType]);
 
   useEffect(() => {
@@ -511,6 +512,7 @@ export default function Player({
     <div className="fixed inset-0 bg-black z-50">
       <MediaPlayer
         ref={playerRef}
+        key={`${streamUrl}:${srcType}`}
         src={src}
         autoPlay
         style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}

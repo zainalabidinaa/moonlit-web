@@ -9,6 +9,7 @@ import { MetaDetail, StreamItem, Season } from '@/lib/types';
 import { fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
 import { isInLibrary, toggleLibrary, getWatchProgress } from '@/lib/services/api';
 import { cacheStreams } from '@/lib/stream-cache';
+import { getStreamUrl } from '@/lib/player-utils';
 
 const PlayIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -120,11 +121,12 @@ export default function DetailPage({ params }: { params: { type: string; id: str
   }
 
   function handlePlay(stream: StreamItem) {
-    if (!stream.url) return;
+    const streamUrl = getStreamUrl(stream);
+    if (!streamUrl) return;
     const mediaId = selectedEpisodeId || resolved.id;
     const cacheKey = `${resolved.type}:${mediaId}`;
     cacheStreams(cacheKey, streams);
-    const encodedUrl = encodeURIComponent(stream.url);
+    const encodedUrl = encodeURIComponent(streamUrl);
     const ep = selectedEpisodeId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === selectedEpisodeId) : null;
     const watchTitle = ep ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}` : (detail?.name || '');
     const posParam = savedPositionSeconds > 0 ? `&pos=${savedPositionSeconds}` : '';
@@ -140,7 +142,7 @@ export default function DetailPage({ params }: { params: { type: string; id: str
     if (picked) {
       const cacheKey = `${resolved.type}:${id}`;
       cacheStreams(cacheKey, allStreams);
-      const streamUrl = picked.url || picked.externalUrl!;
+      const streamUrl = getStreamUrl(picked)!;
       const encodedUrl = encodeURIComponent(streamUrl);
       const ep = streamId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === streamId) : null;
       const watchTitle = ep ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}` : (detail?.name || '');

@@ -3,8 +3,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   MediaPlayer, MediaProvider, Track,
-  PlayButton, MuteButton, FullscreenButton, SeekButton, CaptionButton,
-  TimeSlider, Captions, Time,
+  PlayButton, MuteButton, FullscreenButton, SeekButton,
+  TimeSlider, VolumeSlider, Captions, Time,
   isHLSProvider,
   type MediaPlayerInstance, type MediaProviderAdapter,
 } from '@vidstack/react';
@@ -13,13 +13,14 @@ import {
   Play, Pause, RotateCcw, RotateCw,
   Volume2, Volume1, VolumeX,
   Captions as CaptionsIcon, Maximize, Minimize,
-  ChevronLeft, X, AlertTriangle,
+  ChevronLeft, X,
 } from 'lucide-react';
 import { useMediaState } from '@vidstack/react';
 import { StreamItem } from '@/lib/types';
 import { SubtitleItem } from '@/lib/stremio';
 import { updateWatchProgress } from '@/lib/services/api';
 import { useAuth } from '@/app/AuthProvider';
+import { getFallbackSourceType, getInitialSourceType, streamMatchesUrl, VidstackSourceType } from '@/lib/player-utils';
 
 interface PlayerProps {
   streamUrl: string;
@@ -86,18 +87,20 @@ function PlayerUI({
 
   const [showControls, setShowControls] = useState(true);
   const [showSources, setShowSources] = useState(false);
+  const [showTracks, setShowTracks] = useState(false);
   const [showSpeed, setShowSpeed] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [selectedSubtitleId, setSelectedSubtitleId] = useState('off');
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   const resetHide = useCallback(() => {
     setShowControls(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (!paused && !showSources && !showSpeed) {
+    if (!paused && !showSources && !showTracks && !showSpeed) {
       hideTimer.current = setTimeout(() => setShowControls(false), 3500);
     }
-  }, [paused, showSources, showSpeed]);
+  }, [paused, showSources, showTracks, showSpeed]);
 
   useEffect(() => {
     if (paused) { setShowControls(true); if (hideTimer.current) clearTimeout(hideTimer.current); }
@@ -108,15 +111,28 @@ function PlayerUI({
 
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
 
+  function selectSubtitle(subtitleId: string) {
+    setSelectedSubtitleId(subtitleId);
+    const tracks = Array.from((playerRef.current?.textTracks ?? []) as Iterable<{ id?: string; label?: string; mode?: string }>);
+    tracks.forEach(track => {
+      const matches = subtitleId !== 'off' && (track.id === subtitleId || track.label === subtitleId);
+      track.mode = matches ? 'showing' : 'disabled';
+    });
+  }
+
   return (
     <>
       {/* Vidstack subtitle overlay */}
       <Captions className="absolute bottom-24 left-0 right-0 z-10 text-center pointer-events-none" />
 
-      {/* Buffering spinner */}
+      {/* Buffering state */}
       {(waiting || !canPlay) && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="w-14 h-14 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 z-20 pointer-events-none">
+          <span className="text-white/75 text-3xl font-bold tracking-wide animate-pulse">{title}</span>
+          <div className="w-56 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full w-1/2 rounded-full bg-luna-accent animate-pulse" />
+          </div>
+          <p className="text-sm text-white/45">Loading from {currentStream.addonName || 'Source'}</p>
         </div>
       )}
 
@@ -124,7 +140,7 @@ function PlayerUI({
       <div
         className={`absolute inset-0 z-10 flex flex-col justify-between transition-opacity duration-300 select-none ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onMouseMove={resetHide}
-        onMouseLeave={() => { if (!paused && !showSources && !showSpeed) setShowControls(false); }}
+        onMouseLeave={() => { if (!paused && !showSources && !showTracks && !showSpeed) setShowControls(false); }}
         onClick={() => { if (!paused) resetHide(); }}
       >
         {/* TOP */}
@@ -135,7 +151,7 @@ function PlayerUI({
           </button>
           <p className="text-base font-semibold text-white/70 truncate max-w-[45%]">{title}</p>
           <button onClick={() => setShowSources(true)} className="flex items-center gap-2 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-4 py-2 transition-colors">
-            {!isWebCompatAudio(currentStream) && <AlertTriangle size={13} className="text-yellow-400" />}
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${parseQuality(currentStream).color}`}>{parseQuality(currentStream).label}</span>
             <span className="text-sm font-medium text-white/65">{currentStream.addonName || 'Source'}</span>
           </button>
         </div>
@@ -181,14 +197,21 @@ function PlayerUI({
               <Time type="duration" />
             </div>
 
-            <div className="flex items-center gap-0.5">
-              <MuteButton className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
-                <VolumeIcon size={22} strokeWidth={1.8} className="text-white/80" />
+            <div className="flex items-center gap-2">
+              <MuteButton className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+                <VolumeIcon size={30} strokeWidth={1.8} className="text-white/90" />
               </MuteButton>
 
-              <CaptionButton className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
-                <CaptionsIcon size={22} strokeWidth={1.8} className="text-white/80" />
-              </CaptionButton>
+              <VolumeSlider.Root className="group relative flex w-24 items-center h-8 cursor-pointer">
+                <VolumeSlider.Track className="relative h-1 w-full rounded-full bg-white/20 group-hover:h-[5px] transition-all duration-150">
+                  <VolumeSlider.TrackFill className="absolute h-full rounded-full bg-white" style={{ width: 'var(--slider-fill, 0%)' }} />
+                </VolumeSlider.Track>
+                <VolumeSlider.Thumb className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-lg -translate-x-1/2" style={{ left: 'var(--slider-fill, 0%)' }} />
+              </VolumeSlider.Root>
+
+              <button onClick={() => setShowTracks(true)} className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+                <CaptionsIcon size={30} strokeWidth={1.8} className="text-white/90" />
+              </button>
 
               {/* Speed */}
               <div className="relative">
@@ -230,19 +253,21 @@ function PlayerUI({
       {showSources && (
         <div className="absolute inset-0 z-40 flex justify-end">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowSources(false)} />
-          <div className="relative w-80 max-w-[85vw] h-full bg-neutral-950 border-l border-white/10 overflow-y-auto">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-neutral-950 z-10">
-              <h3 className="text-sm font-semibold text-white">Sources</h3>
+          <div className="relative w-[430px] max-w-[92vw] h-full bg-[#090910]/95 backdrop-blur-2xl border-l border-white/10 overflow-y-auto shadow-2xl">
+            <div className="p-5 border-b border-white/8 flex items-center justify-between sticky top-0 bg-[#090910]/95 backdrop-blur-xl z-10">
+              <div>
+                <h3 className="text-lg font-semibold text-white">Sources</h3>
+                <p className="text-xs text-white/35 mt-0.5">{streams.length} available</p>
+              </div>
               <button onClick={() => setShowSources(false)} className="p-2 rounded-full hover:bg-white/10">
                 <X size={14} className="text-white/50" />
               </button>
             </div>
             {(() => {
-              const compatible = streams.filter(isWebCompatAudio);
+              const compatible = streams.filter(s => (s.url || s.externalUrl) && !s.infoHash && !s.behaviorHints?.notWebReady);
               if (compatible.length === 0) return (
                 <div className="px-4 py-10 text-center">
-                  <p className="text-white/40 text-sm">No web-compatible streams</p>
-                  <p className="text-white/25 text-xs mt-1">All have DTS/TrueHD audio</p>
+                  <p className="text-white/40 text-sm">No playable streams</p>
                 </div>
               );
               const grp: Record<string, StreamItem[]> = {};
@@ -256,14 +281,17 @@ function PlayerUI({
                     const info = s.description?.replace(/\[.*?\]/g, '').trim() || s.title || s.name || 'Unknown';
                     return (
                       <button
-                        key={s.url || `${name}-${i}`}
+                        key={s.url || s.externalUrl || `${name}-${i}`}
                         onClick={() => { setShowSources(false); onSwitchStream(s); }}
-                        className={`w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 transition-colors ${isActive ? 'border-l-2 border-white bg-white/5' : ''}`}
+                        className={`w-full text-left px-4 py-3.5 mx-2 my-1 rounded-2xl border transition-colors ${isActive ? 'border-luna-accent/70 bg-luna-accent/10' : 'border-white/8 bg-white/[0.035] hover:bg-white/[0.07]'}`}
                       >
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0 ${q.color}`}>{q.label}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white/85 truncate">{info}</p>
-                          {s.description && <p className="text-xs text-white/30 mt-0.5 truncate">{s.description}</p>}
+                        <div className="flex items-center justify-between gap-2 mb-1.5">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0 ${q.color}`}>{q.label}</span>
+                          <span className="text-[11px] text-white/35 font-medium">{(info.match(/(\d+\.?\d*)\s*(GB|MB|TB)/i)?.[0] || '').toUpperCase()}</span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm text-white/70 truncate">{name}</p>
+                          <p className="text-[11px] text-white/25 mt-0.5 truncate">{info}</p>
                         </div>
                         {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white flex-shrink-0" />}
                       </button>
@@ -272,6 +300,31 @@ function PlayerUI({
                 </div>
               ));
             })()}
+          </div>
+        </div>
+      )}
+
+      {showTracks && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowTracks(false)} />
+          <div className="relative w-[980px] max-w-[94vw] max-h-[76vh] overflow-hidden rounded-2xl bg-[#242424]/98 shadow-2xl border border-white/8">
+            <div className="flex items-center justify-between px-8 py-6 border-b border-white/8">
+              <h3 className="text-2xl font-bold text-white">Audio & Subtitles</h3>
+              <button onClick={() => setShowTracks(false)} className="p-2 rounded-full hover:bg-white/10"><X size={22} className="text-white/70" /></button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 overflow-y-auto max-h-[60vh]">
+              <div className="px-8 py-6 border-r border-white/8">
+                <h4 className="text-xl font-bold text-white mb-5">Audio</h4>
+                <button className="flex w-full items-center gap-4 py-3 text-left text-lg text-white"><span className="w-5">✓</span><span>Default Audio</span></button>
+              </div>
+              <div className="px-8 py-6">
+                <h4 className="text-xl font-bold text-white mb-5">Subtitles</h4>
+                <button onClick={() => selectSubtitle('off')} className={`flex w-full items-center gap-4 py-3 text-left text-lg ${selectedSubtitleId === 'off' ? 'text-white' : 'text-white/55 hover:text-white'}`}><span className="w-5">{selectedSubtitleId === 'off' ? '✓' : ''}</span><span>Off</span></button>
+                {subtitles.map(sub => (
+                  <button key={sub.id} onClick={() => selectSubtitle(sub.id)} className={`flex w-full items-center gap-4 py-3 text-left text-lg ${selectedSubtitleId === sub.id ? 'text-white' : 'text-white/55 hover:text-white'}`}><span className="w-5">{selectedSubtitleId === sub.id ? '✓' : ''}</span><span>{sub.name || sub.lang || 'Subtitle'}</span></button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -289,11 +342,11 @@ export default function Player({
 
   // Always try HLS.js first — many streams (Real-Debrid, AlOStreams etc.) are HLS
   // without .m3u8 in the URL. If HLS.js fails to parse the manifest, fall back to native.
-  const [srcType, setSrcType] = useState<'application/x-mpegurl' | 'video/mp4'>('application/x-mpegurl');
+  const [srcType, setSrcType] = useState<VidstackSourceType>(() => getInitialSourceType(streamUrl));
   const src = { src: streamUrl, type: srcType };
 
   // Reset src type when stream changes
-  useEffect(() => { setSrcType('application/x-mpegurl'); }, [streamUrl]);
+  useEffect(() => { setSrcType(getInitialSourceType(streamUrl)); }, [streamUrl]);
 
   const onProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
     if (isHLSProvider(provider)) {
@@ -312,9 +365,8 @@ export default function Player({
 
   const onError = useCallback(() => {
     // HLS.js failed (not an HLS stream) — retry with native video
-    if (srcType === 'application/x-mpegurl') {
-      setSrcType('video/mp4');
-    }
+    const fallback = getFallbackSourceType(srcType);
+    if (fallback) setSrcType(fallback);
   }, [srcType]);
 
   useEffect(() => {
@@ -344,6 +396,7 @@ export default function Player({
     <div className="fixed inset-0 bg-black z-50">
       <MediaPlayer
         ref={playerRef}
+        key={`${streamUrl}:${srcType}`}
         src={src}
         autoPlay
         style={{ width: '100%', height: '100%', position: 'absolute', inset: 0 }}

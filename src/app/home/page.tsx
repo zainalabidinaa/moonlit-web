@@ -10,6 +10,7 @@ import { CollectionRow } from '@/components/CollectionRow';
 import { Collection, FeaturedHomeItem, HomeCatalogRow, MetaDetail, MetaPreview, WatchProgressEntry } from '@/lib/types';
 import { getWatchProgress, getSystemAddon, getCollections } from '@/lib/services/api';
 import { fetchCatalog, fetchManifest, fetchMeta } from '@/lib/stremio';
+import { formatContinueWatchingTitle } from '@/lib/player-utils';
 import { buildHomeRows, pickFeaturedItems } from './home-data';
 import Link from 'next/link';
 
@@ -300,7 +301,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <p className="text-xs text-white font-medium truncate">
-                      {item.resolvedName || decodeURIComponent(item.media_id.split(':')[0])}
+                      {formatContinueWatchingTitle({ mediaId: item.media_id, mediaType: item.media_type, name: item.resolvedName })}
                     </p>
                     <p className="text-xs text-luna-muted mt-0.5">
                       {item.media_type === 'series' && (() => {
