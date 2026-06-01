@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/app/AuthProvider';
+import { useNavigate } from '@tanstack/react-router';
 import { Sidebar } from '@/components/Sidebar';
 import { HomeHero } from '@/components/HomeHero';
 import { MediaRow } from '@/components/MediaRow';
 import { CollectionRow } from '@/components/CollectionRow';
-import { Collection, FeaturedHomeItem, HomeCatalogRow, MetaDetail, MetaPreview } from '@/lib/types';
+import { Collection, FeaturedHomeItem, HomeCatalogRow, MetaDetail, MetaPreview, WatchProgressEntry } from '@/lib/types';
 import { getWatchProgress, getSystemAddon, getCollections } from '@/lib/services/api';
-import { fetchCatalog, fetchManifest, fetchMeta } from '@/lib/stremio';
+import { fetchCatalog, fetchManifest, fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
+import { cacheStreams } from '@/lib/stream-cache';
 import { buildHomeRows, pickFeaturedItems } from './home-data';
-import { Link } from '@tanstack/react-router';
 
 const MAIN_NAMES = ['Popular Movies', 'Popular TV Shows', 'Trending Movies', 'Trending TV Shows'];
 
 export default function HomePage() {
-  const { currentProfile } = useAuth();
+  const { currentProfile, addons } = useAuth();
+  const navigate = useNavigate();
+  const [cwLoading, setCwLoading] = useState<string | null>(null);
 
   // ── Progressive rows state ────────────────────────────────────────────────
   const [rows, setRows] = useState<HomeCatalogRow[]>([]);
@@ -168,11 +171,63 @@ export default function HomePage() {
     });
   }, [initialData?.collections, manifest?.id, manifest?.transportUrl]);
 
-  // ── Fix D: CW uses poster/name from DB (no fetchMeta needed) ─────────────
+  // ── CW: base list ─────────────────────────────────────────────────────────
   const continueWatching = (initialData?.progress ?? [])
     .filter(e => !e.completed && e.position_seconds > 0)
     .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
     .slice(0, 10);
+
+  // ── CW: fetch meta for items missing poster/name (migration 009 not yet applied) ──
+  const cwMissingMeta = continueWatching.filter(e => !e.poster && !e.name);
+  const { data: cwMetas } = useQuery({
+    queryKey: ['cw-meta', cwMissingMeta.map(e => e.media_id).join(','), manifest?.transportUrl],
+    queryFn: async () => {
+      const results: Record<string, { name?: string; poster?: string }> = {};
+      await Promise.allSettled(
+        cwMissingMeta.map(async entry => {
+          const baseId = entry.media_id.split(':')[0];
+          try {
+            const meta = await fetchMeta(manifest!.transportUrl!, entry.media_type, baseId);
+            if (meta) results[entry.media_id] = { name: meta.name, poster: meta.poster ?? meta.background ?? undefined };
+          } catch {}
+        })
+      );
+      return results;
+    },
+    enabled: cwMissingMeta.length > 0 && !!manifest?.transportUrl,
+    staleTime: 60 * 60 * 1000,
+  });
+
+  // ── CW: click → fetch streams → navigate directly to /watch ──────────────
+  async function handleCwPlay(item: WatchProgressEntry) {
+    if (cwLoading) return;
+    const baseId = item.media_id.split(':')[0];
+    setCwLoading(item.id);
+    try {
+      const streams = await fetchStreamsFromAll(item.media_type, item.media_id, addons);
+      const playable = streams.filter(s => (s.url || s.externalUrl) && !s.infoHash && !s.behaviorHints?.notWebReady);
+      const picked = playable[0];
+      if (picked) {
+        const cacheKey = `${item.media_type}:${item.media_id}`;
+        cacheStreams(cacheKey, streams);
+        const streamUrl = picked.url || picked.externalUrl!;
+        const displayName = item.name ?? cwMetas?.[item.media_id]?.name ?? baseId;
+        const parts = item.media_id.split(':');
+        const watchTitle = item.media_type === 'series' && parts.length >= 3
+          ? `${displayName} — S${parts[1]}:E${parts[2]}`
+          : displayName;
+        navigate({
+          to: '/watch/$type/$id',
+          params: { type: item.media_type, id: item.media_id },
+          search: { url: streamUrl, cid: cacheKey, title: watchTitle, pos: item.position_seconds > 0 ? item.position_seconds : undefined },
+        });
+        return;
+      }
+    } catch {}
+    // Fallback: go to browse page if no stream found
+    navigate({ to: '/browse/$type/$id', params: { type: item.media_type, id: baseId } });
+    setCwLoading(null);
+  }
 
   const collectionSections: Collection[] = (initialData?.collections ?? [])
     .filter(c => c.name.toLowerCase() !== 'discover')
@@ -208,7 +263,7 @@ export default function HomePage() {
       )}
 
       <div className="px-6 pb-12">
-        {/* Continue Watching — poster/name come from DB, no extra fetches */}
+        {/* Continue Watching */}
         {continueWatching.length > 0 && (
           <section className="mb-10">
             <h2 className="text-base font-semibold text-white mb-4">Continue Watching</h2>
@@ -217,35 +272,53 @@ export default function HomePage() {
                 const pct = item.duration_seconds > 0
                   ? Math.round((item.position_seconds / item.duration_seconds) * 100)
                   : 0;
+                const fallback = cwMetas?.[item.media_id];
+                const poster = item.poster ?? fallback?.poster;
+                const name = item.name ?? fallback?.name;
+                const parts = item.media_id.split(':');
+                const isLoading = cwLoading === item.id;
                 return (
-                  <Link key={item.id} to="/browse/$type/$id" params={{ type: item.media_type, id: item.media_id.split(':')[0] }}
-                    className="flex-shrink-0 w-48 group cursor-pointer">
+                  <button
+                    key={item.id}
+                    onClick={() => handleCwPlay(item)}
+                    disabled={!!cwLoading}
+                    className="flex-shrink-0 w-48 group cursor-pointer text-left"
+                  >
                     <div className="relative h-[108px] bg-luna-elevated rounded-xl overflow-hidden mb-2">
-                      {item.poster && (
-                        <img src={item.poster} alt={item.name || item.media_id}
+                      {poster ? (
+                        <img src={poster} alt={name || item.media_id}
                           className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                      )}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
-                          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
-                            <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center">
+                          <svg className="w-6 h-6 text-white/15" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z"/>
                           </svg>
                         </div>
+                      )}
+                      {/* Hover / loading overlay */}
+                      <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-200 ${isLoading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                        {isLoading ? (
+                          <div className="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                        ) : (
+                          <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
+                              <path fillRule="evenodd" d="M4.5 5.653c0-1.426 1.529-2.33 2.779-1.643l11.54 6.348c1.295.712 1.295 2.573 0 3.285L7.28 19.991c-1.25.687-2.779-.217-2.779-1.643V5.653z" clipRule="evenodd" />
+                            </svg>
+                          </div>
+                        )}
                       </div>
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
                         <div className="h-full bg-luna-accent" style={{ width: `${pct}%` }} />
                       </div>
                     </div>
                     <p className="text-xs text-white font-medium truncate">
-                      {item.name || decodeURIComponent(item.media_id.split(':')[0])}
+                      {name || parts[0]}
                     </p>
                     <p className="text-xs text-luna-muted mt-0.5">
-                      {item.media_type === 'series' && (() => {
-                        const parts = item.media_id.split(':');
-                        return parts.length >= 3 ? `S${parts[1]} E${parts[2]} · ` : '';
-                      })()}{pct}% watched
+                      {item.media_type === 'series' && parts.length >= 3 ? `S${parts[1]} E${parts[2]} · ` : ''}
+                      {pct}% watched
                     </p>
-                  </Link>
+                  </button>
                 );
               })}
             </div>
