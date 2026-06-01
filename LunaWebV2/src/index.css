@@ -1,0 +1,126 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #080808;
+  --surface: #111111;
+  --elevated: #1c1c1e;
+  --border: #2a2a2a;
+  --accent: #c084fc;
+  --text: #fafafa;
+  --muted: #71717a;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+@layer components {
+  .glass {
+    @apply backdrop-blur-xl bg-white/5 border border-white/10;
+  }
+
+  .glass-dark {
+    @apply backdrop-blur-xl bg-black/60 border border-white/10;
+  }
+
+  .btn-primary {
+    @apply px-6 py-2.5 bg-luna-accent hover:bg-purple-400 text-white font-semibold rounded-full transition-all duration-200 cursor-pointer;
+  }
+
+  .btn-secondary {
+    @apply px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white font-semibold rounded-full transition-all duration-200 cursor-pointer;
+  }
+
+  .media-card {
+    @apply relative flex-shrink-0 cursor-pointer;
+  }
+
+  .media-card-inner {
+    @apply relative rounded-xl overflow-hidden bg-luna-elevated;
+  }
+
+  .media-card-overlay {
+    @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 transition-opacity duration-300;
+  }
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* ─── Luna Player — Custom Vidstack Layout ─── */
+
+/* Controls show/hide — Vidstack sets data-visible when active */
+.luna-controls {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.luna-controls[data-visible] {
+  opacity: 1;
+}
+
+/* Shared button style */
+.player-btn {
+  @apply w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95;
+}
+
+/* TimeSlider — pointer-events needed on the root */
+.luna-slider {
+  @apply relative w-full flex items-center h-5 cursor-pointer;
+  --slider-fill: 0%;
+}
+
+/* Slider preview tooltip */
+.luna-slider-preview {
+  @apply absolute bottom-full left-0 -translate-x-1/2 mb-2 pointer-events-none;
+}
+
+/* Captions overlay */
+.luna-captions {
+  @apply absolute bottom-24 left-0 right-0 z-10;
+  --cue-bg: rgba(0, 0, 0, 0.8);
+  --cue-color: #fff;
+  --cue-font-size: 16px;
+  --cue-padding: 0.2em 0.6em;
+  --cue-border-radius: 4px;
+}
+
+/* Vidstack base resets */
+.luna-player media-player {
+  display: contents;
+}
+
+/* Vidstack media state CSS helpers used by SFSymbol show/hide */
+.media-paused\:block[data-paused], [data-paused] .media-paused\:block { display: block !important; }
+.media-paused\:hidden[data-paused], [data-paused] .media-paused\:hidden { display: none !important; }
+.media-fullscreen\:hidden[data-fullscreen], [data-fullscreen] .media-fullscreen\:hidden { display: none !important; }
+.media-fullscreen\:block[data-fullscreen], [data-fullscreen] .media-fullscreen\:block { display: block !important; }
+.media-captions-on\:opacity-100[data-captions], [data-captions] .media-captions-on\:opacity-100 { opacity: 1 !important; }
