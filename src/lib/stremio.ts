@@ -25,9 +25,17 @@ export async function fetchCatalog(
   id: string,
   extras?: Record<string, string>
 ): Promise<MetaPreview[]> {
-  const params = new URLSearchParams(extras);
-  const qs = params.toString();
-  const url = `${baseURL}/catalog/${type}/${id}.json${qs ? '?' + qs : ''}`;
+  // Stremio extras are path segments, NOT query params
+  // Correct format: /catalog/{type}/{id}/{key1}={val1}&{key2}={val2}.json
+  let url: string;
+  if (extras && Object.keys(extras).length > 0) {
+    const extraParts = Object.entries(extras)
+      .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`)
+      .join('&');
+    url = `${baseURL}/catalog/${type}/${id}/${extraParts}.json`;
+  } else {
+    url = `${baseURL}/catalog/${type}/${id}.json`;
+  }
 
   const res = await fetch(url);
   const json = await res.json();
@@ -68,6 +76,7 @@ export async function fetchMeta(
       episode: v.episode || v.number,
       thumbnail: v.thumbnail,
       overview: v.overview || v.description,
+      released: v.released || v.firstAired,
     }));
 
     // Build seasons from videos if seasons not provided
@@ -150,6 +159,60 @@ export async function fetchStreamsFromAll(
   return results
     .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
     .flatMap(r => r.value) as StreamItem[];
+}
+
+/**
+ * Search across all addons that support the search extra.
+ * Returns deduplicated results sorted by popularity.
+ */
+export async function searchCatalogs(
+  addons: AddonManifest[],
+  query: string
+): Promise<MetaPreview[]> {
+  if (!query.trim()) return [];
+
+  const results: MetaPreview[] = [];
+
+  await Promise.allSettled(
+    addons
+      .filter(a => a.transportUrl && a.catalogs && hasResource(a, 'catalog'))
+      .flatMap(addon => {
+        const searchableCatalogs = (addon.catalogs || []).filter(c =>
+          c.extra?.some(e => e.name === 'search')
+        );
+
+        // If no search-enabled catalogs, try first 2 catalogs as fallback
+        const catalogs = searchableCatalogs.length > 0
+          ? searchableCatalogs
+          : (addon.catalogs || []).slice(0, 2);
+
+        return ['movie', 'series'].flatMap(mediaType =>
+          catalogs
+            .filter(c => c.type === mediaType || !c.type)
+            .map(async catalog => {
+              try {
+                const items = await fetchCatalog(
+                  addon.transportUrl!,
+                  mediaType,
+                  catalog.id,
+                  { search: query }
+                );
+                results.push(...items);
+              } catch { /* ignore */ }
+            })
+        );
+      })
+  );
+
+  // Deduplicate by id and sort by popularity
+  const seen = new Set<string>();
+  return results
+    .filter(item => {
+      if (seen.has(item.id)) return false;
+      seen.add(item.id);
+      return true;
+    })
+    .sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
 }
 
 export async function fetchAllCatalogs(

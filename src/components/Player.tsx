@@ -117,7 +117,7 @@ export default function Player({
         const st = hls.subtitleTracks.map((t, i) => ({ id: i, name: t.name || t.lang || 'Unknown', lang: t.lang || '?' }));
         const ql = data.levels.map((l: { height: number; bitrate: number }) => ({ height: l.height, bitrate: l.bitrate }));
         setAudioTracks(at); setSubTracks(st); setQualityLevels(ql);
-        if (at.length > 0) setActiveAudio(hls.audioTrack);
+        if (at.length > 0) setActiveAudio(hls.audioTrack >= 0 ? hls.audioTrack : 0);
         console.log('[hls] manifest parsed audio:', at.length, 'subs:', st.length, 'levels:', ql.length);
         console.log('[hls] audio tracks:', hls.audioTracks.length, hls.audioTracks.map(t => `${t.name}(${t.lang})`));
         console.log('[hls] subtitle tracks:', hls.subtitleTracks.length, hls.subtitleTracks.map(t => `${t.name}(${t.lang})`));
@@ -226,11 +226,12 @@ export default function Player({
     const video = videoRef.current;
     if (!video) return;
     function updateCue() {
+      if (activeSub < 0) { setActiveCueText(''); return; }
       let text = '';
       for (let i = 0; i < video!.textTracks.length; i++) {
         const track = video!.textTracks[i];
         if (track.kind !== 'subtitles' && track.kind !== 'captions') continue;
-        if (track.mode === 'disabled' || track.mode === 'hidden') continue;
+        if (track.mode === 'disabled') continue;
         if (!track.activeCues?.length) continue;
         for (let j = 0; j < track.activeCues.length; j++) {
           const cue = track.activeCues[j] as VTTCue;
@@ -248,18 +249,6 @@ export default function Player({
     return () => video.removeEventListener('timeupdate', updateCue);
   }, [streamUrl]);
 
-  // Set TextTrack modes when activeSub changes
-  useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
-    const subtitleTracks = Array.from(video.textTracks).filter(
-      t => t.kind === 'subtitles' || t.kind === 'captions'
-    );
-    subtitleTracks.forEach((track, i) => {
-      track.mode = i === activeSub ? 'showing' : 'disabled';
-    });
-    if (activeSub < 0) setActiveCueText('');
-  }, [activeSub]);
 
   // --- Progress reporting ---
   useEffect(() => {
@@ -333,7 +322,7 @@ export default function Player({
     return () => document.removeEventListener('fullscreenchange', onChange);
   }, []);
 
-  const switchAudio = (id: number) => { if (hlsRef.current) { hlsRef.current.audioTrack = id; setActiveAudio(id); } setShowSubPop(false); };
+  const switchAudio = (id: number) => { if (hlsRef.current) { hlsRef.current.audioTrack = id; } setShowSubPop(false); };
   const switchSub = (id: number) => {
     if (hlsRef.current) { hlsRef.current.subtitleTrack = id; console.log('[sub] switched to track', id); }
     setActiveSub(id);
@@ -569,8 +558,8 @@ export default function Player({
 
           {/* Controls row */}
           <div className="flex items-center justify-between mt-2">
-            {/* Left: Volume */}
-            <div className="flex items-center gap-2 group/vol">
+            {/* Left: Volume — always visible */}
+            <div className="flex items-center gap-2">
               <button
                 onClick={() => setMuted(m => !m)}
                 className="flex items-center justify-center text-white/60 hover:text-white transition-colors"
@@ -582,13 +571,13 @@ export default function Player({
                   ? <SFSymbol name="speaker.1.fill" size={18} opacity={0.7} />
                   : <SFSymbol name="speaker.3" size={18} opacity={0.7} />}
               </button>
-              <div className="w-0 overflow-hidden group-hover/vol:w-[68px] transition-all duration-200 flex items-center">
-                <input
-                  type="range" min={0} max={1} step={0.05} value={muted ? 0 : volume}
-                  onChange={e => { setVolume(+e.target.value); setMuted(false); }}
-                  className="w-[60px] h-[2.5px] accent-white bg-white/16 rounded-full cursor-pointer"
-                />
-              </div>
+              <input
+                type="range" min={0} max={1} step={0.05}
+                value={muted ? 0 : volume}
+                onChange={e => { setVolume(+e.target.value); setMuted(false); }}
+                className="w-[60px] h-[3px] accent-white bg-white/20 rounded-full cursor-pointer"
+                style={{ accentColor: 'white' }}
+              />
             </div>
 
             {/* Right: Subtitles, Speed, Quality, Sources, Fullscreen */}
