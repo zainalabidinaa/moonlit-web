@@ -1,0 +1,20 @@
+- generic [ref=e3]:
+  - banner:
+    - navigation [ref=e4]:
+      - link "Go to home" [ref=e5] [cursor=pointer]:
+        - /url: /
+        - img "Nuvio" [ref=e6]
+      - generic [ref=e7]:
+        - link "Home" [ref=e9] [cursor=pointer]:
+          - /url: /
+        - link "News" [ref=e10] [cursor=pointer]:
+          - /url: /news
+        - link "Login" [ref=e11] [cursor=pointer]:
+          - /url: /account/login
+        - link "Open GitHub profile" [ref=e13] [cursor=pointer]:
+          - /url: https://github.com/NuvioMedia
+          - img [ref=e14]
+          - generic [ref=e16]: GitHub
+        - button "Toggle theme" [ref=e17]:
+          - img [ref=e18]
+  - generic [ref=e20]: Loading account...

@@ -1,0 +1,14 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/auth/page": "app/auth/page.js",
+  "/library/page": "app/library/page.js",
+  "/admin/page": "app/admin/page.js",
+  "/page": "app/page.js",
+  "/collections/[folderId]/page": "app/collections/[folderId]/page.js",
+  "/home/page": "app/home/page.js",
+  "/settings/page": "app/settings/page.js",
+  "/search/page": "app/search/page.js",
+  "/profiles/page": "app/profiles/page.js",
+  "/watch/[type]/[id]/page": "app/watch/[type]/[id]/page.js",
+  "/browse/[type]/[id]/page": "app/browse/[type]/[id]/page.js"
+}

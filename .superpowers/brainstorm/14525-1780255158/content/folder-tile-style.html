@@ -1,0 +1,91 @@
+<h2>What should folder tiles look like?</h2>
+<p class="subtitle">How folders appear on the /collections page — each tile opens a content page when clicked.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="nuvio" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d0d0d;padding:16px;min-height:180px;display:flex;flex-direction:column;gap:10px">
+      <div style="color:#aaa;font-size:11px;text-transform:uppercase;letter-spacing:1px">Streaming Services</div>
+      <div style="display:flex;gap:10px">
+        <div style="position:relative;width:100px;height:60px;border-radius:6px;overflow:hidden;flex-shrink:0">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,#e50914,#831010);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold">NETFLIX</div>
+          <div style="position:absolute;bottom:4px;left:4px;background:rgba(0,0,0,0.7);color:white;font-size:9px;padding:1px 5px;border-radius:3px">GIF on hover</div>
+        </div>
+        <div style="position:relative;width:100px;height:60px;border-radius:6px;overflow:hidden;flex-shrink:0">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,#0063e5,#003a87);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold">DISNEY+</div>
+        </div>
+        <div style="position:relative;width:100px;height:60px;border-radius:6px;overflow:hidden;flex-shrink:0">
+          <div style="width:100%;height:100%;background:linear-gradient(135deg,#000,#333);display:flex;align-items:center;justify-content:center;color:white;font-size:10px;font-weight:bold">HBO</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Nuvio-style rows</h3>
+      <p>Collections as labelled rows, folders as wide rectangular tiles with cover image + animated GIF on hover. Clean horizontal scroll per row.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="grid" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d0d0d;padding:16px;min-height:180px">
+      <div style="color:#aaa;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">All Collections</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="background:linear-gradient(135deg,#e50914,#831010);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Netflix</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#0063e5,#003a87);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Disney+</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#6441a5,#3a2570);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Twitch</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#ff9900,#c76b00);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Prime</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#1db954,#0d6b30);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Horror</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#555,#222);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Sci-Fi</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#b8860b,#7a5c00);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px">
+          <span style="color:white;font-size:9px;font-weight:bold">Comedy</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#333,#111);border-radius:8px;height:70px;display:flex;align-items:flex-end;padding:6px;border:1px dashed #444">
+          <span style="color:#666;font-size:9px">+ more</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Flat grid</h3>
+      <p>All folders in one responsive grid, no row grouping. Cover image fills the tile, title at the bottom. Simple and fast to scan.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="poster" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0d0d0d;padding:16px;min-height:180px">
+      <div style="color:#aaa;font-size:11px;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px">Streaming Services</div>
+      <div style="display:flex;gap:10px">
+        <div style="width:72px;text-align:center">
+          <div style="background:linear-gradient(135deg,#e50914,#831010);border-radius:8px;height:100px;margin-bottom:6px"></div>
+          <div style="color:white;font-size:10px">Netflix</div>
+          <div style="color:#aaa;font-size:9px">142 titles</div>
+        </div>
+        <div style="width:72px;text-align:center">
+          <div style="background:linear-gradient(135deg,#0063e5,#003a87);border-radius:8px;height:100px;margin-bottom:6px"></div>
+          <div style="color:white;font-size:10px">Disney+</div>
+          <div style="color:#aaa;font-size:9px">89 titles</div>
+        </div>
+        <div style="width:72px;text-align:center">
+          <div style="background:linear-gradient(135deg,#000,#333);border-radius:8px;height:100px;margin-bottom:6px"></div>
+          <div style="color:white;font-size:10px">HBO Max</div>
+          <div style="color:#aaa;font-size:9px">67 titles</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Poster-style tiles</h3>
+      <p>Taller portrait tiles (like movie posters) in rows. Title + item count below. More cinematic feel, fits the app's existing card style.</p>
+    </div>
+  </div>
+
+</div>

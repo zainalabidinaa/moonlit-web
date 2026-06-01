@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vidstack Customization</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0f; color: #e8e8f0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 28px 24px 60px; }
+
+  h1 { font-size: 21px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #555; margin-bottom: 28px; }
+
+  .section { margin-bottom: 40px; }
+  .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #555; margin-bottom: 14px; }
+
+  /* ─── Player shell ─── */
+  .player {
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+    width: 100%;
+    max-width: 760px;
+    aspect-ratio: 16/7;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+  }
+
+  .scene {
+    position: absolute; inset: 0;
+    background: linear-gradient(135deg, #0d0d1f 0%, #040408 50%, #0d0808 100%);
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(255,255,255,0.04); font-size: 80px;
+  }
+
+  /* TOP BAR */
+  .top-bar {
+    position: absolute; top: 0; left: 0; right: 0; z-index: 2;
+    padding: 16px 20px 40px;
+    background: linear-gradient(to bottom, rgba(0,0,0,0.7) 0%, transparent 100%);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .back-btn {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; font-weight: 500; color: rgba(255,255,255,0.75);
+  }
+  .back-btn span { font-size: 16px; }
+  .title-area { text-align: center; }
+  .title-area .ep { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 2px; }
+  .title-area .name { font-size: 14px; font-weight: 600; color: rgba(255,255,255,0.85); }
+
+  /* SOURCE LOGO BADGE */
+  .source-logo {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    padding: 5px 10px 5px 8px;
+  }
+  .source-icon {
+    width: 20px; height: 20px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 800; color: #fff;
+  }
+  .source-icon.torrentio { background: linear-gradient(135deg, #ff6b00, #ff3d00); }
+  .source-icon.rd { background: linear-gradient(135deg, #00c853, #00695c); }
+  .source-icon.tmdb { background: #01b4e4; }
+  .source-name { font-size: 11px; color: rgba(255,255,255,0.55); }
+  .source-quality { font-size: 10px; font-weight: 700; color: rgba(255,255,255,0.3); margin-left: 2px; }
+
+  /* BOTTOM CONTROLS */
+  .bottom { position: relative; z-index: 2; padding: 0 18px 18px; }
+  .bottom-gradient {
+    position: absolute; bottom: 0; left: 0; right: 0; height: 140px;
+    background: linear-gradient(to top, rgba(0,0,0,0.85) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Luna-styled scrubber */
+  .scrub { margin-bottom: 10px; position: relative; height: 4px; cursor: pointer; }
+  .scrub-track { position: absolute; inset: 0; background: rgba(255,255,255,0.12); border-radius: 2px; }
+  .scrub-buf { position: absolute; left:0; top:0; height:100%; width:52%; background:rgba(255,255,255,0.1); border-radius:2px; }
+  .scrub-fill { position: absolute; left:0; top:0; height:100%; border-radius:2px; }
+  .scrub-fill.purple { width: 38%; background: linear-gradient(90deg, #7c3aed, #a78bfa); }
+  .scrub-fill.white  { width: 38%; background: #fff; }
+  .scrub-fill.blue   { width: 38%; background: #3b82f6; }
+  .scrub-dot { position:absolute; top:50%; transform:translate(-50%,-50%); width:12px; height:12px; border-radius:50%; }
+  .scrub-dot.purple { left:38%; background:#a78bfa; box-shadow:0 0 0 3px rgba(167,139,250,0.3); }
+  .scrub-dot.white  { left:38%; background:#fff; box-shadow:0 0 0 3px rgba(255,255,255,0.2); }
+  .scrub-dot.blue   { left:38%; background:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,0.3); }
+
+  .ctrl-row { display: flex; align-items: center; justify-content: space-between; }
+  .ctrl-l, .ctrl-r { display: flex; align-items: center; gap: 6px; }
+  .ctrl-btn { width: 34px; height: 34px; display:flex; align-items:center; justify-content:center; font-size:16px; color:rgba(255,255,255,0.8); cursor:pointer; border-radius:8px; }
+  .ctrl-btn:hover { background: rgba(255,255,255,0.07); }
+  .ctrl-btn.play { font-size: 22px; }
+  .ctrl-time { font-size: 11px; color: rgba(255,255,255,0.4); }
+  .ctrl-chip {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+    padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  }
+  .ctrl-chip.dim { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.4); }
+  .ctrl-chip.active-purple { background: rgba(167,139,250,0.15); color: #a78bfa; border: 1px solid rgba(167,139,250,0.3); }
+
+  /* Tabs */
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid #1e1e2a; padding-bottom: 0; }
+  .tab {
+    padding: 8px 16px; font-size: 13px; font-weight: 500;
+    color: #555; cursor: pointer; border-bottom: 2px solid transparent;
+    margin-bottom: -1px; transition: color 0.15s, border-color 0.15s;
+  }
+  .tab.active { color: #a78bfa; border-color: #a78bfa; }
+  .tab:hover:not(.active) { color: #888; }
+
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* Code block */
+  .code-block {
+    background: #0e0e18; border: 1px solid #1e1e2a; border-radius: 10px;
+    padding: 16px 18px; font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 12px; line-height: 1.7; overflow-x: auto;
+  }
+  .c-purple { color: #a78bfa; }
+  .c-blue   { color: #60a5fa; }
+  .c-green  { color: #6ee7b7; }
+  .c-orange { color: #fb923c; }
+  .c-dim    { color: #444; }
+  .c-white  { color: #e2e8f0; }
+
+  /* Feature list */
+  .features { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 16px; }
+  .feat { background: #111118; border: 1px solid #1e1e2a; border-radius: 10px; padding: 14px 16px; }
+  .feat-title { font-size: 13px; font-weight: 600; color: #fff; margin-bottom: 4px; }
+  .feat-desc { font-size: 12px; color: #555; line-height: 1.5; }
+  .feat-tag { display:inline-block; font-size:10px; color:#6ee7b7; background:rgba(110,231,183,0.07); border-radius:4px; padding:2px 7px; margin-top:6px; }
+
+  /* color swatches */
+  .swatches { display: flex; gap: 8px; margin-top: 12px; }
+  .swatch { width: 32px; height: 32px; border-radius: 8px; cursor: pointer; transition: transform 0.15s; border: 2px solid transparent; }
+  .swatch:hover { transform: scale(1.1); }
+  .swatch.active { border-color: #fff; }
+  .swatch-label { font-size: 10px; color: #444; margin-top: 4px; text-align: center; }
+
+  .note { font-size: 12px; color: #555; margin-top: 10px; line-height: 1.6; }
+</style>
+</head>
+<body>
+
+<h1>Vidstack — Customization Depth</h1>
+<p class="subtitle">Yes, fully. Here's exactly what you can control and how source logos plug in.</p>
+
+<div class="tabs">
+  <div class="tab active" onclick="showTab('preview')">Live Preview</div>
+  <div class="tab" onclick="showTab('slots')">Source Logo Slot</div>
+  <div class="tab" onclick="showTab('css')">CSS Theming</div>
+  <div class="tab" onclick="showTab('features')">What's Customizable</div>
+</div>
+
+<!-- ── TAB: PREVIEW ── -->
+<div class="panel active" id="tab-preview">
+  <div class="section-title">Luna-branded player with Torrentio source logo</div>
+
+  <div class="player">
+    <div class="scene">▶</div>
+
+    <div class="top-bar">
+      <div class="back-btn"><span>‹</span> Back</div>
+      <div class="title-area">
+        <div class="ep">Season 1 · Episode 4</div>
+        <div class="name">Dune: Prophecy</div>
+      </div>
+      <!-- SOURCE LOGO — custom slot injected into Vidstack -->
+      <div class="source-logo">
+        <div class="source-icon torrentio">T</div>
+        <div>
+          <div class="source-name">Torrentio</div>
+          <div class="source-quality">1080p · DD+</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="bottom-gradient"></div>
+    <div class="bottom">
+      <div class="scrub">
+        <div class="scrub-track"></div>
+        <div class="scrub-buf"></div>
+        <div class="scrub-fill purple"></div>
+        <div class="scrub-dot purple"></div>
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-l">
+          <div class="ctrl-btn">⏮</div>
+          <div class="ctrl-btn play">⏸</div>
+          <div class="ctrl-btn">⏭</div>
+          <div class="ctrl-btn" style="font-size:14px">🔊</div>
+          <div class="ctrl-time">24:18 / 52:04</div>
+        </div>
+        <div class="ctrl-r">
+          <span class="ctrl-chip active-purple">English CC</span>
+          <span class="ctrl-chip dim">1x</span>
+          <span class="ctrl-chip dim">1080p</span>
+          <div class="ctrl-btn" style="font-size:14px">⛶</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <p class="note" style="margin-top:14px">The source logo badge (top right) is a custom slot — it receives <code style="color:#a78bfa;font-family:monospace">currentStream</code> as a prop and you render whatever you want. Addon icon, quality badge, provider name — all yours.</p>
+</div>
+
+<!-- ── TAB: SLOTS ── -->
+<div class="panel" id="tab-slots">
+  <div class="section-title">How source logos plug in — custom slot</div>
+  <div class="code-block">
+<span class="c-dim">// Player.tsx — drop-in custom slot</span>
+&lt;<span class="c-blue">MediaPlayer</span> <span class="c-green">src</span>=<span class="c-orange">{streamUrl}</span>&gt;
+  &lt;<span class="c-blue">MediaProvider</span> /&gt;
+
+  &lt;<span class="c-blue">DefaultVideoLayout</span>
+    <span class="c-green">slots</span>=<span class="c-orange">{{</span>
+
+      <span class="c-dim">// Top-right corner — your source logo</span>
+      <span class="c-green">topControlsGroupEnd</span>: (
+        &lt;<span class="c-purple">SourceBadge</span> <span class="c-green">stream</span>=<span class="c-orange">{currentStream}</span> /&gt;
+      ),
+
+      <span class="c-dim">// Below scrubber — extra info row</span>
+      <span class="c-green">beforePlayButton</span>: (
+        &lt;<span class="c-purple">EpisodeLabel</span> <span class="c-green">title</span>=<span class="c-orange">{title}</span> /&gt;
+      ),
+
+      <span class="c-dim">// Bottom right — extra buttons</span>
+      <span class="c-green">afterSettingsMenu</span>: (
+        &lt;<span class="c-purple">AirPlayButton</span> /&gt;
+      ),
+    <span class="c-orange">}}</span>
+  /&gt;
+&lt;/<span class="c-blue">MediaPlayer</span>&gt;
+
+<span class="c-dim">// SourceBadge.tsx — renders addon logo + quality</span>
+<span class="c-purple">function</span> <span class="c-blue">SourceBadge</span>({ stream }) {
+  <span class="c-purple">const</span> logo = ADDON_LOGOS[stream.addonId];
+  <span class="c-purple">return</span> (
+    &lt;<span class="c-blue">div</span> <span class="c-green">className</span>=<span class="c-orange">"source-badge"</span>&gt;
+      {logo &amp;&amp; &lt;<span class="c-blue">img</span> <span class="c-green">src</span>=<span class="c-orange">{logo}</span> <span class="c-green">alt</span>=<span class="c-orange">{stream.addonName}</span> /&gt;}
+      &lt;<span class="c-blue">span</span>&gt;{stream.addonName}&lt;/<span class="c-blue">span</span>&gt;
+    &lt;/<span class="c-blue">div</span>&gt;
+  );
+}
+  </div>
+
+  <div style="margin-top:20px">
+    <div class="section-title">Available slot positions</div>
+    <div class="features">
+      <div class="feat">
+        <div class="feat-title">topControlsGroupStart / End</div>
+        <div class="feat-desc">Top bar left and right — title, back button, source logo</div>
+        <span class="feat-tag">✓ used for logo</span>
+      </div>
+      <div class="feat">
+        <div class="feat-title">beforePlayButton / afterPlayButton</div>
+        <div class="feat-desc">Either side of the play button in the center row</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">afterCaptionButton / afterAudioGainSlider</div>
+        <div class="feat-desc">Insert custom buttons anywhere in the control bar</div>
+      </div>
+      <div class="feat">
+        <div class="feat-title">settingsMenuStartItems</div>
+        <div class="feat-desc">Add rows to the settings menu (e.g. "Switch source")</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: CSS ── -->
+<div class="panel" id="tab-css">
+  <div class="section-title">One CSS file themes the entire player</div>
+  <div class="code-block">
+<span class="c-dim">/* luna-player-theme.css */</span>
+<span class="c-blue">:root</span> {
+
+  <span class="c-dim">/* Accent — swap between purple / white / blue */</span>
+  <span class="c-green">--plyr-color-main</span>:       <span class="c-orange">#a78bfa</span>;
+  <span class="c-green">--media-slider-track-fill-bg</span>: <span class="c-orange">#a78bfa</span>;
+  <span class="c-green">--media-slider-thumb-bg</span>:  <span class="c-orange">#a78bfa</span>;
+
+  <span class="c-dim">/* Controls backdrop */</span>
+  <span class="c-green">--media-controls-bg</span>:      <span class="c-orange">rgba(0,0,0,0.7)</span>;
+  <span class="c-green">--media-font-family</span>:      <span class="c-orange">'SF Pro Display', sans-serif</span>;
+
+  <span class="c-dim">/* Menu (subtitle / audio / quality panel) */</span>
+  <span class="c-green">--media-menu-bg</span>:          <span class="c-orange">#13131a</span>;
+  <span class="c-green">--media-menu-border</span>:      <span class="c-orange">1px solid rgba(255,255,255,0.08)</span>;
+  <span class="c-green">--media-menu-border-radius</span>: <span class="c-orange">14px</span>;
+
+  <span class="c-dim">/* Buttons */</span>
+  <span class="c-green">--media-button-hover-bg</span>:  <span class="c-orange">rgba(255,255,255,0.08)</span>;
+  <span class="c-green">--media-focus-ring-color</span>: <span class="c-orange">#a78bfa</span>;
+
+  <span class="c-dim">/* Subtitle text rendering */</span>
+  <span class="c-green">--media-user-font-size</span>:   <span class="c-orange">16px</span>;
+  <span class="c-green">--media-cue-bg</span>:           <span class="c-orange">rgba(0,0,0,0.8)</span>;
+}
+  </div>
+
+  <div style="margin-top:20px">
+    <div class="section-title">Accent colour preview — pick one</div>
+    <div class="swatches">
+      <div>
+        <div class="swatch active" style="background:linear-gradient(135deg,#7c3aed,#a78bfa)" onclick="setAccent(this,'purple')"></div>
+        <div class="swatch-label">Luna</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:#ffffff" onclick="setAccent(this,'white')"></div>
+        <div class="swatch-label">Minimal</div>
+      </div>
+      <div>
+        <div class="swatch" style="background:#3b82f6" onclick="setAccent(this,'blue')"></div>
+        <div class="swatch-label">Ocean</div>
+      </div>
+    </div>
+
+    <!-- live accent preview player -->
+    <div class="player" style="margin-top:16px;max-width:500px;">
+      <div class="scene">▶</div>
+      <div class="bottom-gradient"></div>
+      <div class="bottom">
+        <div class="scrub" id="accent-scrub">
+          <div class="scrub-track"></div>
+          <div class="scrub-buf"></div>
+          <div class="scrub-fill purple" id="accent-fill"></div>
+          <div class="scrub-dot purple" id="accent-dot"></div>
+        </div>
+        <div class="ctrl-row">
+          <div class="ctrl-l">
+            <div class="ctrl-btn play">⏸</div>
+            <div class="ctrl-btn" style="font-size:14px">🔊</div>
+            <div class="ctrl-time">24:18 / 1:42:05</div>
+          </div>
+          <div class="ctrl-r">
+            <span class="ctrl-chip active-purple" id="accent-chip">English CC</span>
+            <span class="ctrl-chip dim">1080p</span>
+            <div class="ctrl-btn" style="font-size:14px">⛶</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── TAB: FEATURES ── -->
+<div class="panel" id="tab-features">
+  <div class="features">
+    <div class="feat">
+      <div class="feat-title">150+ CSS variables</div>
+      <div class="feat-desc">Every colour, radius, font, spacing, shadow — all overridable from one CSS file</div>
+      <span class="feat-tag">zero JS needed</span>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Custom slots</div>
+      <div class="feat-desc">Inject any React component into 20+ named positions in the layout</div>
+      <span class="feat-tag">source logos here</span>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Built-in subtitle panel</div>
+      <div class="feat-desc">VTT, SRT, ASS — loads external files, parses them, shows them with your styling</div>
+      <span class="feat-tag">fixes your issue</span>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Audio track panel</div>
+      <div class="feat-desc">Native UI for switching audio languages — works for both HLS and direct streams</div>
+      <span class="feat-tag">fixes your issue</span>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Fully custom layout mode</div>
+      <div class="feat-desc">Skip the default layout entirely — build from primitives (MediaPlayer, TimeSlider, PlayButton) with your own markup</div>
+      <span class="feat-tag">max control</span>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Keyboard shortcuts</div>
+      <div class="feat-desc">Space, arrow keys, F for fullscreen — all included, all overridable</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">AirPlay + PiP</div>
+      <div class="feat-desc">Both built in as first-class features — no manual wiring</div>
+    </div>
+    <div class="feat">
+      <div class="feat-title">Plyr layout included</div>
+      <div class="feat-desc">Vidstack ships a Plyr-style layout too — switch with one prop if you prefer that aesthetic</div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function showTab(id) {
+    document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+    document.querySelectorAll('.panel').forEach(function(p) { p.classList.remove('active'); });
+    event.target.classList.add('active');
+    document.getElementById('tab-' + id).classList.add('active');
+  }
+
+  function setAccent(el, color) {
+    document.querySelectorAll('.swatch').forEach(function(s) { s.classList.remove('active'); });
+    el.classList.add('active');
+    var fill = document.getElementById('accent-fill');
+    var dot  = document.getElementById('accent-dot');
+    var chip = document.getElementById('accent-chip');
+    fill.className = 'scrub-fill ' + color;
+    dot.className  = 'scrub-dot '  + color;
+    if (color === 'purple') {
+      chip.style.background = 'rgba(167,139,250,0.15)';
+      chip.style.color = '#a78bfa';
+      chip.style.border = '1px solid rgba(167,139,250,0.3)';
+    } else if (color === 'white') {
+      chip.style.background = 'rgba(255,255,255,0.1)';
+      chip.style.color = '#fff';
+      chip.style.border = '1px solid rgba(255,255,255,0.2)';
+    } else {
+      chip.style.background = 'rgba(59,130,246,0.15)';
+      chip.style.color = '#3b82f6';
+      chip.style.border = '1px solid rgba(59,130,246,0.3)';
+    }
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,106 @@
+<h2>How should non-featured folders appear on the home screen?</h2>
+<p class="subtitle">Popular Movies / TV Shows / Trending = horizontal scroll rows. Everything else (Genres, Decades, Streaming, etc.) — pick a display style:</p>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;min-height:220px">
+      <!-- Folder grid mockup -->
+      <div style="margin-bottom:8px;font-size:11px;color:#999;font-weight:600;letter-spacing:.08em;text-transform:uppercase">Genres</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="background:linear-gradient(135deg,#1a3a2a,#0d1f17);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">Action</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#2a1a3a,#1a0d2a);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">Drama</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#3a2a1a,#2a1a0d);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">Comedy</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a2a3a,#0d1a2a);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">Horror</span>
+        </div>
+      </div>
+      <div style="margin-top:12px;margin-bottom:8px;font-size:11px;color:#999;font-weight:600;letter-spacing:.08em;text-transform:uppercase">Decades</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">
+        <div style="background:linear-gradient(135deg,#2a1a1a,#1a0d0d);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">80s</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a2a1a,#0d1a0d);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">90s</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#2a2a1a,#1a1a0d);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">00s</span>
+        </div>
+        <div style="background:linear-gradient(135deg,#1a1a2a,#0d0d1a);border-radius:8px;aspect-ratio:2/3;display:flex;align-items:flex-end;padding:8px">
+          <span style="font-size:9px;color:#eee;font-weight:600">10s</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Folder Grid on Home</h3>
+      <p>Folders appear as 4-column poster grids inline on the home screen. Each folder shows its cover posters. Tapping a folder navigates to its browse page showing all content.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;min-height:220px">
+      <!-- Folder banner tiles -->
+      <div style="margin-bottom:8px;font-size:11px;color:#999;font-weight:600;letter-spacing:.08em;text-transform:uppercase">Browse by Category</div>
+      <div style="display:flex;gap:8px;overflow-x:auto">
+        <div style="flex-shrink:0;width:160px;height:90px;background:linear-gradient(135deg,#1a3a2a,#0d1f17);border-radius:10px;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,rgba(0,0,0,.7));border-radius:10px"></div>
+          <span style="font-size:11px;color:#eee;font-weight:700;position:relative">Genres</span>
+          <span style="font-size:9px;color:#aaa;position:relative">12 categories</span>
+        </div>
+        <div style="flex-shrink:0;width:160px;height:90px;background:linear-gradient(135deg,#2a1a3a,#1a0d2a);border-radius:10px;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,rgba(0,0,0,.7));border-radius:10px"></div>
+          <span style="font-size:11px;color:#eee;font-weight:700;position:relative">Decades</span>
+          <span style="font-size:9px;color:#aaa;position:relative">5 eras</span>
+        </div>
+        <div style="flex-shrink:0;width:160px;height:90px;background:linear-gradient(135deg,#3a2a1a,#2a1a0d);border-radius:10px;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,rgba(0,0,0,.7));border-radius:10px"></div>
+          <span style="font-size:11px;color:#eee;font-weight:700;position:relative">Streaming</span>
+          <span style="font-size:9px;color:#aaa;position:relative">Netflix, Apple...</span>
+        </div>
+        <div style="flex-shrink:0;width:160px;height:90px;background:linear-gradient(135deg,#1a2a3a,#0d1a2a);border-radius:10px;display:flex;flex-direction:column;justify-content:flex-end;padding:10px;position:relative">
+          <div style="position:absolute;top:0;left:0;right:0;bottom:0;background:linear-gradient(to bottom,transparent,rgba(0,0,0,.7));border-radius:10px"></div>
+          <span style="font-size:11px;color:#eee;font-weight:700;position:relative">Franchises</span>
+          <span style="font-size:9px;color:#aaa;position:relative">Marvel, DC, Star Wars</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Collection Banner Row</h3>
+      <p>Folders are grouped by collection and shown as wide landscape tiles in a horizontal scroll row, labeled with the collection name. Tapping a tile goes to that folder's browse page.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="background:#0f0f0f;padding:16px;min-height:220px">
+      <!-- Sidebar/separate browse page -->
+      <div style="display:flex;height:200px;gap:0">
+        <div style="width:40px;background:#161616;border-radius:8px 0 0 8px;display:flex;flex-direction:column;align-items:center;padding:16px 0;gap:16px">
+          <div style="width:20px;height:2px;background:#888"></div>
+          <div style="width:20px;height:2px;background:#888"></div>
+          <div style="width:20px;height:2px;background:#888"></div>
+        </div>
+        <div style="flex:1;background:#111;border-radius:0 8px 8px 0;padding:12px;overflow:hidden">
+          <div style="font-size:10px;color:#fff;font-weight:700;margin-bottom:8px">Home</div>
+          <div style="font-size:9px;color:#aaa;margin-bottom:12px">Popular Movies • Trending TV Shows • Popular TV • Trending Movies</div>
+          <div style="font-size:10px;color:#888;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.06em;font-size:9px">Browse</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap">
+            <div style="background:#1e1e1e;border-radius:16px;padding:4px 8px;font-size:8px;color:#ccc">Genres</div>
+            <div style="background:#1e1e1e;border-radius:16px;padding:4px 8px;font-size:8px;color:#ccc">Decades</div>
+            <div style="background:#1e1e1e;border-radius:16px;padding:4px 8px;font-size:8px;color:#ccc">Streaming</div>
+            <div style="background:#1e1e1e;border-radius:16px;padding:4px 8px;font-size:8px;color:#ccc">Franchises</div>
+            <div style="background:#1e1e1e;border-radius:16px;padding:4px 8px;font-size:8px;color:#ccc">UK TV</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Home stays clean, folders go to Library/Browse tab</h3>
+      <p>Home screen only shows the 4 featured rows. All other collections/folders live in the Library or Browse section. Home is lean and fast; discovery is a dedicated experience.</p>
+    </div>
+  </div>
+</div>

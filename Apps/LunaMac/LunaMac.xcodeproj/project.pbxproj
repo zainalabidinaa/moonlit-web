@@ -7,16 +7,54 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B57296543256691C6D991EC /* SpeedPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67A23554298F8A05D33B879C /* SpeedPicker.swift */; };
+		0F3BD507FE7FA21B19743891 /* PillNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC87226396402DD391FC0EA8 /* PillNavBar.swift */; };
 		15FB252603EEA7C4D7FC39C7 /* LunaMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 92D9F1BB9E9AE2FDD4783A8F /* LunaMacApp.swift */; };
+		25AE3ED3CBBD178DFBCF88F2 /* ContinueWatchingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775F60F464BE79EC3685B054 /* ContinueWatchingCard.swift */; };
+		30A7F5B81F542C66B576E7E3 /* MacLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3C2DCECD2B7BBD1E62300A /* MacLibraryView.swift */; };
+		3CD8BA658DFA090A2D7B5621 /* MacAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8B87DAA71242DF9A656DCC4 /* MacAuthView.swift */; };
+		456C4033B9C9DF37A4B1B382 /* MacAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D24BDBB6F196CA6094875E9 /* MacAdminView.swift */; };
+		565CE88C9336673A2BABF16B /* MacHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C51C80E1940DC37AA21E56C /* MacHomeView.swift */; };
+		580E8A06A92EFB58FF9EF6D8 /* MacMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF36B59A4459AB90AD9C9E09 /* MacMainView.swift */; };
 		5929F5E5D758B256FD265F19 /* LunaCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4F6E3BD74A2D01311C1048D5 /* LunaCore */; };
+		65D1AF8F826165F896E92DA2 /* MacSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF8BF349BAE6250AED2F8370 /* MacSourcePickerView.swift */; };
+		7026486A2C47C1CE954A7BE6 /* HomeHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45C6A214683E2B604D87AA91 /* HomeHero.swift */; };
+		84C5E5FFE1D3F5226DCC4BE5 /* MediaRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 006E59DB9A61C6A5A152E632 /* MediaRow.swift */; };
+		9383AA93E4D04DC15CBCDF82 /* MacPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC90CF64165DA630E2398414 /* MacPlayerView.swift */; };
+		95EE5E40FB296F8A0319DFA6 /* MacSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD1B58A01087611937F21C50 /* MacSearchView.swift */; };
+		A9285E1A4E03656E35065A78 /* MacDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 829AE6A8F0565E672EC5F338 /* MacDetailView.swift */; };
 		A9A49E4E8BC133591DCB6A61 /* MacContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B53A460FC16BE5421FED33AD /* MacContentView.swift */; };
+		B43C580DD8A4C423B51F1EFF /* MacProfilePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEDDB7A72E9337ECC2CB05A7 /* MacProfilePicker.swift */; };
+		C5D5555B82EB6B2CBF0151CD /* MacSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 21DE9B3C9A2A39B080AC0F27 /* MacSettingsView.swift */; };
+		D99997302B6EA5C673698261 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BDEDFE44DDD166A13C9ECF51 /* MediaCard.swift */; };
+		E3B11EDDDFED7C4080DF0CEA /* FolderTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04C03F95F27BE7FEBCE6E67 /* FolderTile.swift */; };
+		EBE89F85647D566821D3B42E /* PlayerControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D208A16CA8BCBA46CC00B06 /* PlayerControls.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		006E59DB9A61C6A5A152E632 /* MediaRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRow.swift; sourceTree = "<group>"; };
+		1D208A16CA8BCBA46CC00B06 /* PlayerControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControls.swift; sourceTree = "<group>"; };
+		21DE9B3C9A2A39B080AC0F27 /* MacSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsView.swift; sourceTree = "<group>"; };
+		45C6A214683E2B604D87AA91 /* HomeHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHero.swift; sourceTree = "<group>"; };
 		4C4CBD50E5ABF9313F690081 /* LunaMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LunaMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		67A23554298F8A05D33B879C /* SpeedPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedPicker.swift; sourceTree = "<group>"; };
+		6C51C80E1940DC37AA21E56C /* MacHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacHomeView.swift; sourceTree = "<group>"; };
+		6D24BDBB6F196CA6094875E9 /* MacAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAdminView.swift; sourceTree = "<group>"; };
+		775F60F464BE79EC3685B054 /* ContinueWatchingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingCard.swift; sourceTree = "<group>"; };
+		829AE6A8F0565E672EC5F338 /* MacDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDetailView.swift; sourceTree = "<group>"; };
+		8E3C2DCECD2B7BBD1E62300A /* MacLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLibraryView.swift; sourceTree = "<group>"; };
 		92D9F1BB9E9AE2FDD4783A8F /* LunaMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunaMacApp.swift; sourceTree = "<group>"; };
+		AC90CF64165DA630E2398414 /* MacPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlayerView.swift; sourceTree = "<group>"; };
 		B53A460FC16BE5421FED33AD /* MacContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacContentView.swift; sourceTree = "<group>"; };
+		BD1B58A01087611937F21C50 /* MacSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSearchView.swift; sourceTree = "<group>"; };
+		BDEDFE44DDD166A13C9ECF51 /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
+		D8B87DAA71242DF9A656DCC4 /* MacAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAuthView.swift; sourceTree = "<group>"; };
+		DEDDB7A72E9337ECC2CB05A7 /* MacProfilePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacProfilePicker.swift; sourceTree = "<group>"; };
+		E04C03F95F27BE7FEBCE6E67 /* FolderTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderTile.swift; sourceTree = "<group>"; };
+		FC87226396402DD391FC0EA8 /* PillNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillNavBar.swift; sourceTree = "<group>"; };
 		FEE04ABAC67B0DA9A28641FC /* LunaCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LunaCore; path = ../../Packages/LunaCore; sourceTree = SOURCE_ROOT; };
+		FF36B59A4459AB90AD9C9E09 /* MacMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMainView.swift; sourceTree = "<group>"; };
+		FF8BF349BAE6250AED2F8370 /* MacSourcePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSourcePickerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,13 +86,48 @@
 			);
 			sourceTree = "<group>";
 		};
+		599B9866C298E3918E1D466B /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				775F60F464BE79EC3685B054 /* ContinueWatchingCard.swift */,
+				E04C03F95F27BE7FEBCE6E67 /* FolderTile.swift */,
+				45C6A214683E2B604D87AA91 /* HomeHero.swift */,
+				BDEDFE44DDD166A13C9ECF51 /* MediaCard.swift */,
+				006E59DB9A61C6A5A152E632 /* MediaRow.swift */,
+				FC87226396402DD391FC0EA8 /* PillNavBar.swift */,
+				1D208A16CA8BCBA46CC00B06 /* PlayerControls.swift */,
+				67A23554298F8A05D33B879C /* SpeedPicker.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
 		B87C8F611C498CBB8E0E2011 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
 				92D9F1BB9E9AE2FDD4783A8F /* LunaMacApp.swift */,
 				B53A460FC16BE5421FED33AD /* MacContentView.swift */,
+				599B9866C298E3918E1D466B /* Components */,
+				C9BA046C7E19BACBA7A7DF73 /* Screens */,
 			);
 			path = Sources;
+			sourceTree = "<group>";
+		};
+		C9BA046C7E19BACBA7A7DF73 /* Screens */ = {
+			isa = PBXGroup;
+			children = (
+				6D24BDBB6F196CA6094875E9 /* MacAdminView.swift */,
+				D8B87DAA71242DF9A656DCC4 /* MacAuthView.swift */,
+				829AE6A8F0565E672EC5F338 /* MacDetailView.swift */,
+				6C51C80E1940DC37AA21E56C /* MacHomeView.swift */,
+				8E3C2DCECD2B7BBD1E62300A /* MacLibraryView.swift */,
+				FF36B59A4459AB90AD9C9E09 /* MacMainView.swift */,
+				AC90CF64165DA630E2398414 /* MacPlayerView.swift */,
+				DEDDB7A72E9337ECC2CB05A7 /* MacProfilePicker.swift */,
+				BD1B58A01087611937F21C50 /* MacSearchView.swift */,
+				21DE9B3C9A2A39B080AC0F27 /* MacSettingsView.swift */,
+				FF8BF349BAE6250AED2F8370 /* MacSourcePickerView.swift */,
+			);
+			path = Screens;
 			sourceTree = "<group>";
 		};
 		D77E24EDF41934D89B9FD85F /* Packages */ = {
@@ -125,8 +198,27 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				25AE3ED3CBBD178DFBCF88F2 /* ContinueWatchingCard.swift in Sources */,
+				E3B11EDDDFED7C4080DF0CEA /* FolderTile.swift in Sources */,
+				7026486A2C47C1CE954A7BE6 /* HomeHero.swift in Sources */,
 				15FB252603EEA7C4D7FC39C7 /* LunaMacApp.swift in Sources */,
+				456C4033B9C9DF37A4B1B382 /* MacAdminView.swift in Sources */,
+				3CD8BA658DFA090A2D7B5621 /* MacAuthView.swift in Sources */,
 				A9A49E4E8BC133591DCB6A61 /* MacContentView.swift in Sources */,
+				A9285E1A4E03656E35065A78 /* MacDetailView.swift in Sources */,
+				565CE88C9336673A2BABF16B /* MacHomeView.swift in Sources */,
+				30A7F5B81F542C66B576E7E3 /* MacLibraryView.swift in Sources */,
+				580E8A06A92EFB58FF9EF6D8 /* MacMainView.swift in Sources */,
+				9383AA93E4D04DC15CBCDF82 /* MacPlayerView.swift in Sources */,
+				B43C580DD8A4C423B51F1EFF /* MacProfilePicker.swift in Sources */,
+				95EE5E40FB296F8A0319DFA6 /* MacSearchView.swift in Sources */,
+				C5D5555B82EB6B2CBF0151CD /* MacSettingsView.swift in Sources */,
+				65D1AF8F826165F896E92DA2 /* MacSourcePickerView.swift in Sources */,
+				D99997302B6EA5C673698261 /* MediaCard.swift in Sources */,
+				84C5E5FFE1D3F5226DCC4BE5 /* MediaRow.swift in Sources */,
+				0F3BD507FE7FA21B19743891 /* PillNavBar.swift in Sources */,
+				EBE89F85647D566821D3B42E /* PlayerControls.swift in Sources */,
+				0B57296543256691C6D991EC /* SpeedPicker.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #050505; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+.page { max-width: 960px; margin: 0 auto; padding: 36px 24px 60px; }
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.sub { color: #555; font-size: 13px; margin-bottom: 32px; }
+
+/* =========================================
+   PLAYER SHELL
+========================================= */
+.player {
+  width: 100%; aspect-ratio: 16/9;
+  background: #000;
+  border-radius: 16px; overflow: hidden;
+  position: relative;
+  box-shadow: 0 40px 100px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.04);
+}
+
+/* Cinematic backdrop */
+.player-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 35% 45%, rgba(180,90,0,.45), transparent 50%),
+    radial-gradient(ellipse at 75% 25%, rgba(0,40,120,.4), transparent 50%),
+    radial-gradient(ellipse at 60% 80%, rgba(80,0,100,.3), transparent 40%),
+    #050510;
+}
+
+/* Fake title watermark */
+.player-title-bg {
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 96px; font-weight: 900; letter-spacing: -.05em;
+  color: rgba(255,255,255,.04); user-select: none;
+  text-transform: uppercase;
+}
+
+/* =========================================
+   GLASS MIXIN — the key aesthetic
+   All panels use this base
+========================================= */
+.glass {
+  background: rgba(255,255,255,.08);
+  backdrop-filter: blur(32px) saturate(180%);
+  -webkit-backdrop-filter: blur(32px) saturate(180%);
+  border: 1px solid rgba(255,255,255,.12);
+  box-shadow:
+    0 2px 16px rgba(0,0,0,.35),
+    inset 0 1px 0 rgba(255,255,255,.15),
+    inset 0 -1px 0 rgba(0,0,0,.1);
+}
+
+.glass-dark {
+  background: rgba(0,0,0,.45);
+  backdrop-filter: blur(40px) saturate(150%);
+  -webkit-backdrop-filter: blur(40px) saturate(150%);
+  border: 1px solid rgba(255,255,255,.08);
+  box-shadow: 0 8px 32px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,255,255,.08);
+}
+
+/* =========================================
+   CONTROLS OVERLAY
+========================================= */
+.controls {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column; justify-content: space-between;
+}
+
+/* TOP BAR — glass pill */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 20px;
+}
+.back-pill {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 16px 8px 12px;
+  border-radius: 28px;
+  font-size: 14px; font-weight: 600; color: rgba(255,255,255,.9);
+  cursor: pointer;
+}
+.back-chevron-svg { opacity: .8; }
+
+.title-pill {
+  font-size: 13px; font-weight: 600;
+  color: rgba(255,255,255,.85);
+  padding: 8px 18px;
+  border-radius: 20px;
+  max-width: 280px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+
+.top-right { display: flex; gap: 6px; }
+.icon-pill {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.75); cursor: pointer;
+}
+
+/* CENTER — play + skips */
+.center-area {
+  display: flex; align-items: center; justify-content: center; gap: 48px;
+  flex: 1;
+}
+
+.skip-group { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+.skip-pill {
+  width: 52px; height: 52px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.8); cursor: pointer;
+}
+.skip-label { font-size: 9px; font-weight: 700; letter-spacing: .12em; color: rgba(255,255,255,.4); }
+
+.play-pill {
+  width: 72px; height: 72px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  /* Stronger glass for play button */
+  background: rgba(255,255,255,.14);
+  backdrop-filter: blur(40px) saturate(200%);
+  -webkit-backdrop-filter: blur(40px) saturate(200%);
+  border: 1.5px solid rgba(255,255,255,.22);
+  box-shadow:
+    0 4px 24px rgba(0,0,0,.4),
+    inset 0 1.5px 0 rgba(255,255,255,.3),
+    inset 0 -1.5px 0 rgba(0,0,0,.15);
+  transition: all .15s;
+}
+
+/* BOTTOM CONTROL SHELF — main glass panel */
+.bottom-shelf {
+  margin: 0 16px 20px;
+  border-radius: 20px;
+  padding: 14px 18px 16px;
+}
+
+/* Scrubber */
+.scrubber-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+.time-label { font-size: 11px; font-weight: 600; color: rgba(255,255,255,.5); font-variant-numeric: tabular-nums; min-width: 36px; }
+.time-label.right { text-align: right; }
+.scrubber-track {
+  flex: 1; height: 4px; border-radius: 4px; position: relative; cursor: pointer;
+  background: rgba(255,255,255,.18);
+}
+.scrubber-buf {
+  position: absolute; left:0; top:0; bottom:0; width: 52%;
+  background: rgba(255,255,255,.12); border-radius: 4px;
+}
+.scrubber-fill {
+  position: absolute; left:0; top:0; bottom:0; width: 33%;
+  background: #fff; border-radius: 4px;
+}
+.scrubber-thumb {
+  position: absolute; top:50%; left:33%; transform:translate(-50%,-50%);
+  width: 14px; height: 14px; background: #fff; border-radius: 50%;
+  box-shadow: 0 1px 8px rgba(0,0,0,.6), 0 0 0 2px rgba(255,255,255,.3);
+}
+
+/* Controls row */
+.ctrl-row { display: flex; align-items: center; justify-content: space-between; }
+.ctrl-left { display: flex; align-items: center; gap: 2px; }
+.ctrl-right { display: flex; align-items: center; gap: 2px; }
+
+.ctrl-btn {
+  width: 36px; height: 36px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.7); cursor: pointer;
+}
+
+/* Volume row */
+.vol-group { display: flex; align-items: center; gap: 6px; }
+.vol-bar { width: 60px; height: 3px; background: rgba(255,255,255,.2); border-radius: 3px; position: relative; }
+.vol-fill { position: absolute; left:0;top:0;bottom:0;width:75%;background:#fff;border-radius:3px; }
+
+/* SUBTITLE POPUP — glass panel */
+.sub-popup {
+  position: absolute; bottom: 110px; right: 22px;
+  border-radius: 18px;
+  padding: 8px 0;
+  min-width: 220px;
+  z-index: 10;
+  /* stronger dark glass for popup */
+  background: rgba(18,18,22,.7);
+  backdrop-filter: blur(48px) saturate(200%);
+  -webkit-backdrop-filter: blur(48px) saturate(200%);
+  border: 1px solid rgba(255,255,255,.1);
+  box-shadow: 0 16px 48px rgba(0,0,0,.7), inset 0 1px 0 rgba(255,255,255,.1);
+}
+.pop-section {
+  padding: 5px 16px 3px;
+  font-size: 10px; font-weight: 700; color: rgba(255,255,255,.3);
+  text-transform: uppercase; letter-spacing: .1em;
+}
+.pop-item {
+  padding: 9px 16px; font-size: 13px; color: rgba(255,255,255,.75);
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; transition: background .1s;
+}
+.pop-item:hover { background: rgba(255,255,255,.05); }
+.pop-item.active { color: #fff; font-weight: 600; }
+.pop-dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.85); }
+.pop-div { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
+
+/* Description */
+.note {
+  background: #111; border: 1px solid #1e1e1e; border-radius: 12px;
+  padding: 18px 20px; font-size: 13px; color: #777; line-height: 1.7;
+  margin-top: 24px;
+}
+.note strong { color: #ccc; }
+code { background: #1e1e1e; padding: 1px 7px; border-radius: 5px; color: #a78bfa; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Web Player — Liquid Glass Edition</h1>
+  <p class="sub">All controls use frosted glass panels. The bottom shelf floats above the video on a glass pill. Popovers are dark glass with heavy blur.</p>
+
+  <div class="player">
+    <div class="player-bg"></div>
+    <div class="player-title-bg">SINNERS</div>
+
+    <div class="controls">
+      <!-- TOP BAR -->
+      <div class="top-bar">
+        <div class="back-pill glass">
+          <svg class="back-chevron-svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M15 18l-6-6 6-6"/>
+          </svg>
+          Back
+        </div>
+
+        <div class="title-pill glass">Sinners &nbsp;·&nbsp; 2025</div>
+
+        <div class="top-right">
+          <div class="icon-pill glass">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+              <path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h18a2 2 0 012 2v10a2 2 0 01-2 2h-2M12 15l-4 5h8l-4-5z"/>
+            </svg>
+          </div>
+          <div class="icon-pill glass">
+            <svg width="18" height="18" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7">
+              <rect x="2" y="4" width="18" height="14" rx="2"/>
+              <rect x="11" y="11" width="8" height="5" rx="1" fill="currentColor" stroke="none" opacity=".7"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER -->
+      <div class="center-area">
+        <div class="skip-group">
+          <div class="skip-pill glass">
+            <svg width="28" height="28" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M18 6C11.4 6 6 11.4 6 18s5.4 12 12 12 12-5.4 12-12" stroke-linecap="round"/>
+              <path d="M24 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="700" stroke="none" fill="currentColor">15</text>
+            </svg>
+          </div>
+          <div class="skip-label">BACK</div>
+        </div>
+
+        <div class="play-pill">
+          <!-- Pause state shown -->
+          <svg viewBox="0 0 26 26" fill="white" width="22" height="22">
+            <path d="M6 5h4v16H6V5zm10 0h4v16h-4V5z"/>
+          </svg>
+        </div>
+
+        <div class="skip-group">
+          <div class="skip-pill glass">
+            <svg width="28" height="28" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8">
+              <path d="M18 6c6.6 0 12 5.4 12 12S24.6 30 18 30 6 24.6 6 18" stroke-linecap="round"/>
+              <path d="M12 4L8 8l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+              <text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="700" stroke="none" fill="currentColor">15</text>
+            </svg>
+          </div>
+          <div class="skip-label">FWD</div>
+        </div>
+      </div>
+
+      <!-- BOTTOM SHELF — floating glass panel -->
+      <div class="bottom-shelf glass-dark">
+        <!-- Scrubber -->
+        <div class="scrubber-row">
+          <span class="time-label">34:12</span>
+          <div class="scrubber-track">
+            <div class="scrubber-buf"></div>
+            <div class="scrubber-fill"></div>
+            <div class="scrubber-thumb"></div>
+          </div>
+          <span class="time-label right">-58:44</span>
+        </div>
+
+        <!-- Controls -->
+        <div class="ctrl-row">
+          <div class="ctrl-left">
+            <div class="vol-group">
+              <div class="ctrl-btn">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                  <path d="M5 9H2a1 1 0 00-1 1v4a1 1 0 001 1h3l4 4V5L5 9z"/>
+                  <path d="M15.5 8.5a5 5 0 010 7M19 5a9 9 0 010 14" stroke-linecap="round"/>
+                </svg>
+              </div>
+              <div class="vol-bar"><div class="vol-fill"></div></div>
+            </div>
+          </div>
+
+          <div class="ctrl-right">
+            <!-- Sources -->
+            <div class="ctrl-btn">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/>
+              </svg>
+            </div>
+            <!-- Subtitles -->
+            <div class="ctrl-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <path d="M7 10h4M7 14h10" stroke-linecap="round"/>
+              </svg>
+            </div>
+            <!-- Speed -->
+            <div class="ctrl-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <circle cx="12" cy="12" r="10"/>
+                <path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/>
+              </svg>
+            </div>
+            <!-- Fullscreen -->
+            <div class="ctrl-btn">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round">
+                <path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subtitle popup -->
+    <div class="sub-popup">
+      <div class="pop-section">Audio</div>
+      <div class="pop-item active">English <div class="pop-dot"></div></div>
+      <div class="pop-item">Français</div>
+      <div class="pop-div"></div>
+      <div class="pop-section">Subtitles</div>
+      <div class="pop-item">Off</div>
+      <div class="pop-item">English</div>
+      <div class="pop-item">Español</div>
+    </div>
+  </div>
+
+  <div class="note">
+    <strong>What changes in code:</strong> The layout and logic stay exactly the same as the Apple-native plan. The only CSS differences are:<br><br>
+    • Back button, title, top icons → individual <strong>glass pills</strong> (<code>backdrop-filter: blur(32px)</code> + translucent border)<br>
+    • Skip buttons → glass circles<br>
+    • Play button → stronger glass disc with inner specular highlight<br>
+    • Bottom controls → floats as a <strong>dark glass shelf</strong> (<code>rgba(0,0,0,.45)</code> + heavy blur), not edge-to-edge<br>
+    • Popover panels → dark glass with <code>blur(48px)</code><br>
+    • Scrubber thumb → white circle with glowing ring<br><br>
+    <strong>No changes</strong> to HLS logic, subtitle overlay, track switching, keyboard shortcuts, or progress reporting.
+  </div>
+</div>
+</body>
+</html>

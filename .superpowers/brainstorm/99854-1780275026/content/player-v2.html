@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#0a0a0a; color:#fff; font-family:-apple-system,BlinkMacSystemFont,sans-serif; padding:32px; }
+h1 { font-size:22px; font-weight:700; margin-bottom:6px; }
+.sub { color:#888; font-size:13px; margin-bottom:28px; }
+
+.options { display:flex; gap:20px; flex-wrap:wrap; }
+.card { flex:1; min-width:320px; max-width:420px; border-radius:14px; overflow:hidden; border:2px solid #1c1c1e; cursor:pointer; transition:border .2s; background:#111; }
+.card:hover { border-color:#444; }
+.card.selected { border-color:#c084fc; box-shadow:0 0 24px rgba(192,132,252,0.2); }
+
+.card-header { padding:14px 18px; border-bottom:1px solid #1c1c1e; display:flex; align-items:center; gap:8px; }
+.card-header h3 { font-size:14px; font-weight:600; }
+.card-header p { font-size:11px; color:#888; margin-left:auto; }
+
+.player-frame { height:220px; position:relative; overflow:hidden; background:radial-gradient(ellipse at center,#1a1a2e 0%,#080814 100%); }
+
+.player-frame::before { content:''; position:absolute; inset:0; background:linear-gradient(135deg, rgba(22,33,62,0.4), transparent, rgba(26,26,46,0.4)); }
+
+.player-vid { position:absolute; inset:30px 60px; border:1px solid rgba(255,255,255,0.06); border-radius:4px; background: linear-gradient(45deg, #1a2744 0%, #0f3460 25%, #16213e 50%, #1a1a2e 75%, #0f3460 100%); }
+.player-vid::after { content:''; position:absolute; inset:0; background:linear-gradient(to right, rgba(0,0,0,0.2), transparent 40%, transparent 60%, rgba(0,0,0,0.15)); }
+
+.card-desc { padding:14px 18px; }
+.card-desc h4 { font-size:13px; font-weight:600; margin-bottom:4px; }
+.card-desc p { font-size:11px; color:#999; line-height:1.5; }
+
+/* Common elements */
+.top-grad { position:absolute; top:0; left:0; right:0; height:56px; background:linear-gradient(to bottom, rgba(0,0,0,0.85), transparent); z-index:2; }
+.bot-grad { position:absolute; bottom:0; left:0; right:0; height:80px; background:linear-gradient(to top, rgba(0,0,0,0.85), transparent); z-index:2; }
+.top-bar { position:absolute; top:8px; left:14px; right:14px; display:flex; align-items:center; gap:10px; z-index:3; }
+.top-bar .back { width:20px; height:20px; opacity:0.7; flex-shrink:0; }
+.top-bar .ttl { font-size:11px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.top-bar .pill { font-size:10px; padding:3px 10px; border-radius:4px; background:rgba(255,255,255,0.08); color:rgba(255,255,255,0.6); }
+
+.bottom-bar { position:absolute; bottom:6px; left:14px; right:14px; z-index:3; }
+
+.seek-row { display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.seek-row .time { font-size:9px; color:rgba(255,255,255,0.5); font-variant-numeric:tabular-nums; width:32px; flex-shrink:0; }
+.seek-row .time.right { text-align:right; }
+.seek-track { flex:1; height:2px; background:rgba(255,255,255,0.15); border-radius:1px; position:relative; }
+.seek-progress { position:absolute; left:0; top:0; height:100%; border-radius:1px; }
+.seek-buffer { position:absolute; left:0; top:0; height:100%; background:rgba(255,255,255,0.08); border-radius:1px; }
+.seek-dot { position:absolute; top:-3px; transform:translateX(-50%); width:8px; height:8px; border-radius:50%; opacity:0; transition:opacity .15s; }
+.seek-track:hover .seek-dot { opacity:1; }
+.seek-track:hover { height:4px; top:-1px; }
+
+.ctrl-row { display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.ctrl-left { display:flex; align-items:center; gap:12px; }
+.ctrl-right { display:flex; align-items:center; gap:10px; }
+.btn-icon { width:18px; height:18px; opacity:0.65; cursor:pointer; transition:opacity .15s; }
+.btn-icon:hover { opacity:1; }
+.btn-play { width:36px; height:36px; }
+.vol-track { width:50px; height:2px; background:rgba(255,255,255,0.15); border-radius:1px; position:relative; }
+.vol-fill { position:absolute; left:0; top:0; height:100%; background:rgba(255,255,255,0.7); border-radius:1px; }
+
+.center-play { position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:3; }
+.play-big { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+
+.bar-float { position:absolute; bottom:14px; left:22px; right:22px; background:rgba(18,18,22,0.88); backdrop-filter:blur(12px); border-radius:12px; padding:10px 16px; border:1px solid rgba(255,255,255,0.06); z-index:3; }
+
+.letterbox-top { position:absolute; top:0; left:0; right:0; height:46px; background:rgba(0,0,0,0.55); z-index:2; }
+.letterbox-bot { position:absolute; bottom:0; left:0; right:0; height:46px; background:rgba(0,0,0,0.55); z-index:2; }
+</style>
+</head>
+<body>
+<h1>Player Redesign Options</h1>
+<p class="sub">Controls show on mouse move, auto-hide after 3 seconds. All 3 include audio tracks, subtitles, volume, fullscreen. Click to select.</p>
+
+<div class="options" id="options">
+
+<div class="card" onclick="pick('classic')">
+  <div class="card-header">
+    <h3>A: Classic Netflix</h3>
+    <p>Click to pick</p>
+  </div>
+  <div class="player-frame">
+    <div class="top-grad"></div>
+    <div class="bot-grad"></div>
+    <div class="player-vid"></div>
+    <div class="top-bar">
+      <svg class="back" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+      <span class="ttl">Stranger Things &mdash; S1:E1: The Vanishing of Will Byers</span>
+      <span class="pill">English</span>
+      <span class="pill">CC</span>
+    </div>
+    <div class="bottom-bar">
+      <div class="seek-row">
+        <span class="time">12:34</span>
+        <div class="seek-track">
+          <div class="seek-buffer" style="width:62%"></div>
+          <div class="seek-progress" style="width:38%;background:#e50914"></div>
+          <div class="seek-dot" style="left:38%;background:#e50914;box-shadow:0 0 6px rgba(229,9,20,0.7)"></div>
+        </div>
+        <span class="time right">45:00</span>
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-left">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><rect x="2" y="3" width="7" height="18" rx="1"/><polygon points="14,4 22,12 14,20"/><line x1="22" y1="3" x2="22" y2="21" stroke="white" stroke-width="2.5"/></svg>
+          <svg class="btn-play" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="white" stroke="rgba(255,255,255,0.3)" stroke-width="2"/><polygon points="19,14 35,24 19,34" fill="black"/></svg>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><rect x="15" y="3" width="7" height="18" rx="1"/><polygon points="2,4 10,12 2,20"/><line x1="2" y1="3" x2="2" y2="21" stroke="white" stroke-width="2.5"/></svg>
+        </div>
+        <div class="ctrl-right">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06L3.72 10.22c-.976.976-.976 2.56 0 3.536l7.22 7.22c.944.944 2.56.274 2.56-1.06V4.06z"/><path d="M18.5 6c0-1.105.896-2 2-2s2 .895 2 2v12c0 1.105-.896 2-2 2s-2-.895-2-2V6z" opacity="0"/></svg>
+          <div class="vol-track"><div class="vol-fill" style="width:65%"></div></div>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M7 15V9m5 6V9m5 6V9"/><path d="M3 21h18"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="center-play">
+      <div class="play-big" style="background:rgba(255,255,255,0.15); backdrop-filter:blur(6px); border:1.5px solid rgba(255,255,255,0.25);">
+        <svg width="18" height="20" viewBox="0 0 18 20" fill="white"><polygon points="0,0 18,10 0,20"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="card-desc">
+    <h4>Classic Netflix layout</h4>
+    <p>Top bar: back, title, audio dropdown, subtitle dropdown. Bottom: seek bar + buffer, skip buttons, centered play, volume slider, fullscreen. Red Netflix accent on seek bar.</p>
+  </div>
+</div>
+
+<div class="card" onclick="pick('minimal')">
+  <div class="card-header">
+    <h3>B: Minimal Floating</h3>
+    <p>Click to pick</p>
+  </div>
+  <div class="player-frame">
+    <div class="top-grad" style="height:44px"></div>
+    <div class="player-vid"></div>
+    <div class="top-bar">
+      <svg class="back" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+      <span class="ttl">Stranger Things &mdash; S1:E1</span>
+      <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+    </div>
+    <div class="bar-float">
+      <div class="seek-row">
+        <span class="time">12:34 / 45:00</span>
+        <div class="seek-track" style="margin:0 8px">
+          <div class="seek-buffer" style="width:55%"></div>
+          <div class="seek-progress" style="width:32%;background:#c084fc"></div>
+          <div class="seek-dot" style="left:32%;background:#c084fc;box-shadow:0 0 6px rgba(192,132,252,0.7)"></div>
+        </div>
+      </div>
+      <div class="ctrl-row" style="margin-top:6px">
+        <div class="ctrl-left" style="gap:14px">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><rect x="2" y="3" width="7" height="18" rx="1"/><polygon points="14,4 22,12 14,20"/></svg>
+          <svg width="28" height="28" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="#c084fc"/><polygon points="19,14 35,24 19,34" fill="white"/></svg>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><rect x="15" y="3" width="7" height="18" rx="1"/><polygon points="2,4 10,12 2,20"/></svg>
+        </div>
+        <div class="ctrl-right" style="gap:14px">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06L3.72 10.22c-.976.976-.976 2.56 0 3.536l7.22 7.22c.944.944 2.56.274 2.56-1.06V4.06z"/></svg>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg>
+        </div>
+      </div>
+    </div>
+    <div class="center-play">
+      <div class="play-big" style="background:rgba(255,255,255,0.1); backdrop-filter:blur(4px);">
+        <svg width="16" height="18" viewBox="0 0 16 18" fill="white"><polygon points="0,0 16,9 0,18"/></svg>
+      </div>
+    </div>
+  </div>
+  <div class="card-desc">
+    <h4>Minimal floating bar</h4>
+    <p>Single glass bar with all controls. No separate bottom section &mdash; everything compact. Audio/subs in a settings gear menu. Luna purple accent. Very clean.</p>
+  </div>
+</div>
+
+<div class="card" onclick="pick('cinematic')">
+  <div class="card-header">
+    <h3>C: Cinematic</h3>
+    <p>Click to pick</p>
+  </div>
+  <div class="player-frame">
+    <div class="letterbox-top"></div>
+    <div class="letterbox-bot"></div>
+    <div class="player-vid" style="inset:42px 70px"></div>
+    <div class="top-bar" style="left:10px; right:10px">
+      <svg class="back" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><path d="M15.75 19.5L8.25 12l7.5-7.5"/></svg>
+      <span class="ttl">Stranger Things &mdash; S1:E1: The Vanishing of Will Byers</span>
+    </div>
+    <div class="bottom-bar" style="left:10px; right:10px">
+      <div class="seek-row">
+        <span class="time">12:34</span>
+        <div class="seek-track">
+          <div class="seek-buffer" style="width:58%"></div>
+          <div class="seek-progress" style="width:35%;background:#e50914"></div>
+          <div class="seek-dot" style="left:35%;width:10px;height:10px;top:-4px;background:#e50914;box-shadow:0 0 8px rgba(229,9,20,0.8)"></div>
+        </div>
+        <span class="time right">45:00</span>
+      </div>
+      <div class="ctrl-row">
+        <div class="ctrl-left" style="gap:16px">
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><rect x="2" y="3" width="7" height="18" rx="1"/><polygon points="14,4 22,12 14,20"/></svg>
+          <svg width="32" height="32" viewBox="0 0 48 48"><circle cx="24" cy="24" r="22" fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="2"/><polygon points="20,15 34,24 20,33" fill="white"/></svg>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><rect x="15" y="3" width="7" height="18" rx="1"/><polygon points="2,4 10,12 2,20"/></svg>
+        </div>
+        <div class="ctrl-right" style="gap:12px">
+          <span class="pill">English &bull;</span>
+          <span class="pill">CC</span>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="white"><path d="M13.5 4.06c0-1.336-1.616-2.005-2.56-1.06L3.72 10.22c-.976.976-.976 2.56 0 3.536l7.22 7.22c.944.944 2.56.274 2.56-1.06V4.06z"/></svg>
+          <svg class="btn-icon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M12 8v8m-4-4h8"/></svg>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="card-desc">
+    <h4>Cinematic letterbox</h4>
+    <p>Wide letterbox spacing, glowing seek dot that grows on hover, transparent ring play button, audio/subs as pill buttons. Theatrical layout with breathing room.</p>
+  </div>
+</div>
+
+</div>
+<p id="status" style="margin-top:24px; color:#666; font-size:13px">Click a card to select your preferred style</p>
+
+<script>
+function pick(choice) {
+  document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+  const card = document.querySelector(`[onclick="pick('${choice}')"]`);
+  card.classList.add('selected');
+  const names = { classic:'Classic Netflix', minimal:'Minimal Floating', cinematic:'Cinematic' };
+  document.getElementById('status').innerHTML = 'Selected: <strong>' + names[choice] + '</strong> &mdash; confirm in terminal';
+  fetch('/state/events', {
+    method: 'POST',
+    headers: {'Content-Type':'application/json'},
+    body: JSON.stringify({type:'click', choice, text:names[choice], timestamp: Date.now()})
+  }).catch(()=>{});
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#080808; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; }
+.page { max-width:1100px; margin:0 auto; padding:40px 24px 80px; }
+h1 { font-size:22px; font-weight:800; margin-bottom:4px; }
+.sub { color:#555; font-size:13px; margin-bottom:48px; }
+
+/* SECTION */
+.section { margin-bottom:64px; }
+.section-label { font-size:11px; font-weight:700; color:#a78bfa; text-transform:uppercase; letter-spacing:.15em; margin-bottom:8px; }
+.section-title { font-size:18px; font-weight:700; margin-bottom:16px; }
+
+/* ============ PLAYER ============ */
+.player-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.8); }
+.player-bg { position:absolute; inset:0; background:radial-gradient(ellipse at 30% 50%,rgba(80,40,10,.5),transparent 55%), radial-gradient(ellipse at 75%25%,rgba(10,30,80,.4),transparent 50%), #050505; }
+.player-bg-title { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:80px; font-weight:900; letter-spacing:-.05em; color:rgba(255,255,255,.05); text-transform:uppercase; }
+.player-controls { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:space-between; }
+/* TOP */
+.p-top { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent); }
+.p-back { display:flex; align-items:center; gap:5px; color:rgba(255,255,255,.85); font-size:13px; font-weight:500; }
+.p-title { font-size:13px; font-weight:500; color:rgba(255,255,255,.75); }
+.p-top-icons { display:flex; gap:10px; }
+.p-top-icon { width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.65); }
+/* CENTER */
+.p-center { display:flex; align-items:center; justify-content:center; gap:44px; }
+.p-skip { display:flex; flex-direction:column; align-items:center; gap:4px; color:rgba(255,255,255,.7); }
+.p-skip-label { font-size:9px; font-weight:600; letter-spacing:.1em; color:rgba(255,255,255,.35); }
+.p-play { width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; }
+/* BOTTOM */
+.p-bottom { padding:0 0 0; background:linear-gradient(to top,rgba(0,0,0,.8) 0%,transparent 100%); }
+.p-title-area { padding:0 22px 10px; }
+.p-show-title { font-size:13px; font-weight:600; color:#fff; }
+.p-ep-info { font-size:11px; color:rgba(255,255,255,.5); margin-top:2px; }
+.p-scrub-row { display:flex; align-items:center; gap:10px; padding:0 18px 8px; }
+.p-time { font-size:11px; color:rgba(255,255,255,.45); min-width:34px; font-variant-numeric:tabular-nums; }
+.p-track { flex:1; height:3px; background:rgba(255,255,255,.2); border-radius:3px; position:relative; }
+.p-filled { position:absolute; left:0;top:0;bottom:0; width:32%; background:#fff; border-radius:3px; }
+.p-thumb { position:absolute; top:50%; left:32%; transform:translate(-50%,-50%); width:11px; height:11px; background:#fff; border-radius:50%; }
+.p-ctrl-row { display:flex; align-items:center; justify-content:space-between; padding:0 18px 18px; }
+.p-ctrl-left { display:flex; align-items:center; gap:4px; }
+.p-ctrl-right { display:flex; align-items:center; gap:2px; }
+.p-btn { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.65); }
+.p-vol-slider { width:52px; height:2.5px; background:rgba(255,255,255,.2); border-radius:3px; position:relative; }
+.p-vol-fill { position:absolute; left:0;top:0;bottom:0; width:75%; background:#fff; border-radius:3px; }
+
+/* SOURCES PANEL */
+.sources-wrap { display:flex; gap:0; border-radius:12px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.7); height:420px; }
+.sources-dim { flex:1; background:rgba(0,0,0,.5); }
+.sources-panel { width:320px; background:#111; display:flex; flex-direction:column; flex-shrink:0; }
+.sp-header { padding:16px 18px; border-bottom:1px solid rgba(255,255,255,.07); display:flex; align-items:center; justify-content:space-between; }
+.sp-title { font-size:14px; font-weight:700; color:#fff; }
+.sp-close { width:28px; height:28px; border-radius:50%; background:rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.5); font-size:14px; }
+.sp-body { flex:1; overflow-y:auto; padding:8px 0; }
+.sp-group-label { padding:8px 18px 4px; font-size:10px; font-weight:700; color:rgba(255,255,255,.25); text-transform:uppercase; letter-spacing:.1em; }
+.sp-item { padding:10px 18px; display:flex; align-items:center; gap:10px; cursor:pointer; transition:background .1s; }
+.sp-item:hover { background:rgba(255,255,255,.05); }
+.sp-item.active { border-left:2px solid #fff; padding-left:16px; background:rgba(255,255,255,.04); }
+.sp-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; flex-shrink:0; }
+.badge-4k { background:rgba(250,204,21,.15); color:#fbbf24; }
+.badge-1080 { background:rgba(96,165,250,.15); color:#60a5fa; }
+.badge-720 { background:rgba(148,163,184,.12); color:#94a3b8; }
+.sp-item-info { flex:1; min-width:0; }
+.sp-item-title { font-size:12px; font-weight:600; color:#ddd; truncate:true; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sp-item-sub { font-size:10px; color:rgba(255,255,255,.35); margin-top:1px; }
+.sp-stars { font-size:10px; color:rgba(255,204,0,.7); flex-shrink:0; }
+
+/* NAV */
+.nav-wrap { border-radius:12px; overflow:hidden; box-shadow:0 8px 30px rgba(0,0,0,.5); }
+.nav-bar { background:#0a0a0a; border-bottom:1px solid rgba(255,255,255,.07); padding:0 24px; display:flex; align-items:center; gap:0; height:52px; }
+.nav-logo { display:flex; align-items:center; gap:8px; font-size:14px; font-weight:700; color:#fff; padding-right:28px; flex-shrink:0; }
+.nav-moon { width:18px; height:18px; }
+.nav-items { display:flex; align-items:stretch; flex:1; gap:0; }
+.nav-item { display:flex; align-items:center; gap-:6px; padding:0 14px; font-size:13px; font-weight:500; color:rgba(255,255,255,.5); position:relative; cursor:pointer; transition:color .15s; height:52px; gap:6px; }
+.nav-item:hover { color:rgba(255,255,255,.85); }
+.nav-item.active { color:#fff; }
+.nav-item.active::after { content:''; position:absolute; bottom:0; left:14px; right:14px; height:2px; background:#fff; border-radius:2px 2px 0 0; }
+.nav-profile { display:flex; align-items:center; gap:8px; margin-left:auto; }
+.nav-avatar { width:26px; height:26px; border-radius:50%; background:#a78bfa; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; }
+.nav-name { font-size:12px; color:rgba(255,255,255,.5); }
+
+/* Home preview under nav */
+.home-preview { background:#080808; padding:20px; border-radius:0 0 12px 12px; }
+.hero-sm { height:180px; border-radius:10px; background:linear-gradient(135deg,#1a0800,#000820); position:relative; overflow:hidden; margin-bottom:20px; }
+.hero-sm::before { content:''; position:absolute; inset:0; background:linear-gradient(to right,rgba(0,0,0,.85),transparent 60%); }
+.hero-content { position:absolute; bottom:0; left:0; padding:16px 20px; }
+.hero-from { font-size:9px; color:#a78bfa; font-weight:700; text-transform:uppercase; letter-spacing:.12em; margin-bottom:4px; }
+.hero-title { font-size:22px; font-weight:900; letter-spacing:-.02em; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Visual Previews — Issues 3, 4, 7</h1>
+  <p class="sub">Review all three redesigns. Reply with any changes, or approve to start implementation.</p>
+
+  <!-- ISSUE 3: PLAYER -->
+  <div class="section">
+    <div class="section-label">Issue 3</div>
+    <div class="section-title">Player — HBO Max minimal style (no glassmorphism)</div>
+
+    <div class="player-wrap">
+      <div class="player-bg"></div>
+      <div class="player-bg-title">THE BOYS</div>
+
+      <div class="player-controls">
+        <!-- TOP: plain text back + title + icons, no pills -->
+        <div class="p-top">
+          <div class="p-back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
+          </div>
+          <div class="p-title">The Boys — S3 E1: Payback</div>
+          <div class="p-top-icons">
+            <!-- AirPlay -->
+            <div class="p-top-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h18a2 2 0 012 2v10a2 2 0 01-2 2h-2M12 15l-4 5h8l-4-5z"/></svg></div>
+            <!-- PiP -->
+            <div class="p-top-icon"><svg width="18" height="18" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="4" width="18" height="14" rx="2"/><rect x="11" y="11" width="8" height="5" rx="1" fill="currentColor" stroke="none" opacity=".65"/></svg></div>
+          </div>
+        </div>
+
+        <!-- CENTER: minimal buttons, no glass -->
+        <div class="p-center">
+          <div class="p-skip">
+            <svg width="28" height="28" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6C11.4 6 6 11.4 6 18s5.4 12 12 12 12-5.4 12-12" stroke-linecap="round"/><path d="M24 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/><text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="700" stroke="none" fill="currentColor">15</text></svg>
+            <span class="p-skip-label">BACK</span>
+          </div>
+          <!-- Simple play circle, no blur -->
+          <div class="p-play">
+            <svg viewBox="0 0 24 24" fill="white" width="22" height="22"><path d="M6 5h3v14H6V5zm9 0h3v14h-3V5z"/></svg>
+          </div>
+          <div class="p-skip">
+            <svg width="28" height="28" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6c6.6 0 12 5.4 12 12S24.6 30 18 30 6 24.6 6 18" stroke-linecap="round"/><path d="M12 4L8 8l4 4" stroke-linecap="round" stroke-linejoin="round"/><text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="700" stroke="none" fill="currentColor">15</text></svg>
+            <span class="p-skip-label">FWD</span>
+          </div>
+        </div>
+
+        <!-- BOTTOM: full-width gradient shelf, no floating card -->
+        <div class="p-bottom">
+          <div class="p-title-area">
+            <div class="p-show-title">The Boys</div>
+            <div class="p-ep-info">S3 E1: Payback · 56 min</div>
+          </div>
+          <div class="p-scrub-row">
+            <span class="p-time">14:22</span>
+            <div class="p-track">
+              <div class="p-filled"></div>
+              <div class="p-thumb"></div>
+            </div>
+            <span class="p-time" style="text-align:right">-41:38</span>
+          </div>
+          <div class="p-ctrl-row">
+            <div class="p-ctrl-left">
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 9H2a1 1 0 00-1 1v4a1 1 0 001 1h3l4 4V5L5 9z"/><path d="M15.5 8.5a5 5 0 010 7" stroke-linecap="round"/></svg></div>
+              <div style="width:52px;height:2.5px;background:rgba(255,255,255,.2);border-radius:3px;position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:75%;background:#fff;border-radius:3px;"></div></div>
+            </div>
+            <div class="p-ctrl-right">
+              <!-- Sources -->
+              <div class="p-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></div>
+              <!-- Subtitles -->
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 10h4M7 14h10" stroke-linecap="round"/></svg></div>
+              <!-- Speed -->
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/></svg></div>
+              <!-- Fullscreen -->
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ISSUE 4: SOURCES PANEL -->
+  <div class="section">
+    <div class="section-label">Issue 4</div>
+    <div class="section-title">Sources Panel — quality badges, cleaner layout</div>
+
+    <div class="sources-wrap">
+      <div class="sources-dim"></div>
+      <div class="sources-panel">
+        <div class="sp-header">
+          <span class="sp-title">Sources</span>
+          <div class="sp-close">✕</div>
+        </div>
+        <div class="sp-body">
+          <div class="sp-group-label">Torrentio</div>
+
+          <div class="sp-item active">
+            <span class="sp-badge badge-4k">4K</span>
+            <div class="sp-item-info">
+              <div class="sp-item-title">The.Boys.S03E01.2160p.WEB-DL</div>
+              <div class="sp-item-sub">Torrentio · WebDL · 18.2 GB</div>
+            </div>
+            <span class="sp-stars">★★★★★</span>
+          </div>
+
+          <div class="sp-item">
+            <span class="sp-badge badge-4k">4K</span>
+            <div class="sp-item-info">
+              <div class="sp-item-title">The.Boys.S03E01.2160p.AMZN.WEB</div>
+              <div class="sp-item-sub">Torrentio · WebDL · 14.7 GB</div>
+            </div>
+            <span class="sp-stars">★★★★☆</span>
+          </div>
+
+          <div class="sp-item">
+            <span class="sp-badge badge-1080">1080p</span>
+            <div class="sp-item-info">
+              <div class="sp-item-title">The.Boys.S03E01.1080p.WEB-DL</div>
+              <div class="sp-item-sub">Torrentio · WebDL · 4.1 GB</div>
+            </div>
+            <span class="sp-stars">★★★★★</span>
+          </div>
+
+          <div class="sp-item">
+            <span class="sp-badge badge-1080">1080p</span>
+            <div class="sp-item-info">
+              <div class="sp-item-title">The.Boys.S03E01.1080p.BluRay</div>
+              <div class="sp-item-sub">Torrentio · BluRay · 6.8 GB</div>
+            </div>
+            <span class="sp-stars">★★★★☆</span>
+          </div>
+
+          <div class="sp-item">
+            <span class="sp-badge badge-720">720p</span>
+            <div class="sp-item-info">
+              <div class="sp-item-title">The.Boys.S03E01.720p.WEB</div>
+              <div class="sp-item-sub">Torrentio · WEB · 1.8 GB</div>
+            </div>
+            <span class="sp-stars">★★★☆☆</span>
+          </div>
+
+          <div class="sp-group-label" style="margin-top:8px">Torbox</div>
+
+          <div class="sp-item">
+            <span class="sp-badge badge-1080">1080p</span>
+            <div class="sp-item-info">
+              <div class="sp-item-title">The Boys S3E1 — Best Quality</div>
+              <div class="sp-item-sub">Torbox · Cached · Fast</div>
+            </div>
+            <span class="sp-stars">★★★★★</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ISSUE 7: NAVBAR -->
+  <div class="section">
+    <div class="section-label">Issue 7</div>
+    <div class="section-title">Navbar — flat dark bar, underline active state, no glass pill</div>
+
+    <div class="nav-wrap">
+      <div class="nav-bar">
+        <!-- Logo -->
+        <div class="nav-logo">
+          <svg class="nav-moon" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+          Luna
+        </div>
+
+        <!-- Nav items -->
+        <div class="nav-items">
+          <div class="nav-item active">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+            Home
+          </div>
+          <div class="nav-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+            Search
+          </div>
+          <div class="nav-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            Library
+          </div>
+          <div class="nav-item">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            Settings
+          </div>
+        </div>
+
+        <!-- Profile -->
+        <div class="nav-profile">
+          <div class="nav-avatar">Z</div>
+          <span class="nav-name">Zain</span>
+        </div>
+      </div>
+
+      <!-- Home content preview under nav -->
+      <div class="home-preview">
+        <div class="hero-sm">
+          <div class="hero-content">
+            <div class="hero-from">⬦ Popular Movies</div>
+            <div class="hero-title">THE BOYS</div>
+          </div>
+        </div>
+        <div style="color:#666;font-size:12px;text-align:center;padding:8px 0">Home content continues below...</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

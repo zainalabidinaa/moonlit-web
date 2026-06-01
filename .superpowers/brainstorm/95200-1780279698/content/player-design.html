@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0a0a0a; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; }
+.page { max-width: 960px; margin: 0 auto; padding: 36px 24px; }
+h1 { font-size: 20px; font-weight: 700; margin-bottom: 6px; }
+.sub { color: #666; font-size: 13px; margin-bottom: 32px; }
+
+/* ---- PLAYER SHELL ---- */
+.player {
+  width: 100%;
+  aspect-ratio: 16/9;
+  background: #000;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 32px;
+  box-shadow: 0 32px 80px rgba(0,0,0,.8);
+}
+
+/* fake movie backdrop */
+.player-bg {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(ellipse at 30% 40%, rgba(80,40,10,.6), transparent 50%),
+    radial-gradient(ellipse at 80% 20%, rgba(10,30,80,.5), transparent 45%),
+    linear-gradient(160deg, #1a1200, #000818, #0d0d0d);
+}
+/* subtle film grain */
+.player-bg::after {
+  content:''; position:absolute; inset:0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.035'/%3E%3C/svg%3E");
+  opacity:.4;
+}
+
+/* fake content — title centred */
+.player-title-center {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+}
+.big-title {
+  font-size: 72px; font-weight: 900; letter-spacing: -.04em;
+  color: rgba(255,255,255,.08); text-transform: uppercase; user-select: none;
+}
+
+/* ---- CONTROLS OVERLAY ---- */
+.controls {
+  position: absolute; inset: 0;
+  background: linear-gradient(to bottom,
+    rgba(0,0,0,.55) 0%,
+    transparent 28%,
+    transparent 55%,
+    rgba(0,0,0,.75) 100%
+  );
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 0;
+}
+
+/* TOP BAR */
+.top-bar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px 0;
+}
+.back-btn {
+  display: flex; align-items: center; gap: 6px;
+  color: rgba(255,255,255,.85); font-size: 15px; font-weight: 500;
+}
+.back-chevron {
+  width: 9px; height: 15px;
+  border-left: 2px solid rgba(255,255,255,.85);
+  border-bottom: 2px solid rgba(255,255,255,.85);
+  transform: rotate(45deg);
+  margin-right: 2px;
+}
+.top-title {
+  font-size: 14px; font-weight: 600;
+  color: rgba(255,255,255,.9); text-align: center;
+  flex: 1; padding: 0 12px;
+}
+.top-right {
+  display: flex; gap: 8px; align-items: center;
+}
+.icon-btn {
+  width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.75);
+}
+
+/* CENTER AREA */
+.center-area {
+  display: flex; align-items: center; justify-content: center; gap: 44px;
+  flex: 1;
+}
+.skip-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  color: rgba(255,255,255,.75);
+}
+.skip-label { font-size: 10px; font-weight: 600; color: rgba(255,255,255,.5); }
+.play-btn {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: rgba(255,255,255,.18);
+  backdrop-filter: blur(12px);
+  display: flex; align-items: center; justify-content: center;
+  border: 1.5px solid rgba(255,255,255,.2);
+}
+.play-triangle {
+  width: 0; height: 0;
+  border-top: 12px solid transparent;
+  border-bottom: 12px solid transparent;
+  border-left: 20px solid rgba(255,255,255,.9);
+  margin-left: 4px;
+}
+.pause-bars {
+  display: flex; gap: 5px;
+}
+.pause-bar { width: 5px; height: 22px; background: rgba(255,255,255,.9); border-radius: 2px; }
+
+/* BOTTOM BAR */
+.bottom-bar { padding: 0 20px 20px; }
+
+/* SCRUBBER */
+.scrubber-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.time { font-size: 12px; font-weight: 500; color: rgba(255,255,255,.6); font-variant-numeric: tabular-nums; min-width: 38px; }
+.time.right { text-align: right; }
+.scrubber-track {
+  flex: 1; height: 4px; border-radius: 4px;
+  background: rgba(255,255,255,.2); position: relative; cursor: pointer;
+}
+.scrubber-buf {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 55%;
+  background: rgba(255,255,255,.15); border-radius: 4px;
+}
+.scrubber-fill {
+  position: absolute; left: 0; top: 0; bottom: 0; width: 34%;
+  background: #fff; border-radius: 4px;
+}
+.scrubber-thumb {
+  position: absolute; top: 50%; left: 34%; transform: translate(-50%,-50%);
+  width: 14px; height: 14px; background: #fff; border-radius: 50%;
+  box-shadow: 0 1px 6px rgba(0,0,0,.5);
+}
+
+/* BOTTOM CONTROLS */
+.bottom-controls {
+  display: flex; align-items: center; justify-content: space-between;
+}
+.left-controls { display: flex; align-items: center; gap: 4px; }
+.right-controls { display: flex; align-items: center; gap: 2px; }
+
+.ctrl-btn {
+  width: 38px; height: 38px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  color: rgba(255,255,255,.7); cursor: pointer;
+  transition: background .15s;
+}
+.ctrl-btn:hover { background: rgba(255,255,255,.1); }
+
+.vol-area { display: flex; align-items: center; gap: 6px; }
+.vol-slider {
+  width: 70px; height: 3px; background: rgba(255,255,255,.25);
+  border-radius: 3px; position: relative;
+}
+.vol-fill { position: absolute; left:0; top:0; bottom:0; width:80%; background:#fff; border-radius:3px; }
+
+/* SUBTITLE PILL */
+.sub-popup {
+  position: absolute; bottom: 90px; right: 20px;
+  background: rgba(20,20,20,.92); backdrop-filter: blur(20px);
+  border: 1px solid rgba(255,255,255,.1); border-radius: 14px;
+  padding: 8px 0; min-width: 200px; box-shadow: 0 12px 40px rgba(0,0,0,.6);
+}
+.pop-section { padding: 6px 16px 4px; font-size: 10px; font-weight: 700;
+  color: rgba(255,255,255,.3); text-transform: uppercase; letter-spacing: .1em; }
+.pop-item {
+  padding: 9px 16px; font-size: 13px; color: rgba(255,255,255,.75);
+  display: flex; align-items: center; justify-content: space-between; cursor: pointer;
+}
+.pop-item:hover { background: rgba(255,255,255,.05); }
+.pop-item.active { color: #fff; font-weight: 600; }
+.pop-dot { width: 6px; height: 6px; border-radius: 50%; background: #a78bfa; }
+.pop-divider { height: 1px; background: rgba(255,255,255,.06); margin: 4px 0; }
+
+/* SVG icons (simplified) */
+svg { display: block; }
+
+/* COMPARISON TABLE */
+.table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+.table th { text-align: left; padding: 10px 14px; color: #666; font-weight: 600;
+  font-size: 11px; text-transform: uppercase; letter-spacing: .06em;
+  border-bottom: 1px solid #1e1e1e; }
+.table td { padding: 11px 14px; border-bottom: 1px solid #161616; vertical-align: top; }
+.table tr:last-child td { border-bottom: none; }
+.table td:first-child { color: #aaa; font-weight: 500; }
+.table td:last-child { color: #777; }
+.tick { color: #4ade80; font-weight: 700; }
+.cross { color: #f87171; font-weight: 700; }
+.warn { color: #fb923c; font-weight: 700; }
+
+.section-title { font-size: 16px; font-weight: 700; margin: 28px 0 14px; color: #ddd; }
+.note { background: #111; border: 1px solid #222; border-radius: 10px;
+  padding: 14px 18px; font-size: 13px; color: #888; line-height: 1.6; margin-top: 12px; }
+.note strong { color: #ccc; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Web Player — Apple-Native Style Redesign</h1>
+  <p class="sub">This is the proposed design. Below that: framework recommendation (stay Next.js vs. migrate to Vite).</p>
+
+  <!-- PLAYER MOCKUP -->
+  <div class="player">
+    <div class="player-bg"></div>
+    <div class="player-title-center"><div class="big-title">SINNERS</div></div>
+
+    <div class="controls">
+      <!-- TOP -->
+      <div class="top-bar">
+        <div class="back-btn">
+          <div class="back-chevron"></div>
+          <span>Back</span>
+        </div>
+        <div class="top-title">Sinners · 2025</div>
+        <div class="top-right">
+          <!-- AirPlay icon -->
+          <div class="icon-btn">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6">
+              <path d="M3 13v3a2 2 0 002 2h12a2 2 0 002-2v-3"/>
+              <path d="M7 17l4-5 4 5"/>
+              <rect x="5" y="3" width="12" height="10" rx="1.5"/>
+            </svg>
+          </div>
+          <!-- Picture-in-picture -->
+          <div class="icon-btn">
+            <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.6">
+              <rect x="2" y="4" width="18" height="14" rx="2"/>
+              <rect x="11" y="11" width="8" height="5" rx="1" fill="currentColor" stroke="none" opacity=".6"/>
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- CENTER: skip + play -->
+      <div class="center-area">
+        <div class="skip-btn">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M18 6C11.4 6 6 11.4 6 18s5.4 12 12 12 12-5.4 12-12" stroke-linecap="round"/>
+            <path d="M24 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="50%" y="53%" dominant-baseline="middle" text-anchor="middle" font-size="9" font-weight="700" stroke="none" fill="currentColor">15</text>
+          </svg>
+          <span class="skip-label">BACK</span>
+        </div>
+
+        <div class="play-btn">
+          <div class="pause-bars"><div class="pause-bar"></div><div class="pause-bar"></div></div>
+        </div>
+
+        <div class="skip-btn">
+          <svg width="36" height="36" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M18 6c6.6 0 12 5.4 12 12S24.6 30 18 30 6 24.6 6 18" stroke-linecap="round"/>
+            <path d="M12 4L8 8l4 4" stroke-linecap="round" stroke-linejoin="round"/>
+            <text x="50%" y="53%" dominant-baseline="middle" text-anchor="middle" font-size="9" font-weight="700" stroke="none" fill="currentColor">15</text>
+          </svg>
+          <span class="skip-label">FORWARD</span>
+        </div>
+      </div>
+
+      <!-- BOTTOM -->
+      <div class="bottom-bar">
+        <!-- SCRUBBER -->
+        <div class="scrubber-row">
+          <span class="time">34:12</span>
+          <div class="scrubber-track">
+            <div class="scrubber-buf"></div>
+            <div class="scrubber-fill"></div>
+            <div class="scrubber-thumb"></div>
+          </div>
+          <span class="time right">-58:44</span>
+        </div>
+
+        <!-- CONTROLS -->
+        <div class="bottom-controls">
+          <div class="left-controls">
+            <!-- volume -->
+            <div class="ctrl-btn">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M5 9H2a1 1 0 00-1 1v4a1 1 0 001 1h3l4 4V5L5 9z"/>
+                <path d="M15.5 8.5a5 5 0 010 7M19 5a9 9 0 010 14"/>
+              </svg>
+            </div>
+            <div class="vol-slider"><div class="vol-fill"></div></div>
+          </div>
+
+          <div class="right-controls">
+            <!-- sources -->
+            <div class="ctrl-btn" title="Sources">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
+              </svg>
+            </div>
+            <!-- subtitles -->
+            <div class="ctrl-btn" title="Subtitles & Audio">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <rect x="2" y="5" width="20" height="14" rx="2"/>
+                <path d="M7 10h4M7 14h10"/>
+              </svg>
+            </div>
+            <!-- speed -->
+            <div class="ctrl-btn" title="Speed">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M12 2a10 10 0 100 20A10 10 0 0012 2z"/>
+                <path d="M12 6v6l4 2"/>
+              </svg>
+            </div>
+            <!-- fullscreen -->
+            <div class="ctrl-btn" title="Fullscreen">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7">
+                <path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Subtitle popup -->
+    <div class="sub-popup">
+      <div class="pop-section">Audio</div>
+      <div class="pop-item active">English <div class="pop-dot"></div></div>
+      <div class="pop-item">Français</div>
+      <div class="pop-divider"></div>
+      <div class="pop-section">Subtitles</div>
+      <div class="pop-item">Off</div>
+      <div class="pop-item">English</div>
+      <div class="pop-item">Español</div>
+    </div>
+  </div>
+
+  <!-- FRAMEWORK QUESTION -->
+  <div class="section-title">Framework: Stay Next.js or migrate to React + Vite?</div>
+  <table class="table">
+    <tr>
+      <th>Factor</th>
+      <th>Stay Next.js 14</th>
+      <th>Migrate to React + Vite</th>
+    </tr>
+    <tr>
+      <td>HLS audio & subtitle bugs</td>
+      <td><span class="tick">✓</span> Fix in current codebase — same HLS.js, same fix</td>
+      <td><span class="warn">~</span> Same fix needed, just in a new project</td>
+    </tr>
+    <tr>
+      <td>Player redesign</td>
+      <td><span class="tick">✓</span> Drop-in replacement of Player.tsx</td>
+      <td><span class="warn">~</span> Rewrite all routing + auth + pages first</td>
+    </tr>
+    <tr>
+      <td>Migration effort</td>
+      <td><span class="tick">✓</span> Zero — ship features immediately</td>
+      <td><span class="cross">✗</span> 2–4 weeks rewriting what already works</td>
+    </tr>
+    <tr>
+      <td>Bundle size / speed</td>
+      <td><span class="warn">~</span> Slightly larger, but not noticeable here</td>
+      <td><span class="tick">✓</span> Marginally faster dev builds</td>
+    </tr>
+    <tr>
+      <td>Risk</td>
+      <td><span class="tick">✓</span> Low — known codebase</td>
+      <td><span class="cross">✗</span> Regression risk on auth, routing, API</td>
+    </tr>
+  </table>
+
+  <div class="note">
+    <strong>Recommendation: Stay Next.js.</strong> The HLS audio/subtitle issues are a configuration problem — not a framework problem. The player needs a redesign and HLS.js fixes that work identically in both frameworks. Migrating buys nothing and costs weeks. We can ship all these changes today.
+  </div>
+</div>
+</body>
+</html>

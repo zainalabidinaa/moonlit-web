@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #080808; color: #fff; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+
+.page { max-width: 900px; margin: 0 auto; padding: 40px 24px; }
+h1 { font-size: 22px; font-weight: 700; margin-bottom: 6px; }
+.sub { color: #888; font-size: 14px; margin-bottom: 36px; }
+
+/* HERO */
+.hero {
+  position: relative;
+  width: 100%;
+  height: 420px;
+  border-radius: 16px;
+  overflow: hidden;
+  margin-bottom: 40px;
+  background: linear-gradient(135deg,#1a0800,#000820,#0d0d0d);
+}
+.hero-backdrop {
+  position: absolute; inset: 0;
+  background: radial-gradient(ellipse at 65% 40%, rgba(150,80,0,.4), transparent 55%),
+              radial-gradient(ellipse at 20% 70%, rgba(40,10,100,.5), transparent 50%);
+}
+.hero-overlay {
+  position: absolute; inset: 0;
+  background: linear-gradient(to right, rgba(0,0,0,.92) 0%, rgba(0,0,0,.55) 45%, transparent 75%);
+}
+.hero-bottom {
+  position: absolute; bottom: 0; left: 0; right: 0; height: 120px;
+  background: linear-gradient(to top, #080808, transparent);
+}
+.hero-content {
+  position: absolute; bottom: 0; left: 0; padding: 40px 48px;
+}
+.hero-source {
+  font-size: 11px; color: #a78bfa; font-weight: 700;
+  letter-spacing: .15em; text-transform: uppercase; margin-bottom: 10px;
+}
+.hero-title {
+  font-size: 64px; font-weight: 900; line-height: 1;
+  letter-spacing: -.03em; margin-bottom: 10px;
+  text-shadow: 0 2px 20px rgba(0,0,0,.8);
+}
+.hero-meta {
+  font-size: 13px; color: #aaa; margin-bottom: 14px;
+}
+.hero-desc {
+  font-size: 13px; color: #ccc; max-width: 460px;
+  line-height: 1.6; margin-bottom: 24px;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.hero-btns { display: flex; gap: 12px; align-items: center; }
+.btn-primary {
+  background: #fff; color: #000; font-size: 14px; font-weight: 700;
+  padding: 12px 28px; border-radius: 28px; border: none; cursor: pointer;
+}
+.btn-secondary {
+  background: rgba(255,255,255,.14); color: #fff; font-size: 14px; font-weight: 600;
+  padding: 12px 22px; border-radius: 28px; border: 1px solid rgba(255,255,255,.15);
+  cursor: pointer; backdrop-filter: blur(8px);
+}
+.hero-dots {
+  position: absolute; bottom: 20px; right: 28px;
+  display: flex; gap: 6px; align-items: center;
+}
+.dot { height: 3px; border-radius: 3px; background: rgba(255,255,255,.3); }
+.dot.active { width: 24px; background: #fff; }
+.dot:not(.active) { width: 7px; }
+
+/* ROWS BELOW */
+.row-preview {
+  display: flex; gap: 8px; overflow: hidden; margin-top: 8px;
+}
+.mini-card {
+  flex-shrink: 0; width: 80px; height: 120px; border-radius: 6px;
+  background: #1a1a1a;
+}
+
+/* OPTIONS */
+.options { display: flex; flex-direction: column; gap: 16px; }
+.opt {
+  background: #111; border: 2px solid #222; border-radius: 14px;
+  padding: 20px 24px; cursor: pointer; transition: all .2s;
+  display: flex; align-items: flex-start; gap: 18px;
+}
+.opt:hover { border-color: #444; background: #161616; }
+.opt.selected { border-color: #a78bfa; background: #120d1e; }
+.opt-letter {
+  width: 36px; height: 36px; border-radius: 50%;
+  background: #222; display: flex; align-items: center;
+  justify-content: center; font-weight: 700; font-size: 15px;
+  flex-shrink: 0; color: #aaa;
+}
+.opt.selected .opt-letter { background: #a78bfa; color: #fff; }
+.opt-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+.opt-desc { font-size: 13px; color: #888; line-height: 1.5; }
+.tag { display: inline-block; background: #1e1e1e; border-radius: 8px;
+  padding: 3px 10px; font-size: 11px; color: #aaa; margin-right: 6px; margin-top: 8px; }
+.tag.rec { background: #1a102e; color: #a78bfa; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Featured Hero — What does it rotate through?</h1>
+  <p class="sub">The hero will always look like this cinematic design. Pick the rotation pool:</p>
+
+  <!-- HERO MOCKUP -->
+  <div class="hero">
+    <div class="hero-backdrop"></div>
+    <div class="hero-overlay"></div>
+    <div class="hero-bottom"></div>
+    <div class="hero-content">
+      <div class="hero-source">⬦ Popular Movies</div>
+      <div class="hero-title">SINNERS</div>
+      <div class="hero-meta">Movie &nbsp;·&nbsp; Action, Thriller &nbsp;·&nbsp; 2025 &nbsp;·&nbsp; ★ 8.1</div>
+      <div class="hero-desc">Two brothers return to their hometown only to discover that a far greater evil lurks beneath the surface of their quiet community.</div>
+      <div class="hero-btns">
+        <button class="btn-primary">▶&nbsp; Watch Now</button>
+        <button class="btn-secondary">+ My List</button>
+      </div>
+    </div>
+    <div class="hero-dots">
+      <div class="dot active"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+      <div class="dot"></div>
+    </div>
+  </div>
+
+  <!-- OPTIONS -->
+  <div class="options">
+    <div class="opt" onclick="this.classList.toggle('selected')">
+      <div class="opt-letter">A</div>
+      <div>
+        <div class="opt-title">Top 5 from Popular Movies only</div>
+        <div class="opt-desc">Hero rotates through items #1–5 from the Popular Movies row, every 6 seconds. Always a movie, always trending.</div>
+        <span class="tag">Simple</span><span class="tag">Consistent</span><span class="tag">Movies only</span>
+      </div>
+    </div>
+
+    <div class="opt" onclick="this.classList.toggle('selected')">
+      <div class="opt-letter">B</div>
+      <div>
+        <div class="opt-title">One from each of the 4 main rows</div>
+        <div class="opt-desc">Takes #1 from Popular Movies, #1 Popular TV, #1 Trending Movies, #1 Trending TV — 4 hero slides, mix of movies & shows.</div>
+        <span class="tag rec">Recommended</span><span class="tag">Balanced</span><span class="tag">Movies + TV</span>
+      </div>
+    </div>
+
+    <div class="opt" onclick="this.classList.toggle('selected')">
+      <div class="opt-letter">C</div>
+      <div>
+        <div class="opt-title">Top 5 by popularity score across all 4 rows</div>
+        <div class="opt-desc">Merges all 4 rows, ranks by popularity/vote score, picks the top 5. Whatever is hottest right now — movie or show — wins the hero slot.</div>
+        <span class="tag">Data-driven</span><span class="tag">Best content</span><span class="tag">May cluster</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// No framework needed — basic selection tracking
+</script>
+</body>
+</html>

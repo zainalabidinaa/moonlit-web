@@ -1,0 +1,94 @@
+{
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-BmcqUMKx.js": {
+    "id": 7835,
+    "files": [
+      "static/chunks/835.c47adf48b2a48a98.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-C0fPJIzs.js": {
+    "id": 1029,
+    "files": [
+      "static/chunks/29.7d0765e0b4d1f9cd.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-CHcsWfRV.js": {
+    "id": 4921,
+    "files": [
+      "static/chunks/921.8e0e6bb918c49bde.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-CvezEmSQ.js": {
+    "id": 4162,
+    "files": []
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-Di0HObvT.js": {
+    "id": 4607,
+    "files": [
+      "static/chunks/607.216028e2f3874f7e.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-DiaLSJYx.js": {
+    "id": 2380,
+    "files": [
+      "static/chunks/380.83d46ae080f1f127.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-Dy74GavT.js": {
+    "id": 9825,
+    "files": [
+      "static/chunks/825.2fa71ac7147cac3a.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> ./vidstack-GkTzay8D.js": {
+    "id": 6397,
+    "files": [
+      "static/chunks/397.877367dc777b95f2.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-BabSuRyU.js -> media-captions": {
+    "id": 7276,
+    "files": [
+      "static/chunks/276.621fb31b482c3d5b.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-CvezEmSQ.js -> media-captions": {
+    "id": 7276,
+    "files": [
+      "static/chunks/276.621fb31b482c3d5b.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/chunks/vidstack-Di0HObvT.js -> ./vidstack-D2vrrUMs.js": {
+    "id": 9346,
+    "files": [
+      "static/chunks/346.b961c15cf8743949.js"
+    ]
+  },
+  "../node_modules/@vidstack/react/prod/vidstack.js -> ./chunks/vidstack-B9fTkxQO.js": {
+    "id": 8477,
+    "files": []
+  },
+  "../node_modules/media-captions/dist/prod/index.js -> ./errors.js": {
+    "id": 2743,
+    "files": [
+      "static/chunks/743.2bc9b4f245939982.js"
+    ]
+  },
+  "../node_modules/media-captions/dist/prod/index.js -> ./srt-parser.js": {
+    "id": 6798,
+    "files": [
+      "static/chunks/60.41551e2e5cdb276f.js"
+    ]
+  },
+  "../node_modules/media-captions/dist/prod/index.js -> ./ssa-parser.js": {
+    "id": 8851,
+    "files": [
+      "static/chunks/851.d16ef3d50392b0f4.js"
+    ]
+  },
+  "../node_modules/media-captions/dist/prod/ssa-parser.js -> ./errors.js": {
+    "id": 2743,
+    "files": [
+      "static/chunks/743.2bc9b4f245939982.js"
+    ]
+  }
+}

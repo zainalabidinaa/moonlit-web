@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#080808; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; }
+.page { max-width:900px; margin:0 auto; padding:40px 24px 80px; }
+h1 { font-size:22px; font-weight:800; margin-bottom:4px; }
+.sub { color:#555; font-size:13px; margin-bottom:32px; }
+.section { margin-bottom:48px; }
+.section-label { font-size:11px; font-weight:700; color:#a78bfa; text-transform:uppercase; letter-spacing:.15em; margin-bottom:8px; }
+.section-title { font-size:16px; font-weight:700; margin-bottom:16px; }
+
+.mock { background:#080808; border:1px solid #1e1e1e; border-radius:12px; overflow:hidden; padding:20px; }
+
+/* NAV */
+.nav-pill { display:inline-flex; align-items:center; background:rgba(30,30,30,.92); border:1px solid rgba(255,255,255,.1); border-radius:28px; padding:4px 6px; margin-bottom:20px; }
+.nav-it { padding:6px 12px; border-radius:22px; font-size:11px; font-weight:500; color:rgba(255,255,255,.45); }
+.nav-it.active { background:rgba(255,255,255,.12); color:#fff; font-weight:600; }
+
+/* === STATE 1: EMPTY / FRESH === */
+.search-bar {
+  position:relative; margin-bottom:16px;
+}
+.search-input-wrap {
+  display:flex; align-items:center; gap:10px;
+  background:#141414; border:1px solid rgba(255,255,255,.1);
+  border-radius:12px; padding:13px 16px;
+}
+.search-input-wrap.focused { border-color:rgba(255,255,255,.25); background:#161616; }
+.si-icon { color:rgba(255,255,255,.4); flex-shrink:0; }
+.si-text { font-size:14px; color:rgba(255,255,255,.3); flex:1; }
+.si-text.typed { color:#fff; }
+.si-clear { width:18px; height:18px; border-radius:50%; background:rgba(255,255,255,.12); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+
+/* Suggestions dropdown */
+.suggestions {
+  position:absolute; top:calc(100% + 6px); left:0; right:0; z-index:10;
+  background:#141414; border:1px solid rgba(255,255,255,.1); border-radius:12px;
+  overflow:hidden;
+  box-shadow:0 16px 40px rgba(0,0,0,.6);
+}
+.sug-section { padding:8px 0; }
+.sug-section-label { padding:6px 16px 4px; font-size:10px; font-weight:700; color:rgba(255,255,255,.3); text-transform:uppercase; letter-spacing:.08em; }
+.sug-item { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; transition:background .1s; }
+.sug-item:hover { background:rgba(255,255,255,.05); }
+.sug-thumb { width:36px; height:36px; border-radius:6px; background:#252525; flex-shrink:0; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.sug-thumb-poster { aspect-ratio:2/3; width:28px; border-radius:4px; }
+.sug-info { flex:1; min-width:0; }
+.sug-name { font-size:13px; font-weight:600; color:#ddd; }
+.sug-meta { font-size:11px; color:rgba(255,255,255,.35); margin-top:1px; }
+.sug-arrow { color:rgba(255,255,255,.2); flex-shrink:0; }
+.sug-divider { height:1px; background:rgba(255,255,255,.05); margin:4px 0; }
+.sug-recent { display:flex; align-items:center; gap:10px; padding:9px 16px; cursor:pointer; }
+.sug-recent:hover { background:rgba(255,255,255,.05); }
+.sug-recent-icon { color:rgba(255,255,255,.3); flex-shrink:0; }
+.sug-recent-text { font-size:13px; color:rgba(255,255,255,.6); flex:1; }
+.sug-recent-del { color:rgba(255,255,255,.2); flex-shrink:0; font-size:11px; }
+
+/* Filter chips */
+.filter-row { display:flex; gap:8px; margin-bottom:20px; flex-wrap:wrap; }
+.chip { padding:7px 14px; border-radius:20px; font-size:12px; font-weight:500; cursor:pointer; border:1px solid transparent; }
+.chip.active { background:rgba(255,255,255,.12); color:#fff; border-color:rgba(255,255,255,.2); }
+.chip.inactive { background:rgba(255,255,255,.04); color:rgba(255,255,255,.45); border-color:rgba(255,255,255,.06); }
+
+/* Results grid */
+.results-label { font-size:12px; color:rgba(255,255,255,.35); margin-bottom:12px; }
+.grid-6 { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+.poster-card { aspect-ratio:2/3; border-radius:8px; cursor:pointer; position:relative; overflow:hidden; }
+.poster-card .overlay { position:absolute; inset:0; background:rgba(0,0,0,.5); opacity:0; transition:opacity .15s; display:flex; align-items:flex-end; padding:8px; }
+.poster-card:hover .overlay { opacity:1; }
+.poster-name { font-size:10px; font-weight:600; color:#fff; line-height:1.3; }
+.g1{background:linear-gradient(135deg,#1a0a20,#0a1020);}
+.g2{background:linear-gradient(135deg,#200a0a,#100505);}
+.g3{background:linear-gradient(135deg,#0a1a0a,#050a05);}
+.g4{background:linear-gradient(135deg,#1a1a0a,#0a0a05);}
+.g5{background:linear-gradient(135deg,#0a0a1a,#05050a);}
+.g6{background:linear-gradient(135deg,#1a0a0a,#0a0505);}
+.g7{background:linear-gradient(135deg,#0a1a1a,#050a0a);}
+.g8{background:linear-gradient(135deg,#1a0a1a,#0a050a);}
+
+/* Trending section */
+.trending-row { display:flex; gap:10px; overflow:hidden; }
+.trend-item { flex-shrink:0; display:flex; align-items:center; gap:10px; padding:8px 12px; background:#141414; border-radius:10px; cursor:pointer; }
+.trend-item:hover { background:#1c1c1e; }
+.trend-num { font-size:18px; font-weight:900; color:rgba(255,255,255,.15); min-width:24px; }
+.trend-poster { width:36px; height:54px; border-radius:5px; background:#252525; flex-shrink:0; }
+.trend-info { min-width:0; }
+.trend-name { font-size:12px; font-weight:600; color:#ddd; white-space:nowrap; }
+.trend-type { font-size:10px; color:rgba(255,255,255,.35); }
+
+/* Improve notes */
+.improve-note { background:#111; border:1px solid #222; border-radius:10px; padding:16px 18px; font-size:13px; color:#888; line-height:1.7; margin-top:16px; }
+.improve-note strong { color:#ccc; }
+code { background:#1e1e1e; padding:1px 6px; border-radius:4px; color:#a78bfa; font-size:12px; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Search — Suggestions + Improvements</h1>
+  <p class="sub">Two states: Empty (trending + recent searches) and Typing (live suggestions dropdown). Plus improvements to the search quality.</p>
+
+  <!-- STATE 1: EMPTY -->
+  <div class="section">
+    <div class="section-label">State 1 — Empty / Fresh</div>
+    <div class="section-title">Shows trending content + recent searches before any input</div>
+    <div class="mock">
+      <div class="nav-pill"><div class="nav-it">Home</div><div class="nav-it active">Search</div><div class="nav-it">Library</div></div>
+
+      <!-- Input (not focused) -->
+      <div class="search-bar">
+        <div class="search-input-wrap">
+          <svg class="si-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>
+          <div class="si-text">Search movies & shows...</div>
+        </div>
+      </div>
+
+      <!-- Recent searches -->
+      <div style="margin-bottom:24px">
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Recent</div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <div class="chip inactive" style="display:flex;align-items:center;gap:6px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            The Boys
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </div>
+          <div class="chip inactive" style="display:flex;align-items:center;gap:6px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            Sinners
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </div>
+          <div class="chip inactive" style="display:flex;align-items:center;gap:6px">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+            FROM
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </div>
+        </div>
+      </div>
+
+      <!-- Trending -->
+      <div>
+        <div style="font-size:11px;font-weight:700;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.08em;margin-bottom:10px">Trending Now</div>
+        <div class="trending-row">
+          <div class="trend-item"><div class="trend-num">1</div><div class="trend-poster g2"></div><div class="trend-info"><div class="trend-name">Sinners</div><div class="trend-type">Movie</div></div></div>
+          <div class="trend-item"><div class="trend-num">2</div><div class="trend-poster g1"></div><div class="trend-info"><div class="trend-name">The Boys S4</div><div class="trend-type">Series</div></div></div>
+          <div class="trend-item"><div class="trend-num">3</div><div class="trend-poster g5"></div><div class="trend-info"><div class="trend-name">Severance</div><div class="trend-type">Series</div></div></div>
+          <div class="trend-item"><div class="trend-num">4</div><div class="trend-poster g3"></div><div class="trend-info"><div class="trend-name">FROM S4</div><div class="trend-type">Series</div></div></div>
+          <div class="trend-item"><div class="trend-num">5</div><div class="trend-poster g4"></div><div class="trend-info"><div class="trend-name">Dune Part 3</div><div class="trend-type">Movie</div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATE 2: TYPING WITH SUGGESTIONS -->
+  <div class="section">
+    <div class="section-label">State 2 — Typing ("the b")</div>
+    <div class="section-title">Live suggestions dropdown with poster thumbnails, type + year</div>
+    <div class="mock">
+      <div class="nav-pill"><div class="nav-it">Home</div><div class="nav-it active">Search</div><div class="nav-it">Library</div></div>
+
+      <!-- Input focused with text -->
+      <div class="search-bar" style="margin-bottom:0">
+        <div class="search-input-wrap focused">
+          <svg class="si-icon" style="color:rgba(255,255,255,.6)" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>
+          <div class="si-text typed">the b</div>
+          <div class="si-clear"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+        </div>
+
+        <!-- Dropdown -->
+        <div class="suggestions">
+          <div class="sug-section">
+            <div class="sug-section-label">Quick Results</div>
+            <div class="sug-item">
+              <div class="sug-thumb g2"></div>
+              <div class="sug-info">
+                <div class="sug-name">The Boys</div>
+                <div class="sug-meta">Series · 2019 · ★ 8.7</div>
+              </div>
+              <svg class="sug-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="sug-item">
+              <div class="sug-thumb g1" style="aspect-ratio:2/3;height:36px;width:24px;border-radius:4px;"></div>
+              <div class="sug-info">
+                <div class="sug-name">The Batman</div>
+                <div class="sug-meta">Movie · 2022 · ★ 7.8</div>
+              </div>
+              <svg class="sug-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="sug-item">
+              <div class="sug-thumb g5"></div>
+              <div class="sug-info">
+                <div class="sug-name">The Bear</div>
+                <div class="sug-meta">Series · 2022 · ★ 8.7</div>
+              </div>
+              <svg class="sug-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+            <div class="sug-item">
+              <div class="sug-thumb g3"></div>
+              <div class="sug-info">
+                <div class="sug-name">The Boys Presents: Diabolical</div>
+                <div class="sug-meta">Series · 2022 · ★ 7.2</div>
+              </div>
+              <svg class="sug-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+            </div>
+          </div>
+          <div class="sug-divider"></div>
+          <div class="sug-item" style="color:rgba(255,255,255,.45);font-size:12px;justify-content:center;padding:10px">
+            Press Enter to see all results for "the b"
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- STATE 3: RESULTS -->
+  <div class="section">
+    <div class="section-label">State 3 — Full Results</div>
+    <div class="section-title">After submitting — filter chips + 6-col grid</div>
+    <div class="mock">
+      <div class="nav-pill"><div class="nav-it">Home</div><div class="nav-it active">Search</div><div class="nav-it">Library</div></div>
+      <div class="search-bar" style="margin-bottom:14px">
+        <div class="search-input-wrap">
+          <svg class="si-icon" style="color:rgba(255,255,255,.6)" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>
+          <div class="si-text typed">The Boys</div>
+          <div class="si-clear"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div>
+        </div>
+      </div>
+      <div class="filter-row">
+        <div class="chip active">All</div>
+        <div class="chip inactive">Movies</div>
+        <div class="chip inactive">Shows</div>
+      </div>
+      <div class="results-label">24 results</div>
+      <div class="grid-6">
+        <div class="poster-card g2"><div class="overlay"><div class="poster-name">The Boys</div></div></div>
+        <div class="poster-card g1"><div class="overlay"><div class="poster-name">The Batman</div></div></div>
+        <div class="poster-card g5"><div class="overlay"><div class="poster-name">The Bear</div></div></div>
+        <div class="poster-card g3"><div class="overlay"></div></div>
+        <div class="poster-card g4"><div class="overlay"></div></div>
+        <div class="poster-card g6"><div class="overlay"></div></div>
+        <div class="poster-card g7"><div class="overlay"></div></div>
+        <div class="poster-card g8"><div class="overlay"></div></div>
+        <div class="poster-card g1"><div class="overlay"></div></div>
+        <div class="poster-card g2"><div class="overlay"></div></div>
+        <div class="poster-card g5"><div class="overlay"></div></div>
+        <div class="poster-card g3"><div class="overlay"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- IMPROVEMENTS NOTE -->
+  <div class="improve-note">
+    <strong>Search quality improvements (code changes):</strong><br><br>
+    • <strong>Debounce suggestions:</strong> 250ms debounce on input → calls <code>fetchMeta</code>-style search on the <code>top</code> catalog with the query as genre/search extra<br>
+    • <strong>Recent searches:</strong> Stored in <code>localStorage</code>, max 5 items, shown on empty state<br>
+    • <strong>Trending on empty:</strong> Pulled from the existing Popular Movies + Popular TV rows already loaded on home (passed via a shared store or re-fetched from the manifest)<br>
+    • <strong>Suggestions dropdown:</strong> Shows up to 4 quick results with poster thumb + type + year. Clicking navigates directly to detail page<br>
+    • <strong>Better ranking:</strong> Deduplicate by ID, sort by <code>popularity</code> desc, prefer exact title matches at top<br>
+    • <strong>Filter chips:</strong> Client-side filter on already-fetched results (no extra API calls)
+  </div>
+
+</div>
+</body>
+</html>

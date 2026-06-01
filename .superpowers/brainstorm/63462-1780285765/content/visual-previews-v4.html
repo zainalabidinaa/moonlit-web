@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#080808; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; }
+.page { max-width:1100px; margin:0 auto; padding:40px 24px 80px; }
+h1 { font-size:22px; font-weight:800; margin-bottom:4px; }
+.sub { color:#555; font-size:13px; margin-bottom:48px; }
+
+.section { margin-bottom:64px; }
+.section-label { font-size:11px; font-weight:700; color:#a78bfa; text-transform:uppercase; letter-spacing:.15em; margin-bottom:8px; }
+.section-title { font-size:18px; font-weight:700; margin-bottom:6px; }
+.section-desc { font-size:13px; color:#555; margin-bottom:20px; }
+
+/* ======= DETAIL PAGE MOCK ======= */
+.detail-mock { background:#0d0d0d; border-radius:14px; overflow:hidden; border:1px solid #1e1e1e; }
+
+/* Hero */
+.detail-hero {
+  height:280px; position:relative; overflow:hidden;
+  background:linear-gradient(135deg,#0a1520,#151010,#0d0d0d);
+}
+.detail-hero::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 60% 35%,rgba(20,60,100,.5),transparent 55%); }
+.detail-hero-overlay { position:absolute; inset:0; background:linear-gradient(to bottom,transparent 30%,#0d0d0d 95%); }
+.detail-hero-side { position:absolute; inset:0; background:linear-gradient(to right,rgba(13,13,13,.85),transparent 55%); }
+.detail-hero-content { position:absolute; bottom:0; left:0; padding:20px 24px; }
+.detail-logo-area { margin-bottom:8px; font-size:28px; font-weight:900; letter-spacing:-.02em; }
+.detail-meta-row { display:flex; align-items:center; gap:8px; font-size:11px; color:rgba(255,255,255,.5); margin-bottom:8px; flex-wrap:wrap; }
+.detail-genre-chip { padding:3px 10px; border-radius:20px; background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.1); font-size:10px; color:rgba(255,255,255,.65); }
+.detail-desc { font-size:12px; color:rgba(255,255,255,.55); line-height:1.5; max-width:480px; margin-bottom:14px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+.detail-buttons { display:flex; gap:10px; align-items:center; }
+.btn-play { background:#fff; color:#000; font-size:12px; font-weight:700; padding:9px 20px; border-radius:22px; display:flex; align-items:center; gap:6px; }
+.btn-list { background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.15); color:#fff; font-size:12px; font-weight:600; padding:9px 16px; border-radius:22px; }
+.btn-trailer { background:rgba(255,255,255,.08); border:1px solid rgba(255,255,255,.12); color:rgba(255,255,255,.8); font-size:12px; font-weight:600; padding:9px 16px; border-radius:22px; display:flex; align-items:center; gap:6px; }
+
+/* Episode scroll */
+.ep-scroll { display:flex; gap:12px; padding:16px 20px; overflow:hidden; border-bottom:1px solid #161616; }
+.ep-card { flex-shrink:0; width:180px; }
+.ep-thumb { width:180px; height:101px; border-radius:8px; background:#1a1a2a; margin-bottom:6px; position:relative; overflow:hidden; display:flex; align-items:flex-end; padding:8px; }
+.ep-thumb::before { content:''; position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,.7),transparent 50%); }
+.ep-num { font-size:9px; color:rgba(255,255,255,.4); position:relative; }
+.ep-title-sm { font-size:11px; font-weight:600; color:#ddd; position:relative; }
+.ep-desc-sm { font-size:10px; color:rgba(255,255,255,.4); line-height:1.4; margin-top:4px; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; }
+
+/* TRAILERS SECTION */
+.trailers-section { padding:16px 20px; border-bottom:1px solid #161616; }
+.trailers-label { font-size:13px; font-weight:700; color:#ddd; margin-bottom:12px; }
+.trailers-scroll { display:flex; gap:12px; overflow:hidden; }
+.trailer-card { flex-shrink:0; width:200px; cursor:pointer; }
+.trailer-thumb {
+  width:200px; height:112px; border-radius:10px; overflow:hidden;
+  position:relative; background:#1a1a1a;
+  display:flex; align-items:center; justify-content:center;
+  margin-bottom:8px;
+}
+.trailer-yt-bg { position:absolute; inset:0; background:linear-gradient(135deg,#1a0a08,#080818); }
+.trailer-play-circle {
+  width:44px; height:44px; border-radius:50%;
+  background:rgba(255,255,255,.2); backdrop-filter:blur(4px);
+  display:flex; align-items:center; justify-content:center;
+  position:relative; z-index:1; border:1.5px solid rgba(255,255,255,.3);
+}
+.trailer-play-triangle { width:0; height:0; border-top:9px solid transparent; border-bottom:9px solid transparent; border-left:14px solid rgba(255,255,255,.9); margin-left:3px; }
+.trailer-yt-badge {
+  position:absolute; bottom:8px; right:8px; z-index:1;
+  background:rgba(255,0,0,.85); color:#fff; font-size:9px; font-weight:700;
+  padding:2px 7px; border-radius:4px;
+}
+.trailer-title { font-size:11px; font-weight:600; color:#ddd; line-height:1.3; }
+.trailer-sub { font-size:10px; color:rgba(255,255,255,.35); margin-top:2px; }
+
+/* Tabs */
+.tab-bar { display:flex; gap:0; border-bottom:1px solid #1e1e1e; padding:0 20px; }
+.tab { padding:12px 0; margin-right:24px; font-size:13px; font-weight:500; color:rgba(255,255,255,.4); cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap; }
+.tab.active { color:#fff; border-bottom-color:#fff; font-weight:600; }
+
+/* Cast */
+.cast-section { padding:20px; }
+.cast-scroll { display:flex; gap:14px; overflow:hidden; padding-bottom:4px; }
+.cast-person { flex-shrink:0; width:62px; text-align:center; }
+.cast-photo { width:62px; height:62px; border-radius:50%; background:linear-gradient(135deg,#1e1e2e,#2e1e1e); overflow:hidden; margin-bottom:6px; display:flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; color:rgba(255,255,255,.3); }
+.cast-name { font-size:10px; color:#ccc; line-height:1.3; }
+.cast-role { font-size:9px; color:rgba(255,255,255,.35); margin-top:1px; }
+
+/* Info */
+.info-row { display:flex; gap:32px; padding:16px 20px 20px; border-top:1px solid #161616; flex-wrap:wrap; }
+.info-group-label { font-size:10px; font-weight:700; color:rgba(255,255,255,.3); text-transform:uppercase; letter-spacing:.12em; margin-bottom:10px; }
+.info-logos { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+.info-logo-chip { padding:6px 14px; background:#1a1a1a; border:1px solid rgba(255,255,255,.08); border-radius:8px; font-size:11px; font-weight:700; color:rgba(255,255,255,.75); }
+
+/* ======= NAV ======= */
+.nav-home-wrap { border-radius:12px; overflow:hidden; position:relative; background:#0a0a0a; height:380px; }
+.nav-pill-bar { position:absolute; top:12px; left:50%; transform:translateX(-50%); display:flex; align-items:center; background:rgba(30,30,30,0.92); border:1px solid rgba(255,255,255,.1); border-radius:28px; padding:4px 6px; z-index:10; box-shadow:0 4px 20px rgba(0,0,0,.4); }
+.nav-pill-item { display:flex; align-items:center; gap:5px; padding:6px 14px; border-radius:22px; font-size:12px; font-weight:500; color:rgba(255,255,255,.5); white-space:nowrap; }
+.nav-pill-item.active { background:rgba(255,255,255,.12); color:#fff; font-weight:600; }
+.nav-avatar { width:26px; height:26px; border-radius:50%; background:#a78bfa; display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#fff; }
+.nav-home-content { padding-top:60px; }
+.hero-sm { height:200px; position:relative; overflow:hidden; background:linear-gradient(135deg,#2a0a00,#000820); }
+.hero-sm::before { content:''; position:absolute; inset:0; background:radial-gradient(ellipse at 65% 40%,rgba(120,50,0,.45),transparent 55%); }
+.hero-sm-o { position:absolute; inset:0; background:linear-gradient(to right,rgba(0,0,0,.9),rgba(0,0,0,.4) 50%,transparent 80%); }
+.hero-sm-b { position:absolute; bottom:0; left:0; right:0; height:60px; background:linear-gradient(to top,#0a0a0a,transparent); }
+.hero-content { position:absolute; bottom:0; left:0; padding:16px 24px; }
+.hero-from { font-size:9px; color:#a78bfa; font-weight:700; text-transform:uppercase; letter-spacing:.12em; margin-bottom:4px; }
+.hero-title { font-size:30px; font-weight:900; letter-spacing:-.03em; }
+.rows-area { padding:12px 20px 16px; }
+.row-label { font-size:13px; font-weight:700; color:#ddd; margin-bottom:7px; }
+.row-items { display:flex; gap:8px; overflow:hidden; }
+.row-card { width:68px; height:102px; border-radius:6px; background:#1a1a1a; flex-shrink:0; }
+
+/* ======= PLAYER ======= */
+.player-wrap { position:relative; width:100%; aspect-ratio:16/9; background:#000; border-radius:12px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.8); }
+.player-bg { position:absolute; inset:0; background:radial-gradient(ellipse at 30% 50%,rgba(80,40,10,.5),transparent 55%),radial-gradient(ellipse at 75% 25%,rgba(10,30,80,.4),transparent 50%),#050505; }
+.player-bg-title { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:80px; font-weight:900; letter-spacing:-.05em; color:rgba(255,255,255,.05); text-transform:uppercase; }
+.player-controls { position:absolute; inset:0; display:flex; flex-direction:column; justify-content:space-between; }
+.p-top { display:flex; align-items:center; justify-content:space-between; padding:18px 22px; background:linear-gradient(to bottom,rgba(0,0,0,.55),transparent); }
+.p-back { display:flex; align-items:center; gap:5px; color:rgba(255,255,255,.85); font-size:13px; font-weight:500; }
+.p-title { font-size:13px; font-weight:500; color:rgba(255,255,255,.75); }
+.p-top-icons { display:flex; gap:10px; }
+.p-top-icon { width:28px; height:28px; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.65); }
+.p-center { display:flex; align-items:center; justify-content:center; gap:44px; }
+.p-skip { display:flex; flex-direction:column; align-items:center; gap:4px; color:rgba(255,255,255,.7); }
+.p-skip-label { font-size:9px; font-weight:600; letter-spacing:.1em; color:rgba(255,255,255,.35); }
+.p-play { width:60px; height:60px; border-radius:50%; background:rgba(255,255,255,.18); display:flex; align-items:center; justify-content:center; }
+.p-bottom { background:linear-gradient(to top,rgba(0,0,0,.8),transparent); }
+.p-title-area { padding:0 22px 10px; }
+.p-show-title { font-size:13px; font-weight:600; color:#fff; }
+.p-ep-info { font-size:11px; color:rgba(255,255,255,.5); margin-top:2px; }
+.p-scrub-row { display:flex; align-items:center; gap:10px; padding:0 18px 8px; }
+.p-time { font-size:11px; color:rgba(255,255,255,.45); min-width:34px; font-variant-numeric:tabular-nums; }
+.p-track { flex:1; height:3px; background:rgba(255,255,255,.2); border-radius:3px; position:relative; }
+.p-filled { position:absolute; left:0;top:0;bottom:0; width:32%; background:#fff; border-radius:3px; }
+.p-thumb { position:absolute; top:50%; left:32%; transform:translate(-50%,-50%); width:11px; height:11px; background:#fff; border-radius:50%; }
+.p-ctrl-row { display:flex; align-items:center; justify-content:space-between; padding:0 18px 18px; }
+.p-ctrl-left { display:flex; align-items:center; gap:4px; }
+.p-ctrl-right { display:flex; align-items:center; gap:2px; }
+.p-btn { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.65); }
+
+/* SOURCES */
+.sources-wrap { display:flex; border-radius:12px; overflow:hidden; box-shadow:0 24px 60px rgba(0,0,0,.7); height:360px; }
+.sources-dim { flex:1; background:rgba(0,0,0,.5); }
+.sources-panel { width:300px; background:#111; display:flex; flex-direction:column; flex-shrink:0; }
+.sp-header { padding:14px 18px; border-bottom:1px solid rgba(255,255,255,.07); display:flex; align-items:center; justify-content:space-between; }
+.sp-title { font-size:14px; font-weight:700; color:#fff; }
+.sp-close { width:26px; height:26px; border-radius:50%; background:rgba(255,255,255,.08); display:flex; align-items:center; justify-content:center; color:rgba(255,255,255,.5); font-size:13px; }
+.sp-body { flex:1; overflow-y:auto; padding:6px 0; }
+.sp-group-label { padding:7px 18px 3px; font-size:10px; font-weight:700; color:rgba(255,255,255,.25); text-transform:uppercase; letter-spacing:.1em; }
+.sp-item { padding:9px 18px; display:flex; align-items:center; gap:10px; }
+.sp-item.active { border-left:2px solid #fff; padding-left:16px; background:rgba(255,255,255,.04); }
+.sp-badge { font-size:10px; font-weight:700; padding:2px 7px; border-radius:6px; flex-shrink:0; }
+.badge-4k { background:rgba(250,204,21,.15); color:#fbbf24; }
+.badge-1080 { background:rgba(96,165,250,.15); color:#60a5fa; }
+.badge-720 { background:rgba(148,163,184,.12); color:#94a3b8; }
+.sp-item-info { flex:1; min-width:0; }
+.sp-item-title { font-size:12px; font-weight:600; color:#ddd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.sp-item-sub { font-size:10px; color:rgba(255,255,255,.35); margin-top:1px; }
+.sp-stars { font-size:10px; color:rgba(255,204,0,.7); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Visual Previews v4 — All Changes</h1>
+  <p class="sub">Trailers added. Approve all to start implementation.</p>
+
+  <!-- DETAIL PAGE — full section -->
+  <div class="section">
+    <div class="section-label">Detail Page — Complete redesign</div>
+    <div class="section-title">Backdrop hero → Episodes → Trailers → Cast/Info tabs</div>
+    <div class="section-desc">▷ Trailer button in hero. Trailers row with YouTube thumbnails (opens YouTube). Creator and Cast tab with circular photos. Network + Production chips.</div>
+
+    <div class="detail-mock">
+      <!-- HERO -->
+      <div class="detail-hero">
+        <div class="detail-hero-overlay"></div>
+        <div class="detail-hero-side"></div>
+        <div class="detail-hero-content">
+          <div class="detail-logo-area">FROM</div>
+          <div class="detail-meta-row">
+            <span>Series</span><span style="color:rgba(255,255,255,.2)">·</span>
+            <span>2022</span><span style="color:rgba(255,255,255,.2)">·</span>
+            <span>★ 7.8</span><span style="color:rgba(255,255,255,.2)">·</span>
+            <span>TV-14</span><span style="color:rgba(255,255,255,.2)">·</span>
+            <span>4 Seasons</span>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px;">
+            <div class="detail-genre-chip">Mystery</div>
+            <div class="detail-genre-chip">Sci-Fi</div>
+            <div class="detail-genre-chip">Fantasy</div>
+            <div class="detail-genre-chip">Drama</div>
+          </div>
+          <div class="detail-desc">Unravel the mystery of a nightmarish town in middle America that traps all those who enter. As the unwilling residents fight to find normality...</div>
+          <div class="detail-buttons">
+            <div class="btn-play">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor"><polygon points="6,4 20,12 6,20"/></svg>
+              Watch S4 E1
+            </div>
+            <div class="btn-list">+ My List</div>
+            <div class="btn-trailer">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polygon points="5,3 19,12 5,21"/></svg>
+              Trailer
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- EPISODE SCROLL -->
+      <div class="ep-scroll">
+        <div class="ep-card">
+          <div class="ep-thumb" style="background:linear-gradient(135deg,#1a2030,#0d1020)">
+            <div style="position:relative"><div class="ep-num">EPISODE 7</div><div class="ep-title-sm">All Good Things</div></div>
+          </div>
+          <div class="ep-desc-sm">Father Khatri tells Boyd he believes Sara may be useful.</div>
+        </div>
+        <div class="ep-card">
+          <div class="ep-thumb" style="background:linear-gradient(135deg,#201828,#100d15)">
+            <div style="position:relative"><div class="ep-num">EPISODE 8</div><div class="ep-title-sm">Broken Windows, Open Doors</div></div>
+          </div>
+          <div class="ep-desc-sm">In the wake of another death, Boyd questions his decision.</div>
+        </div>
+        <div class="ep-card">
+          <div class="ep-thumb" style="background:linear-gradient(135deg,#1a2820,#0d1510)">
+            <div style="position:relative"><div class="ep-num">EPISODE 9</div><div class="ep-title-sm">Into the Woods</div></div>
+          </div>
+          <div class="ep-desc-sm">Boyd and Sara's journey deeper into the forest than ever before.</div>
+        </div>
+        <div class="ep-card">
+          <div class="ep-thumb" style="background:linear-gradient(135deg,#281820,#150d10)">
+            <div style="position:relative"><div class="ep-num">EPISODE 10</div><div class="ep-title-sm">Oh, the Places We'll Go</div></div>
+          </div>
+          <div class="ep-desc-sm">Sara draws strength from an unlikely source.</div>
+        </div>
+      </div>
+
+      <!-- TRAILERS SECTION -->
+      <div class="trailers-section">
+        <div class="trailers-label">Trailers &amp; Clips</div>
+        <div class="trailers-scroll">
+          <div class="trailer-card">
+            <div class="trailer-thumb">
+              <div class="trailer-yt-bg"></div>
+              <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 50%,rgba(40,15,0,.6),transparent 60%)"></div>
+              <div class="trailer-play-circle"><div class="trailer-play-triangle"></div></div>
+              <div class="trailer-yt-badge">YouTube</div>
+            </div>
+            <div class="trailer-title">FROM — Official Season 4 Trailer</div>
+            <div class="trailer-sub">2:14 · MGM+</div>
+          </div>
+          <div class="trailer-card">
+            <div class="trailer-thumb">
+              <div class="trailer-yt-bg" style="background:linear-gradient(135deg,#001a20,#0a0010)"></div>
+              <div class="trailer-play-circle"><div class="trailer-play-triangle"></div></div>
+              <div class="trailer-yt-badge">YouTube</div>
+            </div>
+            <div class="trailer-title">FROM — Season 3 Recap</div>
+            <div class="trailer-sub">4:02 · MGM+</div>
+          </div>
+          <div class="trailer-card">
+            <div class="trailer-thumb">
+              <div class="trailer-yt-bg" style="background:linear-gradient(135deg,#1a0808,#08001a)"></div>
+              <div class="trailer-play-circle"><div class="trailer-play-triangle"></div></div>
+              <div class="trailer-yt-badge">YouTube</div>
+            </div>
+            <div class="trailer-title">FROM — Teaser Trailer</div>
+            <div class="trailer-sub">1:34 · MGM+</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TABS -->
+      <div class="tab-bar">
+        <div class="tab active">Creator and Cast</div>
+        <div class="tab">Ratings</div>
+        <div class="tab">More Like This</div>
+      </div>
+
+      <!-- CAST -->
+      <div class="cast-section">
+        <div class="cast-scroll">
+          <div class="cast-person"><div class="cast-photo">H</div><div class="cast-name">Harold Perrineau</div><div class="cast-role">Boyd Stevens</div></div>
+          <div class="cast-person"><div class="cast-photo">C</div><div class="cast-name">Catalina Sandino</div><div class="cast-role">Tabitha</div></div>
+          <div class="cast-person"><div class="cast-photo">R</div><div class="cast-name">Ricky He</div><div class="cast-role">Kenny</div></div>
+          <div class="cast-person"><div class="cast-photo">D</div><div class="cast-name">David Alpay</div><div class="cast-role">Martin</div></div>
+          <div class="cast-person"><div class="cast-photo">E</div><div class="cast-name">Eion Bailey</div><div class="cast-role">Matthew</div></div>
+          <div class="cast-person"><div class="cast-photo">H</div><div class="cast-name">Hannah Cheramy</div><div class="cast-role">Julie</div></div>
+          <div class="cast-person"><div class="cast-photo">P</div><div class="cast-name">Paget Brewster</div><div class="cast-role">Donna</div></div>
+          <div class="cast-person"><div class="cast-photo">S</div><div class="cast-name">Simon Webster</div><div class="cast-role">Elgin</div></div>
+        </div>
+      </div>
+
+      <!-- NETWORK + PRODUCTION -->
+      <div class="info-row">
+        <div>
+          <div class="info-group-label">Network</div>
+          <div class="info-logos"><div class="info-logo-chip">EPIX</div><div class="info-logo-chip">MGM+</div></div>
+        </div>
+        <div>
+          <div class="info-group-label">Production</div>
+          <div class="info-logos"><div class="info-logo-chip">AGBO</div><div class="info-logo-chip">WONDERROAD</div><div class="info-logo-chip">EPIX</div><div class="info-logo-chip">MGM+</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- NAVBAR -->
+  <div class="section">
+    <div class="section-label">Issue 7</div>
+    <div class="section-title">Navbar — centered floating pill</div>
+    <div class="nav-home-wrap">
+      <div class="nav-pill-bar">
+        <div class="nav-pill-item active"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>Home</div>
+        <div class="nav-pill-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>Search</div>
+        <div class="nav-pill-item"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>Library</div>
+        <div style="width:1px;height:20px;background:rgba(255,255,255,.1);margin:0 4px"></div>
+        <div class="nav-pill-item" style="padding:4px 8px 4px 4px;gap:7px"><div class="nav-avatar">Z</div><span style="font-size:12px;color:rgba(255,255,255,.65)">Zain</span></div>
+      </div>
+      <div class="nav-home-content">
+        <div class="hero-sm">
+          <div class="hero-sm-o"></div><div class="hero-sm-b"></div>
+          <div class="hero-content"><div class="hero-from">⬦ Popular Movies</div><div class="hero-title">SINNERS</div></div>
+        </div>
+        <div class="rows-area">
+          <div class="row-label">Popular Movies</div>
+          <div class="row-items">
+            <div class="row-card" style="background:linear-gradient(135deg,#1a0d20,#0d0814)"></div>
+            <div class="row-card" style="background:linear-gradient(135deg,#1a1500,#0d0c00)"></div>
+            <div class="row-card" style="background:linear-gradient(135deg,#001a1a,#000d0d)"></div>
+            <div class="row-card" style="background:linear-gradient(135deg,#1a0000,#0d0000)"></div>
+            <div class="row-card" style="background:linear-gradient(135deg,#001a10,#000d08)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PLAYER -->
+  <div class="section">
+    <div class="section-label">Issue 3</div>
+    <div class="section-title">Player — HBO Max minimal</div>
+    <div class="player-wrap">
+      <div class="player-bg"></div><div class="player-bg-title">THE BOYS</div>
+      <div class="player-controls">
+        <div class="p-top">
+          <div class="p-back"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>Back</div>
+          <div class="p-title">The Boys — S3 E1: Payback</div>
+          <div class="p-top-icons">
+            <div class="p-top-icon"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 17H3a2 2 0 01-2-2V5a2 2 0 012-2h18a2 2 0 012 2v10a2 2 0 01-2 2h-2M12 15l-4 5h8l-4-5z"/></svg></div>
+            <div class="p-top-icon"><svg width="18" height="18" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="4" width="18" height="14" rx="2"/><rect x="11" y="11" width="8" height="5" rx="1" fill="currentColor" stroke="none" opacity=".65"/></svg></div>
+          </div>
+        </div>
+        <div class="p-center">
+          <div class="p-skip"><svg width="28" height="28" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6C11.4 6 6 11.4 6 18s5.4 12 12 12 12-5.4 12-12" stroke-linecap="round"/><path d="M24 4l4 4-4 4" stroke-linecap="round" stroke-linejoin="round"/><text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="700" stroke="none" fill="currentColor">15</text></svg><span class="p-skip-label">BACK</span></div>
+          <div class="p-play"><svg viewBox="0 0 24 24" fill="white" width="22" height="22"><path d="M6 5h3v14H6V5zm9 0h3v14h-3V5z"/></svg></div>
+          <div class="p-skip"><svg width="28" height="28" viewBox="0 0 36 36" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 6c6.6 0 12 5.4 12 12S24.6 30 18 30 6 24.6 6 18" stroke-linecap="round"/><path d="M12 4L8 8l4 4" stroke-linecap="round" stroke-linejoin="round"/><text x="50%" y="56%" dominant-baseline="middle" text-anchor="middle" font-size="8" font-weight="700" stroke="none" fill="currentColor">15</text></svg><span class="p-skip-label">FWD</span></div>
+        </div>
+        <div class="p-bottom">
+          <div class="p-title-area"><div class="p-show-title">The Boys</div><div class="p-ep-info">S3 E1: Payback · 56 min</div></div>
+          <div class="p-scrub-row"><span class="p-time">14:22</span><div class="p-track"><div class="p-filled"></div><div class="p-thumb"></div></div><span class="p-time" style="text-align:right">-41:38</span></div>
+          <div class="p-ctrl-row">
+            <div class="p-ctrl-left"><div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M5 9H2a1 1 0 00-1 1v4a1 1 0 001 1h3l4 4V5L5 9z"/><path d="M15.5 8.5a5 5 0 010 7" stroke-linecap="round"/></svg></div><div style="width:52px;height:2.5px;background:rgba(255,255,255,.2);border-radius:3px;position:relative;"><div style="position:absolute;left:0;top:0;bottom:0;width:75%;background:#fff;border-radius:3px;"></div></div></div>
+            <div class="p-ctrl-right">
+              <div class="p-btn"><svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg></div>
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M7 10h4M7 14h10" stroke-linecap="round"/></svg></div>
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="10"/><path d="M10 8l6 4-6 4V8z" fill="currentColor" stroke="none"/></svg></div>
+              <div class="p-btn"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M8 3H5a2 2 0 00-2 2v3M16 3h3a2 2 0 012 2v3M8 21H5a2 2 0 01-2-2v-3M16 21h3a2 2 0 002-2v-3"/></svg></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SOURCES -->
+  <div class="section">
+    <div class="section-label">Issue 4</div>
+    <div class="section-title">Sources Panel</div>
+    <div class="sources-wrap">
+      <div class="sources-dim"></div>
+      <div class="sources-panel">
+        <div class="sp-header"><span class="sp-title">Sources</span><div class="sp-close">✕</div></div>
+        <div class="sp-body">
+          <div class="sp-group-label">Torrentio</div>
+          <div class="sp-item active"><span class="sp-badge badge-4k">4K</span><div class="sp-item-info"><div class="sp-item-title">The.Boys.S03E01.2160p.WEB-DL</div><div class="sp-item-sub">Torrentio · WebDL · 18.2 GB</div></div><span class="sp-stars">★★★★★</span></div>
+          <div class="sp-item"><span class="sp-badge badge-1080">1080p</span><div class="sp-item-info"><div class="sp-item-title">The.Boys.S03E01.1080p.WEB-DL</div><div class="sp-item-sub">Torrentio · WebDL · 4.1 GB</div></div><span class="sp-stars">★★★★★</span></div>
+          <div class="sp-item"><span class="sp-badge badge-720">720p</span><div class="sp-item-info"><div class="sp-item-title">The.Boys.S03E01.720p.WEB</div><div class="sp-item-sub">Torrentio · WEB · 1.8 GB</div></div><span class="sp-stars">★★★☆☆</span></div>
+          <div class="sp-group-label" style="margin-top:6px">Torbox</div>
+          <div class="sp-item"><span class="sp-badge badge-1080">1080p</span><div class="sp-item-info"><div class="sp-item-title">The Boys S3E1 — Best Quality</div><div class="sp-item-sub">Torbox · Cached · Fast</div></div><span class="sp-stars">★★★★★</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

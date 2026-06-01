@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Torrentio + RD Reality</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0a0a0f; color: #e8e8f0; font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif; padding: 28px 24px 60px; }
+
+  h1 { font-size: 21px; font-weight: 700; color: #fff; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #555; margin-bottom: 28px; line-height: 1.6; }
+
+  .flow {
+    display: flex; align-items: flex-start; gap: 0;
+    max-width: 760px; margin-bottom: 36px;
+    overflow-x: auto; padding-bottom: 8px;
+  }
+  .node {
+    flex-shrink: 0;
+    background: #13131a; border: 1px solid #1e1e2a; border-radius: 12px;
+    padding: 14px 16px; text-align: center; min-width: 130px;
+  }
+  .node-icon { font-size: 26px; margin-bottom: 6px; }
+  .node-title { font-size: 12px; font-weight: 700; color: #fff; }
+  .node-sub { font-size: 10px; color: #555; margin-top: 3px; }
+  .arrow {
+    flex-shrink: 0; display: flex; align-items: center; padding: 0 6px;
+    color: #333; font-size: 20px; padding-top: 18px;
+  }
+  .node.highlight { border-color: #a78bfa; background: #1a1228; }
+  .node.highlight .node-title { color: #a78bfa; }
+
+  .verdict-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; max-width: 760px; margin-bottom: 36px; }
+
+  .verdict {
+    border-radius: 12px; padding: 18px 20px;
+    border: 1px solid transparent;
+  }
+  .verdict.can { background: rgba(110,231,183,0.05); border-color: rgba(110,231,183,0.15); }
+  .verdict.cannot { background: rgba(248,113,113,0.05); border-color: rgba(248,113,113,0.15); }
+
+  .verdict-header { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .verdict-icon { font-size: 20px; }
+  .verdict-label { font-size: 14px; font-weight: 700; }
+  .verdict.can .verdict-label { color: #6ee7b7; }
+  .verdict.cannot .verdict-label { color: #f87171; }
+
+  .verdict-item { display: flex; gap: 10px; margin-bottom: 8px; font-size: 13px; color: #aaa; line-height: 1.5; }
+  .verdict-item .dot { flex-shrink: 0; margin-top: 5px; width: 5px; height: 5px; border-radius: 50%; }
+  .verdict.can .dot { background: #6ee7b7; }
+  .verdict.cannot .dot { background: #f87171; }
+
+  .explain {
+    max-width: 760px; background: #13131a; border: 1px solid #1e1e2a;
+    border-radius: 12px; padding: 20px 22px; margin-bottom: 28px;
+  }
+  .explain-title { font-size: 13px; font-weight: 700; color: #fff; margin-bottom: 10px; }
+  .explain-text { font-size: 13px; color: #666; line-height: 1.7; }
+  .explain-text strong { color: #aaa; }
+
+  .fix-box {
+    max-width: 760px; border-radius: 12px; padding: 20px 22px;
+    background: rgba(167,139,250,0.05); border: 1px solid rgba(167,139,250,0.2);
+  }
+  .fix-title { font-size: 14px; font-weight: 700; color: #a78bfa; margin-bottom: 14px; }
+  .fix-item { display: flex; gap: 12px; margin-bottom: 12px; }
+  .fix-num {
+    flex-shrink: 0; width: 22px; height: 22px; border-radius: 50%;
+    background: rgba(167,139,250,0.2); color: #a78bfa;
+    font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+  }
+  .fix-text { font-size: 13px; color: #aaa; line-height: 1.6; }
+  .fix-text strong { color: #fff; }
+  .fix-tag {
+    display: inline-block; font-size: 10px; font-weight: 700;
+    padding: 2px 8px; border-radius: 5px; margin-left: 6px;
+    background: rgba(110,231,183,0.1); color: #6ee7b7;
+    vertical-align: middle;
+  }
+  .fix-tag.yellow { background: rgba(251,191,36,0.1); color: #fbbf24; }
+
+  .section-title { font-size: 11px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #444; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Torrentio + Real-Debrid — what actually works in a browser</h1>
+<p class="subtitle">Real-Debrid gives you direct file links (MP4/MKV). No player library can change this — it's a browser constraint, not a code problem.</p>
+
+<div class="section-title">How your stream reaches the player</div>
+<div class="flow">
+  <div class="node">
+    <div class="node-icon">🧲</div>
+    <div class="node-title">Torrentio</div>
+    <div class="node-sub">finds torrent</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node">
+    <div class="node-icon">⚡</div>
+    <div class="node-title">Real-Debrid</div>
+    <div class="node-sub">caches + serves</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node highlight">
+    <div class="node-icon">🔗</div>
+    <div class="node-title">Direct link</div>
+    <div class="node-sub">MP4 or MKV file<br>no m3u8</div>
+  </div>
+  <div class="arrow">→</div>
+  <div class="node">
+    <div class="node-icon">🌐</div>
+    <div class="node-title">Browser</div>
+    <div class="node-sub">plays the file<br>as-is</div>
+  </div>
+</div>
+
+<div class="section-title">What any web player can and cannot do with this</div>
+<div class="verdict-grid">
+  <div class="verdict can">
+    <div class="verdict-header">
+      <div class="verdict-icon">✅</div>
+      <div class="verdict-label">Fixable</div>
+    </div>
+    <div class="verdict-item"><div class="dot"></div><div>Subtitles from OpenSubtitles or any Stremio subtitle addon — fetch the external VTT/SRT and load it into the player</div></div>
+    <div class="verdict-item"><div class="dot"></div><div>Quality switching — different Torrentio stream entries (720p vs 1080p vs 4K) shown as source options</div></div>
+    <div class="verdict-item"><div class="dot"></div><div>Playback speed, PiP, AirPlay, fullscreen — all standard, works fine</div></div>
+  </div>
+  <div class="verdict cannot">
+    <div class="verdict-header">
+      <div class="verdict-icon">🚫</div>
+      <div class="verdict-label">Not fixable with any player</div>
+    </div>
+    <div class="verdict-item"><div class="dot"></div><div>Switching between audio tracks embedded inside an MKV — Chrome has zero support for <code style="font-size:11px;color:#f87171">HTMLVideoElement.audioTracks</code></div></div>
+    <div class="verdict-item"><div class="dot"></div><div>Vidstack, Shaka, Plyr — they all hit the same wall. This is a browser API limitation, not a library choice</div></div>
+    <div class="verdict-item"><div class="dot"></div><div>Only solvable by server-side transcoding (like Jellyfin / Plex does) or using a native app</div></div>
+  </div>
+</div>
+
+<div class="explain">
+  <div class="explain-title">Why the iOS app can switch audio tracks but the web can't</div>
+  <div class="explain-text">
+    The iOS player uses <strong>AVKit / AVPlayer</strong> which talks directly to the OS media pipeline. It can demux an MKV and expose every audio stream as a selectable track. Chrome's HTML5 video element runs in a sandboxed renderer — it only gets the audio track the OS decoder hands it for MP4 (usually track 0), and the <code style="color:#a78bfa;font-family:monospace">audioTracks</code> API is intentionally unimplemented. <strong>No amount of JavaScript can work around this.</strong>
+  </div>
+</div>
+
+<div class="fix-box">
+  <div class="fix-title">The real fix — what will actually solve your issues</div>
+
+  <div class="fix-item">
+    <div class="fix-num">1</div>
+    <div class="fix-text">
+      <strong>Subtitles: fetch from Stremio subtitle addons</strong><span class="fix-tag">doable now</span><br>
+      Call <code style="color:#a78bfa;font-family:monospace">/subtitles/{type}/{id}.json</code> from your installed subtitle addons (OpenSubtitles etc.), get VTT/SRT URLs, let the user pick one, load it in the player. Works with your current player OR Vidstack.
+    </div>
+  </div>
+
+  <div class="fix-item">
+    <div class="fix-num">2</div>
+    <div class="fix-text">
+      <strong>Audio tracks: show them as separate stream options</strong><span class="fix-tag yellow">workaround</span><br>
+      Some Torrentio entries are explicitly labeled with audio language (e.g. "1080p · English" vs "1080p · Spanish"). Surface these in the Sources panel as audio-language switches — the user picks a different stream, same content.
+    </div>
+  </div>
+
+  <div class="fix-item">
+    <div class="fix-num">3</div>
+    <div class="fix-text">
+      <strong>Vidstack is still worth it</strong> — but for DX, not audio tracks. It gives you a built-in subtitle panel UI, the source logo slot, better keyboard shortcuts, and you stop maintaining the custom player code. The subtitle fetching (fix 1) would plug straight into it.
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

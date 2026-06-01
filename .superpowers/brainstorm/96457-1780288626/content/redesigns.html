@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { background:#080808; color:#fff; font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif; }
+.page { max-width:1100px; margin:0 auto; padding:40px 24px 80px; }
+h1 { font-size:22px; font-weight:800; margin-bottom:4px; }
+.sub { color:#555; font-size:13px; margin-bottom:48px; }
+.section { margin-bottom:64px; }
+.section-label { font-size:11px; font-weight:700; color:#a78bfa; text-transform:uppercase; letter-spacing:.15em; margin-bottom:8px; }
+.section-title { font-size:18px; font-weight:700; margin-bottom:6px; }
+.section-desc { font-size:13px; color:#555; margin-bottom:20px; }
+
+/* NAV PILL (for context) */
+.nav-ctx { position:relative; height:52px; background:#0a0a0a; border-radius:12px 12px 0 0; display:flex; align-items:center; justify-content:center; }
+.nav-pill { display:flex; align-items:center; background:rgba(30,30,30,.92); border:1px solid rgba(255,255,255,.1); border-radius:28px; padding:4px 6px; }
+.nav-it { display:flex; align-items:center; gap:5px; padding:6px 14px; border-radius:22px; font-size:12px; font-weight:500; color:rgba(255,255,255,.5); }
+.nav-it.active { background:rgba(255,255,255,.12); color:#fff; font-weight:600; }
+
+/* === SEARCH === */
+.search-wrap { background:#080808; border-radius:0 0 12px 12px; padding:24px; min-height:400px; }
+.search-input-wrap {
+  display:flex; align-items:center; gap:10px;
+  background:#141414; border:1px solid rgba(255,255,255,.08);
+  border-radius:12px; padding:12px 16px; margin-bottom:24px;
+}
+.search-icon { color:rgba(255,255,255,.35); flex-shrink:0; }
+.search-input { background:transparent; border:none; outline:none; color:#fff; font-size:15px; flex:1; }
+.search-input::placeholder { color:rgba(255,255,255,.3); }
+
+.filter-row { display:flex; gap:8px; margin-bottom:20px; }
+.filter-chip { padding:6px 14px; border-radius:20px; font-size:12px; font-weight:500; cursor:pointer; }
+.filter-chip.active { background:rgba(255,255,255,.12); color:#fff; border:1px solid rgba(255,255,255,.2); }
+.filter-chip.inactive { background:rgba(255,255,255,.05); color:rgba(255,255,255,.45); border:1px solid rgba(255,255,255,.06); }
+
+.search-results-grid { display:grid; grid-template-columns:repeat(6,1fr); gap:10px; }
+.search-card { aspect-ratio:2/3; border-radius:8px; background:#1c1c1e; position:relative; overflow:hidden; cursor:pointer; }
+.search-card img { width:100%; height:100%; object-fit:cover; }
+.search-card-overlay { position:absolute; inset:0; background:linear-gradient(to top,rgba(0,0,0,.75) 0%,transparent 50%); opacity:0; transition:opacity .2s; }
+.search-card:hover .search-card-overlay { opacity:1; }
+.search-card-title { position:absolute; bottom:0; left:0; right:0; padding:8px; font-size:10px; font-weight:600; color:#fff; }
+
+.search-empty { display:flex; flex-direction:column; align-items:center; justify-content:center; height:200px; gap:12px; }
+.search-empty-icon { width:48px; height:48px; opacity:.2; }
+.search-empty-text { font-size:14px; color:rgba(255,255,255,.3); }
+.search-empty-sub { font-size:12px; color:rgba(255,255,255,.2); }
+
+/* === LIBRARY === */
+.library-wrap { background:#080808; border-radius:0 0 12px 12px; padding:24px; }
+.lib-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+.lib-title { font-size:20px; font-weight:800; }
+.lib-count { font-size:13px; color:rgba(255,255,255,.35); }
+.lib-grid { display:grid; grid-template-columns:repeat(5,1fr); gap:12px; }
+.lib-card { border-radius:10px; overflow:hidden; cursor:pointer; position:relative; group:true; }
+.lib-poster { aspect-ratio:2/3; background:#1c1c1e; position:relative; overflow:hidden; border-radius:10px; }
+.lib-poster-img { width:100%; height:100%; object-fit:cover; }
+.lib-poster-overlay { position:absolute; inset:0; background:rgba(0,0,0,.5); opacity:0; transition:opacity .2s; display:flex; align-items:center; justify-content:center; }
+.lib-card:hover .lib-poster-overlay { opacity:1; }
+.lib-remove { width:32px; height:32px; border-radius:50%; background:rgba(255,255,255,.15); display:flex; align-items:center; justify-content:center; }
+.lib-info { padding:8px 4px 0; }
+.lib-name { font-size:12px; font-weight:600; color:#ddd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.lib-type { font-size:10px; color:rgba(255,255,255,.35); margin-top:2px; }
+
+/* === SETTINGS === */
+.settings-wrap { background:#080808; border-radius:0 0 12px 12px; padding:24px; }
+.settings-section { margin-bottom:28px; }
+.settings-section-title { font-size:11px; font-weight:700; color:rgba(255,255,255,.35); text-transform:uppercase; letter-spacing:.1em; margin-bottom:12px; }
+.settings-row { display:flex; align-items:center; justify-content:space-between; padding:14px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.settings-row:last-child { border-bottom:none; }
+.settings-row-label { font-size:14px; font-weight:500; color:#ddd; }
+.settings-row-sub { font-size:12px; color:rgba(255,255,255,.35); margin-top:2px; }
+.settings-action { font-size:12px; color:#a78bfa; font-weight:600; cursor:pointer; }
+.settings-input { background:#141414; border:1px solid rgba(255,255,255,.08); border-radius:8px; padding:8px 12px; color:#fff; font-size:13px; width:260px; outline:none; }
+.settings-btn { background:#a78bfa; color:#000; font-size:12px; font-weight:700; padding:8px 16px; border-radius:8px; cursor:pointer; }
+.settings-addon-row { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:1px solid rgba(255,255,255,.05); }
+.addon-icon { width:36px; height:36px; border-radius:8px; background:#1c1c1e; display:flex; align-items:center; justify-content:center; font-size:16px; flex-shrink:0; }
+.addon-info { flex:1; min-width:0; }
+.addon-name { font-size:13px; font-weight:600; color:#ddd; }
+.addon-url { font-size:10px; color:rgba(255,255,255,.3); margin-top:1px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.addon-remove { font-size:11px; color:rgba(255,80,80,.7); cursor:pointer; }
+
+/* GRADIENT PLACEHOLDERS */
+.g1 { background:linear-gradient(135deg,#1a0a20,#0a1020); }
+.g2 { background:linear-gradient(135deg,#200a0a,#100505); }
+.g3 { background:linear-gradient(135deg,#0a1a0a,#050a05); }
+.g4 { background:linear-gradient(135deg,#1a1a0a,#0a0a05); }
+.g5 { background:linear-gradient(135deg,#0a0a1a,#05050a); }
+.g6 { background:linear-gradient(135deg,#1a0a0a,#0a0505); }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Visual Previews — Search, Library, Settings Redesign</h1>
+  <p class="sub">Approve each section. Sources panel and player slider are code fixes (no visual preview needed).</p>
+
+  <!-- SEARCH -->
+  <div class="section">
+    <div class="section-label">Search</div>
+    <div class="section-title">Search — prominent input, type filters, results grid</div>
+    <div class="section-desc">Large search bar, All/Movies/Shows filter chips, 6-col poster grid with hover play overlay.</div>
+
+    <div style="border:1px solid #1e1e1e; border-radius:12px; overflow:hidden;">
+      <div class="nav-ctx">
+        <div class="nav-pill">
+          <div class="nav-it">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9,22 9,12 15,12 15,22"/></svg>
+            Home
+          </div>
+          <div class="nav-it active">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>
+            Search
+          </div>
+          <div class="nav-it">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            Library
+          </div>
+        </div>
+      </div>
+      <div class="search-wrap">
+        <!-- Large search input -->
+        <div class="search-input-wrap">
+          <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" stroke-linecap="round"/></svg>
+          <input class="search-input" placeholder="Search movies & shows..." type="text" value="The Boys" />
+        </div>
+
+        <!-- Type filters -->
+        <div class="filter-row">
+          <div class="filter-chip inactive">All</div>
+          <div class="filter-chip active">Movies</div>
+          <div class="filter-chip inactive">Shows</div>
+        </div>
+
+        <!-- Results count -->
+        <div style="font-size:12px;color:rgba(255,255,255,.35);margin-bottom:14px;">24 results for "The Boys"</div>
+
+        <!-- Results grid -->
+        <div class="search-results-grid">
+          <div class="search-card g1"><div class="search-card-overlay"></div><div class="search-card-title">The Boys</div></div>
+          <div class="search-card g2"><div class="search-card-overlay"></div><div class="search-card-title">The Boys Presents</div></div>
+          <div class="search-card g3"><div class="search-card-overlay"></div></div>
+          <div class="search-card g4"><div class="search-card-overlay"></div></div>
+          <div class="search-card g5"><div class="search-card-overlay"></div></div>
+          <div class="search-card g6"><div class="search-card-overlay"></div></div>
+          <div class="search-card g2"><div class="search-card-overlay"></div></div>
+          <div class="search-card g1"><div class="search-card-overlay"></div></div>
+          <div class="search-card g5"><div class="search-card-overlay"></div></div>
+          <div class="search-card g3"><div class="search-card-overlay"></div></div>
+          <div class="search-card g4"><div class="search-card-overlay"></div></div>
+          <div class="search-card g6"><div class="search-card-overlay"></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- LIBRARY -->
+  <div class="section">
+    <div class="section-label">Library</div>
+    <div class="section-title">Library — clean card grid, title + type below poster, remove on hover</div>
+    <div class="section-desc">Remove the old metadata overlays (ratings/percentages). Clean poster + title + type. X button on hover to remove.</div>
+
+    <div style="border:1px solid #1e1e1e; border-radius:12px; overflow:hidden;">
+      <div class="nav-ctx">
+        <div class="nav-pill">
+          <div class="nav-it">Home</div>
+          <div class="nav-it">Search</div>
+          <div class="nav-it active">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
+            Library
+          </div>
+        </div>
+      </div>
+      <div class="library-wrap">
+        <div class="lib-header">
+          <span class="lib-title">Library</span>
+          <span class="lib-count">12 saved</span>
+        </div>
+        <div class="lib-grid">
+          <!-- FROM -->
+          <div class="lib-card">
+            <div class="lib-poster g2">
+              <div class="lib-poster-overlay"><div class="lib-remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div></div>
+            </div>
+            <div class="lib-info"><div class="lib-name">FROM</div><div class="lib-type">Series</div></div>
+          </div>
+          <!-- The Boys -->
+          <div class="lib-card">
+            <div class="lib-poster g1">
+              <div class="lib-poster-overlay"><div class="lib-remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div></div>
+            </div>
+            <div class="lib-info"><div class="lib-name">The Boys</div><div class="lib-type">Series</div></div>
+          </div>
+          <!-- Severance -->
+          <div class="lib-card">
+            <div class="lib-poster g5">
+              <div class="lib-poster-overlay"><div class="lib-remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div></div>
+            </div>
+            <div class="lib-info"><div class="lib-name">Severance</div><div class="lib-type">Series</div></div>
+          </div>
+          <div class="lib-card">
+            <div class="lib-poster g3"><div class="lib-poster-overlay"><div class="lib-remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div></div></div>
+            <div class="lib-info"><div class="lib-name">Sinners</div><div class="lib-type">Movie</div></div>
+          </div>
+          <div class="lib-card">
+            <div class="lib-poster g4"><div class="lib-poster-overlay"><div class="lib-remove"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg></div></div></div>
+            <div class="lib-info"><div class="lib-name">Dune: Part Two</div><div class="lib-type">Movie</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SETTINGS -->
+  <div class="section">
+    <div class="section-label">Settings</div>
+    <div class="section-title">Settings — clean sections, addon list, profile info</div>
+
+    <div style="border:1px solid #1e1e1e; border-radius:12px; overflow:hidden;">
+      <div class="nav-ctx">
+        <div class="nav-pill">
+          <div class="nav-it">Home</div>
+          <div class="nav-it active">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+            Settings
+          </div>
+        </div>
+      </div>
+      <div class="settings-wrap">
+        <div class="settings-section">
+          <div class="settings-section-title">Profile</div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Zain</div><div class="settings-row-sub">Admin · zainalabidinaa@gmail.com</div></div>
+            <div class="settings-action">Switch</div>
+          </div>
+          <div class="settings-row">
+            <div><div class="settings-row-label">Sign out</div></div>
+            <div class="settings-action" style="color:rgba(255,80,80,.7)">Sign out</div>
+          </div>
+        </div>
+
+        <div class="settings-section">
+          <div class="settings-section-title">Addons</div>
+          <div style="display:flex;gap:8px;margin-bottom:14px;">
+            <input class="settings-input" placeholder="Paste addon manifest URL..." style="flex:1" />
+            <div class="settings-btn">Install</div>
+          </div>
+          <div class="settings-addon-row">
+            <div class="addon-icon">🎬</div>
+            <div class="addon-info">
+              <div class="addon-name">AIOMetadata</div>
+              <div class="addon-url">https://aiometadata.fortheweak.cloud/stremio/...</div>
+            </div>
+            <div class="addon-remove">Remove</div>
+          </div>
+          <div class="settings-addon-row">
+            <div class="addon-icon">🎞</div>
+            <div class="addon-info">
+              <div class="addon-name">Torrentio</div>
+              <div class="addon-url">https://torrentio.strem.fun/...</div>
+            </div>
+            <div class="addon-remove">Remove</div>
+          </div>
+          <div class="settings-addon-row">
+            <div class="addon-icon">▶</div>
+            <div class="addon-info">
+              <div class="addon-name">Streailer</div>
+              <div class="addon-url">https://9aa032f52161-streailer.baby-beamup...</div>
+            </div>
+            <div class="addon-remove">Remove</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,72 @@
+<h2>Featured Hero — Rotation Strategy</h2>
+<p class="subtitle">The hero will be full-width cinematic (like your SINNERS screenshot). The question is: <strong>what pool does it rotate through, and how fast?</strong></p>
+
+<div class="mockup" style="margin-bottom:28px">
+  <div class="mockup-header">Hero Preview (all options look like this — just different sources)</div>
+  <div class="mockup-body" style="padding:0;overflow:hidden;border-radius:0 0 8px 8px">
+    <div style="position:relative;width:100%;height:260px;background:linear-gradient(135deg,#1a0a00,#000428,#0d0d0d);overflow:hidden">
+      <!-- fake backdrop -->
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 60% 40%,rgba(120,60,0,.35),transparent 60%),radial-gradient(ellipse at 20% 80%,rgba(30,10,80,.4),transparent 50%)"></div>
+      <!-- gradient overlay -->
+      <div style="position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,.92) 0%,rgba(0,0,0,.5) 50%,transparent 80%)"></div>
+      <div style="position:absolute;bottom:0;left:0;right:0;height:80px;background:linear-gradient(to top,#080808,transparent)"></div>
+      <!-- content -->
+      <div style="position:absolute;bottom:0;left:0;padding:28px 32px">
+        <div style="font-size:9px;color:#a78bfa;font-weight:700;letter-spacing:.15em;text-transform:uppercase;margin-bottom:6px">Popular Movies</div>
+        <div style="font-size:32px;font-weight:900;color:#fff;line-height:1;margin-bottom:6px;letter-spacing:-.02em">SINNERS</div>
+        <div style="font-size:11px;color:#aaa;margin-bottom:14px">Movie · Action · 2025 · ★ 8.1</div>
+        <div style="font-size:11px;color:#bbb;max-width:360px;line-height:1.5;margin-bottom:16px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">Two brothers return to their hometown only to discover that an even greater evil lurks beneath the surface.</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="background:#fff;color:#000;font-size:11px;font-weight:700;padding:8px 20px;border-radius:20px">▶ Watch Now</div>
+          <div style="background:rgba(255,255,255,.12);color:#fff;font-size:11px;font-weight:600;padding:8px 16px;border-radius:20px;backdrop-filter:blur(4px)">+ My List</div>
+        </div>
+      </div>
+      <!-- dot indicators -->
+      <div style="position:absolute;bottom:16px;right:24px;display:flex;gap:5px">
+        <div style="width:20px;height:3px;background:#fff;border-radius:2px"></div>
+        <div style="width:6px;height:3px;background:rgba(255,255,255,.3);border-radius:2px"></div>
+        <div style="width:6px;height:3px;background:rgba(255,255,255,.3);border-radius:2px"></div>
+        <div style="width:6px;height:3px;background:rgba(255,255,255,.3);border-radius:2px"></div>
+        <div style="width:6px;height:3px;background:rgba(255,255,255,.3);border-radius:2px"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Top 5 from Popular Movies (recommended)</h3>
+      <p>Picks items #1–5 from the Popular Movies row, rotates every 6 seconds. Always movies, always trending. Simple, predictable, high-quality picks.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Always high-quality content</li><li>Users see what's actually popular</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Biased toward movies only</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Mix: top items from all 4 main rows</h3>
+      <p>Takes item #1 from Popular Movies, #1 from Popular TV, #1 from Trending Movies, #1 from Trending TV — 4 slots rotating every 6s. Shows a balanced mix.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Shows movies AND TV shows</li><li>Feels more alive and varied</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>Slightly more complex logic</li></ul></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Top 5 across all 4 rows (ranked by popularity score)</h3>
+      <p>Fetches items from all 4 rows, ranks them by TMDB/IMDB popularity score, picks the top 5 regardless of type. Most popular content wins, whether movie or show.</p>
+      <div class="pros-cons" style="margin-top:8px">
+        <div class="pros"><h4>Pros</h4><ul><li>Always the absolute hottest content</li><li>Data-driven selection</li></ul></div>
+        <div class="cons"><h4>Cons</h4><ul><li>May cluster on same type if movies dominate charts</li></ul></div>
+      </div>
+    </div>
+  </div>
+</div>
