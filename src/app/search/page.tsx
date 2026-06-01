@@ -113,10 +113,14 @@ export default function SearchPage() {
 
   return (
     <Sidebar>
-      <div className="px-6 pt-20 pb-12 max-w-5xl">
-        {/* Search input */}
-        <div className="relative mb-6">
-          <div className={`flex items-center gap-3 bg-[#141414] border rounded-xl px-4 py-3 transition-all ${query ? 'border-white/20' : 'border-white/8'}`}>
+      {/* Cinematic header band */}
+      <div className="-mt-14 relative pt-14 pb-10 bg-gradient-to-b from-luna-elevated via-luna-elevated/60 to-transparent">
+        <div className="absolute inset-0 bg-gradient-to-b from-luna-elevated to-transparent" />
+        <div className="relative z-10 px-6 pt-10 max-w-2xl mx-auto">
+          <h1 className="text-2xl font-bold text-white mb-6 text-center">Search</h1>
+          {/* Search input */}
+          <div className="relative">
+          <div className={`flex items-center gap-3 bg-[#1c1c1e] border rounded-2xl px-4 py-3.5 transition-all shadow-lg ${query ? 'border-white/25' : 'border-white/10'}`}>
             <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" strokeLinecap="round"/></svg>
             <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2">
               <input
@@ -168,17 +172,21 @@ export default function SearchPage() {
               </div>
             </div>
           )}
-        </div>
+          </div>{/* end relative suggestions wrapper */}
+        </div>{/* end inner header content */}
+      </div>{/* end header band */}
 
+      {/* Page body */}
+      <div className="px-6 pb-12 max-w-5xl">
         {/* EMPTY STATE */}
         {isEmpty && (
           <>
             {recent.length > 0 && (
               <section className="mb-8">
-                <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-3">Recent</p>
+                <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Recent</p>
                 <div className="flex gap-2 flex-wrap">
                   {recent.map(r => (
-                    <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-white/5 border border-white/8 rounded-full cursor-pointer group">
+                    <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-luna-surface border border-luna-border rounded-full cursor-pointer group">
                       <svg className="w-3 h-3 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                       <span className="text-xs text-white/60" onClick={() => handleRecentClick(r)}>{r}</span>
                       <button onClick={() => { removeRecent(r); setRecent(getRecent()); }}
@@ -193,19 +201,26 @@ export default function SearchPage() {
 
             {trending.length > 0 && (
               <section>
-                <p className="text-xs font-bold text-white/30 uppercase tracking-wider mb-3">Trending Now</p>
-                <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
-                  {trending.map((item, i) => (
-                    <Link key={item.id} href={`/browse/${item.type}/${item.id}`}
-                      className="flex items-center gap-3 flex-shrink-0 bg-[#141414] border border-white/6 rounded-xl px-3 py-2 hover:bg-[#1c1c1e] transition-colors cursor-pointer">
-                      <span className="text-2xl font-black text-white/15 min-w-[20px]">{i + 1}</span>
-                      {item.poster
-                        ? <img src={item.poster} alt={item.name} className="w-9 h-[54px] object-cover rounded-md shrink-0" />
-                        : <div className="w-9 h-[54px] bg-white/5 rounded-md shrink-0" />}
-                      <div className="min-w-0">
-                        <p className="text-xs font-semibold text-white/80 whitespace-nowrap">{item.name}</p>
-                        <p className="text-[10px] text-white/35 mt-0.5">{item.type === 'series' ? 'Series' : 'Movie'}</p>
+                <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4">Trending Now</p>
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
+                  {trending.map(item => (
+                    <Link key={item.id} href={`/browse/${item.type}/${item.id}`} className="group cursor-pointer">
+                      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-luna-elevated mb-2">
+                        {item.poster
+                          ? <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
+                          : <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs text-center px-2">{item.name}</div>}
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                          <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                            <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4 ml-0.5"><polygon points="6,4 20,12 6,20"/></svg>
+                          </div>
+                        </div>
+                        <div className="absolute bottom-0 left-0 right-0 h-12 bg-gradient-to-t from-black/70 to-transparent" />
+                        <span className="absolute bottom-1.5 left-2 text-[10px] text-white/50 font-medium">
+                          {item.type === 'series' ? 'Series' : 'Movie'}
+                        </span>
                       </div>
+                      <p className="text-xs font-medium text-white/80 truncate">{item.name}</p>
+                      {item.releaseInfo && <p className="text-[10px] text-white/35 mt-0.5">{item.releaseInfo}</p>}
                     </Link>
                   ))}
                 </div>
@@ -224,30 +239,30 @@ export default function SearchPage() {
         {/* RESULTS */}
         {!loading && submitted && (
           <>
-            <div className="flex items-center gap-3 mb-4">
+            <div className="flex items-center gap-2 mb-6">
               {(['all', 'movie', 'series'] as Filter[]).map(f => (
                 <button key={f} onClick={() => setFilter(f)}
-                  className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all border ${
+                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${
                     filter === f
-                      ? 'bg-white/12 text-white border-white/20'
-                      : 'bg-white/4 text-white/45 border-white/6 hover:text-white/70'
+                      ? 'bg-white text-black'
+                      : 'bg-luna-surface border border-luna-border text-white/50 hover:text-white/80'
                   }`}>
                   {f === 'all' ? 'All' : f === 'movie' ? 'Movies' : 'Shows'}
                 </button>
               ))}
-              <span className="text-xs text-white/35 ml-auto">{filtered.length} results</span>
+              <span className="text-xs text-white/30 ml-auto">{filtered.length} results</span>
             </div>
 
             {filtered.length > 0 ? (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
                 {filtered.map(item => (
                   <Link key={item.id} href={`/browse/${item.type}/${item.id}`} className="group cursor-pointer">
-                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-luna-elevated mb-2">
+                    <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-luna-elevated mb-2">
                       {item.poster
                         ? <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
                         : <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs text-center px-2">{item.name}</div>}
                       <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+                        <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                           <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4 ml-0.5"><polygon points="6,4 20,12 6,20"/></svg>
                         </div>
                       </div>

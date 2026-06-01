@@ -33,7 +33,7 @@ function fmt(seconds: number): string {
 }
 
 function parseQuality(s: StreamItem): { label: string; color: string } {
-  const t = (s.title || s.name || s.description || '').toLowerCase();
+  const t = `${s.name ?? ''} ${s.title ?? ''} ${s.description ?? ''}`.toLowerCase();
   if (t.includes('2160') || t.includes('4k') || t.includes('uhd')) return { label: '4K', color: 'text-yellow-400 bg-yellow-400/10' };
   if (t.includes('1080')) return { label: '1080p', color: 'text-blue-400 bg-blue-400/10' };
   if (t.includes('720')) return { label: '720p', color: 'text-slate-400 bg-slate-400/10' };
@@ -44,7 +44,9 @@ function parseQuality(s: StreamItem): { label: string; color: string } {
 // but produce silence in the browser (DTS, TrueHD, raw Atmos require native decoders).
 const BAD_AUDIO_CODECS = ['dts', 'truehd', 'atmos', 'remux', 'blu-ray', 'bluray'];
 function isWebCompatAudio(s: StreamItem): boolean {
-  const t = (s.title || s.name || s.description || '').toLowerCase();
+  // Concatenate all fields — Torrentio puts codec info in different fields
+  // depending on the stream, so we must check all of them.
+  const t = `${s.name ?? ''} ${s.title ?? ''} ${s.description ?? ''}`.toLowerCase();
   return !BAD_AUDIO_CODECS.some(k => t.includes(k));
 }
 
@@ -817,7 +819,7 @@ export default function Player({
                           <p className="text-xs text-white/35 mt-0.5">{s.addonName}</p>
                         </div>
                         {!webCompat && (
-                          <span className="text-[10px] text-yellow-400/70 flex-shrink-0" title="Audio codec (DTS/TrueHD) may not play in browser">⚠</span>
+                          <span className="text-xs font-semibold text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded flex-shrink-0" title="Audio codec (DTS/TrueHD/Atmos) may not play in browser — pick a WEB-DL or AAC stream instead">⚠ No audio</span>
                         )}
                       </button>
                     );
