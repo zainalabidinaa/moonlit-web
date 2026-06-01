@@ -2,6 +2,13 @@ import type { AddonManifest, FeaturedHomeItem, HomeCatalogRow, MetaPreview } fro
 
 const INITIAL_CATALOG_LIMIT = 4;
 
+export const MAIN_ROW_NAMES = [
+  'Popular Movies',
+  'Popular TV Shows',
+  'Trending Movies',
+  'Trending TV Shows',
+] as const;
+
 export function selectInitialCatalogs(manifest: AddonManifest): NonNullable<AddonManifest['catalogs']> {
   return [...(manifest.catalogs || [])]
     .map((catalog, index) => ({ catalog, index, score: scoreCatalog(catalog) }))
@@ -31,13 +38,19 @@ export function buildHomeRows(
         return null;
       }
 
+      const title = catalog.name || catalog.id;
+      const isMainRow = MAIN_ROW_NAMES.some(
+        n => title.toLowerCase() === n.toLowerCase()
+      );
+
       return {
         id: `${manifest.id}_${catalog.type}_${catalog.id}`,
-        title: catalog.name || catalog.id,
+        title,
         type: catalog.type,
         catalogId: catalog.id,
         items,
-      } satisfies HomeCatalogRow;
+        isMainRow,
+      } as HomeCatalogRow;
     })
     .filter((row): row is HomeCatalogRow => row !== null);
 }
@@ -65,6 +78,25 @@ export function pickFeaturedItem(rows: HomeCatalogRow[]): FeaturedHomeItem | nul
     row: bestRow,
     item: bestRow.items[0],
   };
+}
+
+export function pickFeaturedItems(rows: HomeCatalogRow[]): FeaturedHomeItem[] {
+  const mainRows = rows.filter(r =>
+    MAIN_ROW_NAMES.some(n => r.title.toLowerCase() === n.toLowerCase())
+  );
+  const seen = new Set<string>();
+  const candidates: FeaturedHomeItem[] = [];
+  for (const row of mainRows) {
+    for (const item of row.items) {
+      if (!seen.has(item.id)) {
+        seen.add(item.id);
+        candidates.push({ row, item });
+      }
+    }
+  }
+  return candidates
+    .sort((a, b) => (b.item.popularity ?? 0) - (a.item.popularity ?? 0))
+    .slice(0, 5);
 }
 
 function scoreRow(row: HomeCatalogRow): number {

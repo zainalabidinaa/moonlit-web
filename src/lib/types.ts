@@ -93,6 +93,8 @@ export interface HomeCatalogRow {
   type: string;
   catalogId: string;
   items: MetaPreview[];
+  isMainRow?: boolean;
+  coverImage?: string;
 }
 
 export interface FeaturedHomeItem {
