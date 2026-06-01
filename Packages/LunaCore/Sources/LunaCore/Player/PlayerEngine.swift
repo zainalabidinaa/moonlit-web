@@ -17,6 +17,9 @@ public class PlayerEngine: ObservableObject {
     @Published public var currentLaunch: PlayerLaunch?
     @Published public var availableSubtitles: [SubtitleItem] = []
     @Published public var selectedSubtitle: SubtitleItem?
+    @Published public var availableAudioTracks: [String] = []
+    @Published public var selectedAudioTrack: String?
+    @Published public var isMuted = false
 
     private var timeObserver: Any?
     private var progressTimer: Timer?
@@ -48,6 +51,11 @@ public class PlayerEngine: ObservableObject {
         }
 
         self.player = player
+
+        if let subs = launch.subtitles, !subs.isEmpty {
+            self.availableSubtitles = subs
+            self.selectedSubtitle = subs.first
+        }
 
         addTimeObserver()
         startProgressTimer()
@@ -91,6 +99,41 @@ public class PlayerEngine: ObservableObject {
 
     public func skipBack() {
         seekBy(-15)
+    }
+
+    public func skipForward15() {
+        seekBy(15)
+    }
+
+    public func skipBack15() {
+        seekBy(-15)
+    }
+
+    public func toggleMute() {
+        isMuted.toggle()
+        player?.isMuted = isMuted
+    }
+
+    public func loadSubtitles(from subtitles: [SubtitleItem]) {
+        availableSubtitles = subtitles
+        if selectedSubtitle == nil {
+            selectedSubtitle = subtitles.first
+        }
+    }
+
+    public func cycleSubtitle() {
+        guard !availableSubtitles.isEmpty else { return }
+        if let current = selectedSubtitle,
+           let idx = availableSubtitles.firstIndex(where: { $0.id == current.id }) {
+            let next = (idx + 1) % availableSubtitles.count
+            selectedSubtitle = availableSubtitles[next]
+        } else {
+            selectedSubtitle = availableSubtitles.first
+        }
+    }
+
+    public func setSubtitle(_ subtitle: SubtitleItem?) {
+        selectedSubtitle = subtitle
     }
 
     public func stop() {
