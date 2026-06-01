@@ -1,85 +1,59 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../../../AuthProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Sidebar } from '@/components/Sidebar';
-import { updateWatchProgress } from '@/lib/services/api';
-import Script from 'next/script';
+import Player from '@/components/Player';
+import { StreamItem } from '@/lib/types';
+import { getCachedStreams, getCachedStream } from '@/lib/stream-cache';
 
 export default function WatchPage({ params }: { params: { type: string; id: string } }) {
   const resolved = params;
   const searchParams = useSearchParams();
-  const { currentProfile, user, isLoading } = useAuth();
+  const { user, currentProfile, isLoading } = useAuth();
   const router = useRouter();
-  const streamUrl = searchParams.get('url');
-  const headersStr = searchParams.get('headers');
 
-  const [position, setPosition] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const streamUrlRaw = searchParams.get('url');
+  const cacheId = searchParams.get('cid');
 
+  const streamUrl = streamUrlRaw ? decodeURIComponent(streamUrlRaw) : '';
+  const allStreams: StreamItem[] = cacheId ? (getCachedStreams(cacheId) ?? []) : [];
+  const cachedStream = cacheId && streamUrl ? getCachedStream(cacheId, streamUrl) : null;
+  const fallbackStream: StreamItem = { url: streamUrl, addonName: 'Direct' };
+
+  const [activeStream, setActiveStream] = useState<StreamItem>(cachedStream || fallbackStream);
+  const [activeUrl, setActiveUrl] = useState(streamUrl);
+  const savedPosition = useRef(0);
+
+  // Auth guard
   useEffect(() => {
     if (isLoading) return;
     if (!user) { router.replace('/auth'); return; }
     if (!currentProfile) { router.replace('/profiles'); return; }
     if (!streamUrl) { router.back(); return; }
-  }, [user, currentProfile, streamUrl]);
+  }, [user, currentProfile, isLoading, streamUrl]);
 
-  useEffect(() => {
-    if (!streamUrl || !currentProfile) return;
-    const interval = setInterval(async () => {
-      const video = document.querySelector('video');
-      if (video && video.currentTime > 0) {
-        setPosition(video.currentTime);
-        setDuration(video.duration || 0);
-        await updateWatchProgress(
-          currentProfile.id,
-          resolved.id,
-          resolved.type,
-          video.currentTime,
-          video.duration || 0,
-          false
-        );
-      }
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [streamUrl, currentProfile]);
+  function handleSwitchStream(newStream: StreamItem) {
+    if (!newStream.url) return;
+    const video = document.querySelector('video');
+    savedPosition.current = video?.currentTime || 0;
+    setActiveStream(newStream);
+    setActiveUrl(newStream.url);
+  }
 
   if (!streamUrl) return null;
 
-  const decodedUrl = decodeURIComponent(streamUrl);
-  let headers: Record<string, string> | undefined;
-  try {
-    if (headersStr) headers = JSON.parse(decodeURIComponent(headersStr));
-  } catch {}
-
   return (
-    <div className="h-screen bg-black flex flex-col">
-      <div className="flex items-center gap-4 p-4 bg-black/80">
-        <button
-          onClick={() => router.back()}
-          className="text-white hover:text-luna-accent"
-        >
-          ← Back
-        </button>
-        <span className="text-sm text-luna-muted truncate">{resolved.id}</span>
-      </div>
-
-      <div className="flex-1 flex items-center justify-center">
-        <video
-          id="luna-player"
-          className="max-w-full max-h-full"
-          controls
-          autoPlay
-          crossOrigin="anonymous"
-          onPlay={() => setPlaying(true)}
-          onPause={() => setPlaying(false)}
-        >
-          <source src={decodedUrl} />
-        </video>
-      </div>
-    </div>
+    <Player
+      streamUrl={activeUrl}
+      streams={allStreams}
+      currentStream={activeStream}
+      title={decodeURIComponent(resolved.id)}
+      mediaId={resolved.id}
+      mediaType={resolved.type}
+      startPosition={savedPosition.current || undefined}
+      onSwitchStream={handleSwitchStream}
+      onBack={() => router.back()}
+    />
   );
 }

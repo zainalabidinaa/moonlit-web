@@ -7,6 +7,7 @@ import { Sidebar } from '@/components/Sidebar';
 import { MetaDetail, StreamItem, Season } from '@/lib/types';
 import { fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
 import { isInLibrary, toggleLibrary } from '@/lib/services/api';
+import { cacheStreams } from '@/lib/stream-cache';
 
 const PlayIcon = () => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -32,6 +33,7 @@ export default function DetailPage({ params }: { params: { type: string; id: str
   const [loadingStreams, setLoadingStreams] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
+  const [autoPlaying, setAutoPlaying] = useState(false);
 
   useEffect(() => {
     if (isLoading) return;
@@ -82,17 +84,33 @@ export default function DetailPage({ params }: { params: { type: string; id: str
 
   function handleEpisodeClick(episodeId: string) {
     setSelectedEpisodeId(episodeId);
-    loadStreams(episodeId);
+    handleAutoPlay(episodeId);
   }
 
   function handlePlay(stream: StreamItem) {
     if (!stream.url) return;
+    const cacheKey = `${resolved.type}:${selectedEpisodeId || resolved.id}`;
+    cacheStreams(cacheKey, streams);
     const encodedUrl = encodeURIComponent(stream.url);
-    let playerUrl = `/watch/${resolved.type}/${resolved.id}?url=${encodedUrl}`;
-    if (stream.behaviorHints?.proxyHeaders?.request) {
-      playerUrl += '&headers=' + encodeURIComponent(JSON.stringify(stream.behaviorHints.proxyHeaders.request));
+    router.push(`/watch/${resolved.type}/${selectedEpisodeId || resolved.id}?url=${encodedUrl}&cid=${encodeURIComponent(cacheKey)}`);
+  }
+
+  async function handleAutoPlay(streamId?: string) {
+    const id = streamId || resolved.id;
+    setAutoPlaying(true);
+    const allStreams = await fetchStreamsFromAll(resolved.type, id, addons);
+    const directStreams = allStreams.filter(s => s.url && !s.infoHash && !s.behaviorHints?.notWebReady);
+    const picked = directStreams[0];
+    if (picked) {
+      const cacheKey = `${resolved.type}:${id}`;
+      cacheStreams(cacheKey, allStreams);
+      const encodedUrl = encodeURIComponent(picked.url!);
+      router.push(`/watch/${resolved.type}/${id}?url=${encodedUrl}&cid=${encodeURIComponent(cacheKey)}`);
+    } else {
+      setAutoPlaying(false);
+      setStreams(allStreams);
+      setShowStreams(true);
     }
-    router.push(playerUrl);
   }
 
   if (loading) {
@@ -153,12 +171,28 @@ export default function DetailPage({ params }: { params: { type: string; id: str
             )}
             <div className="flex gap-3 flex-wrap">
               {!isSeries && (
-                <button
-                  onClick={() => loadStreams()}
-                  className="flex items-center gap-2 px-6 py-2.5 bg-white text-black font-semibold rounded-full hover:bg-white/90 transition-all duration-200 cursor-pointer text-sm"
-                >
-                  <PlayIcon /> Play
-                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleAutoPlay()}
+                    disabled={autoPlaying}
+                    className={`flex items-center gap-2 px-6 py-2.5 bg-white text-black font-semibold rounded-full transition-all duration-200 cursor-pointer text-sm ${
+                      autoPlaying ? 'opacity-70' : 'hover:bg-white/90'
+                    }`}
+                  >
+                    {autoPlaying ? (
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent" />
+                    ) : (
+                      <PlayIcon />
+                    )}
+                    {autoPlaying ? 'Loading...' : 'Play'}
+                  </button>
+                  <button
+                    onClick={() => loadStreams()}
+                    className="flex items-center gap-2 px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white font-semibold rounded-full transition-all duration-200 cursor-pointer text-sm"
+                  >
+                    Sources
+                  </button>
+                </div>
               )}
               <button
                 onClick={handleToggleLibrary}
@@ -291,6 +325,32 @@ export default function DetailPage({ params }: { params: { type: string; id: str
           </section>
         )}
       </div>
+
+      {/* Auto-play loading overlay (Stremio-style) */}
+      {autoPlaying && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/90">
+          {backdropSrc && (
+            <img
+              src={backdropSrc}
+              alt=""
+              className="absolute inset-0 w-full h-full object-cover opacity-30 blur-md"
+            />
+          )}
+          <div className="relative z-10 flex flex-col items-center gap-6">
+            {detail?.poster && (
+              <img
+                src={detail.poster}
+                alt={title}
+                className="w-24 sm:w-32 rounded-xl shadow-2xl ring-1 ring-white/10"
+              />
+            )}
+            <h2 className="text-lg font-semibold text-white text-center">{title}</h2>
+            <div className="animate-spin rounded-full h-8 w-8 border-2 border-luna-accent border-t-transparent" />
+            <p className="text-sm text-luna-muted">Finding the best source...</p>
+          </div>
+        </div>
+      )}
+
     </Sidebar>
   );
 }

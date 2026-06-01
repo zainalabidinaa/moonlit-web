@@ -4,15 +4,16 @@ import { useEffect, useState } from 'react';
 import { useAuth } from '../AuthProvider';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/Sidebar';
-import { CollectionRow } from '@/components/CollectionRow';
+import { FolderContentRow } from '@/components/FolderContentRow';
 import { Collection } from '@/lib/types';
-import { getCollections, getWatchProgress } from '@/lib/services/api';
+import { getCollections, getWatchProgress, getSystemAddon } from '@/lib/services/api';
 import Link from 'next/link';
 
 export default function HomePage() {
   const { currentProfile, user, isLoading } = useAuth();
   const router = useRouter();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [addonBaseUrl, setAddonBaseUrl] = useState('');
   const [continueWatching, setContinueWatching] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -26,16 +27,22 @@ export default function HomePage() {
   async function loadData() {
     setLoading(true);
     try {
-      const [cols, progress] = await Promise.all([
+      const [cols, progress, systemAddon] = await Promise.all([
         getCollections(),
-        getWatchProgress(currentProfile!.id)
+        getWatchProgress(currentProfile!.id),
+        getSystemAddon(),
       ]);
+
       setCollections(cols);
       setContinueWatching(
         progress
           .filter((p: any) => !p.completed && p.position_seconds > 0)
           .sort((a: any, b: any) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       );
+
+      if (systemAddon?.manifest_url) {
+        setAddonBaseUrl(systemAddon.manifest_url.replace('/manifest.json', ''));
+      }
     } catch {}
     setLoading(false);
   }
@@ -57,9 +64,7 @@ export default function HomePage() {
         {/* Continue Watching */}
         {continueWatching.length > 0 && (
           <section className="mb-10">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-semibold text-white">Continue Watching</h2>
-            </div>
+            <h2 className="text-base font-semibold text-white mb-4">Continue Watching</h2>
             <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide">
               {continueWatching.slice(0, 10).map((item: any) => {
                 const pct = item.duration_seconds > 0
@@ -92,21 +97,31 @@ export default function HomePage() {
           </section>
         )}
 
-        {/* Collection rows */}
-        {collections.map(collection => (
-          <CollectionRow key={collection.id} collection={collection} />
-        ))}
-
-        {/* Empty state */}
-        {collections.length === 0 && (
+        {/* Collections → each folder becomes its own content row */}
+        {addonBaseUrl ? (
+          collections
+            .filter(c => c.folders && c.folders.length > 0)
+            .map(collection => (
+            <section key={collection.id} className="mb-2">
+              <h2 className="text-lg font-bold text-white mb-1 mt-8">{collection.name}</h2>
+              {[...(collection.folders || [])]
+                .sort((a, b) => a.sort_order - b.sort_order)
+                .map(folder => (
+                  <FolderContentRow
+                    key={folder.id}
+                    folder={folder}
+                    addonBaseUrl={addonBaseUrl}
+                  />
+                ))}
+            </section>
+          ))
+        ) : (
           <div className="flex flex-col items-center justify-center py-32 text-luna-muted">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-8 h-8 mb-4 opacity-40">
-              <path d="M19.5 21a3 3 0 003-3v-4.5a3 3 0 00-3-3h-15a3 3 0 00-3 3V18a3 3 0 003 3h15zM1.5 10.146V6a3 3 0 013-3h5.379a2.25 2.25 0 011.59.659l2.122 2.121c.14.141.331.22.53.22H19.5a3 3 0 013 3v1.146A4.483 4.483 0 0019.5 9h-15a4.483 4.483 0 00-3 1.146z" />
-            </svg>
-            <p className="text-sm">No collections yet.</p>
-            <p className="text-xs mt-1 text-luna-muted/60">Ask your admin to set up collections.</p>
+            <p className="text-sm">No system addon configured.</p>
+            <p className="text-xs mt-1 opacity-60">Ask your admin to set up an addon in the admin panel.</p>
           </div>
         )}
+
       </div>
     </Sidebar>
   );
