@@ -98,15 +98,20 @@ export default function DetailPage({ params }: { params: { type: string; id: str
   async function handleAutoPlay(streamId?: string) {
     const id = streamId || resolved.id;
     setAutoPlaying(true);
+    const streamAddons = addons.filter(a => a.transportUrl && a.resources?.some(r => (typeof r === 'string' ? r : r.name) === 'stream'));
+    console.log('[handleAutoPlay] type:', resolved.type, 'id:', id, 'stream addons:', streamAddons.length);
     const allStreams = await fetchStreamsFromAll(resolved.type, id, addons);
-    const directStreams = allStreams.filter(s => s.url && !s.infoHash && !s.behaviorHints?.notWebReady);
-    const picked = directStreams[0];
+    console.log('[handleAutoPlay] total streams:', allStreams.length, allStreams.slice(0, 3).map(s => ({ url: s.url?.slice(0, 60), infoHash: s.infoHash, notWebReady: s.behaviorHints?.notWebReady, addonName: s.addonName })));
+    const playable = allStreams.filter(s => (s.url || s.externalUrl) && !s.infoHash && !s.behaviorHints?.notWebReady);
+    const picked = playable[0];
     if (picked) {
       const cacheKey = `${resolved.type}:${id}`;
       cacheStreams(cacheKey, allStreams);
-      const encodedUrl = encodeURIComponent(picked.url!);
+      const streamUrl = picked.url || picked.externalUrl!;
+      const encodedUrl = encodeURIComponent(streamUrl);
       router.push(`/watch/${resolved.type}/${id}?url=${encodedUrl}&cid=${encodeURIComponent(cacheKey)}`);
     } else {
+      console.log('[handleAutoPlay] no playable streams found');
       setAutoPlaying(false);
       setStreams(allStreams);
       setShowStreams(true);

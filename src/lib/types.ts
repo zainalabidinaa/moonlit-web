@@ -68,6 +68,7 @@ export interface StreamItem {
   title?: string;
   description?: string;
   url?: string;
+  externalUrl?: string;
   infoHash?: string;
   addonName?: string;
   addonId?: string;
