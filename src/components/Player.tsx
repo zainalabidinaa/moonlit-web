@@ -2,16 +2,15 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
-  MediaPlayer,
-  MediaProvider,
-  Track,
+  MediaPlayer, MediaProvider, Track,
+  PlayButton, MuteButton, FullscreenButton, SeekButton, CaptionButton,
+  Controls, TimeSlider,
+  Captions, Time, Gesture, useMediaState,
   isHLSProvider,
-  type MediaPlayerInstance,
-  type MediaProviderAdapter,
+  type MediaPlayerInstance, type MediaProviderAdapter,
 } from '@vidstack/react';
-import { DefaultVideoLayout, defaultLayoutIcons } from '@vidstack/react/player/layouts/default';
-import '@vidstack/react/player/styles/default/theme.css';
-import '@vidstack/react/player/styles/default/layouts/video.css';
+import { DefaultBufferingIndicator } from '@vidstack/react/player/layouts/default';
+import '@vidstack/react/player/styles/base.css';
 import { SFSymbol } from '@/components/SFSymbol';
 import { StreamItem } from '@/lib/types';
 import { SubtitleItem } from '@/lib/stremio';
@@ -24,7 +23,6 @@ interface PlayerProps {
   currentStream: StreamItem;
   title: string;
   poster?: string;
-  backdrop?: string;
   mediaId: string;
   mediaType: string;
   startPosition?: number;
@@ -48,68 +46,59 @@ function isWebCompatAudio(s: StreamItem): boolean {
 }
 
 export default function Player({
-  streamUrl, streams, currentStream, title, poster, backdrop,
-  mediaId, mediaType, startPosition, subtitles = [], onSwitchStream, onBack,
+  streamUrl, streams, currentStream, title,
+  mediaId, mediaType, startPosition, subtitles = [],
+  onSwitchStream, onBack,
 }: PlayerProps) {
-  const player = useRef<MediaPlayerInstance>(null);
+  const playerRef = useRef<MediaPlayerInstance>(null);
   const { currentProfile } = useAuth();
   const [showSources, setShowSources] = useState(false);
-  const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showSpeed, setShowSpeed] = useState(false);
+  const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
-  // Configure HLS.js when provider changes — this is where we apply Real-Debrid
-  // proxy headers and ensure all stream types are attempted via HLS.js first.
   const onProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
     if (isHLSProvider(provider)) {
-      const proxyHeaders = currentStream.behaviorHints?.proxyHeaders?.request;
+      const headers = currentStream.behaviorHints?.proxyHeaders?.request;
       provider.config = {
         renderTextTracksNatively: false,
         startLevel: -1,
-        ...(proxyHeaders && {
+        ...(headers && {
           xhrSetup: (xhr: XMLHttpRequest) => {
-            for (const [k, v] of Object.entries(proxyHeaders)) xhr.setRequestHeader(k, v);
+            for (const [k, v] of Object.entries(headers)) xhr.setRequestHeader(k, v);
           },
         }),
       };
     }
   }, [currentStream]);
 
-  // Save progress every 10 seconds
   useEffect(() => {
     if (!currentProfile) return;
-    progressInterval.current = setInterval(() => {
-      const p = player.current;
+    const interval = setInterval(() => {
+      const p = playerRef.current;
       if (p && p.currentTime > 0) {
         updateWatchProgress(currentProfile.id, mediaId, mediaType, p.currentTime, p.duration || 0, false);
       }
     }, 10000);
-    return () => { if (progressInterval.current) clearInterval(progressInterval.current); };
+    return () => clearInterval(interval);
   }, [currentProfile, mediaId, mediaType]);
 
-  // Save on ended
   const onEnded = useCallback(() => {
-    const p = player.current;
+    const p = playerRef.current;
     if (!currentProfile || !p) return;
     updateWatchProgress(currentProfile.id, mediaId, mediaType, p.currentTime, p.duration || 0, true);
   }, [currentProfile, mediaId, mediaType]);
 
-  // Resume from saved position
   const onCanPlay = useCallback(() => {
-    if (startPosition && startPosition > 0 && player.current) {
-      player.current.currentTime = startPosition;
+    if (startPosition && startPosition > 0 && playerRef.current) {
+      playerRef.current.currentTime = startPosition;
     }
   }, [startPosition]);
 
-  const switchSrc = (s: StreamItem) => { setShowSources(false); onSwitchStream(s); };
-
-  // Vidstack needs an explicit src type for HLS URLs that don't contain .m3u8
-  const src = { src: streamUrl, type: 'video/mp4' as const };
-
   return (
     <div className="fixed inset-0 bg-black z-50 luna-player">
-      {/* Vidstack player */}
       <MediaPlayer
-        ref={player}
-        src={src}
+        ref={playerRef}
+        src={{ src: streamUrl, type: 'video/mp4' }}
         autoPlay
         className="absolute inset-0 w-full h-full"
         onProviderChange={onProviderChange}
@@ -117,72 +106,176 @@ export default function Player({
         onCanPlay={onCanPlay}
         title={title}
         crossOrigin="anonymous"
+        keyShortcuts={{
+          togglePaused: 'k Space',
+          toggleMuted: 'm',
+          toggleFullscreen: 'f',
+          seekBackward: 'ArrowLeft',
+          seekForward: 'ArrowRight',
+          volumeUp: 'ArrowUp',
+          volumeDown: 'ArrowDown',
+        }}
       >
-        <MediaProvider />
+        <MediaProvider className="absolute inset-0" />
 
-        {/* External subtitle tracks from Stremio addons */}
+        {/* Subtitle tracks from Stremio addons — Vidstack handles SRT natively */}
         {subtitles.map(sub => (
-          <Track
-            key={sub.id}
-            src={sub.url}
-            kind="subtitles"
-            label={sub.name || sub.lang}
-            language={sub.lang}
-          />
+          <Track key={sub.id} src={sub.url} kind="subtitles" label={sub.name || sub.lang} language={sub.lang} />
         ))}
 
-        {/* Default layout with monochrome theme and custom slots */}
-        <DefaultVideoLayout
-          icons={defaultLayoutIcons}
-          slots={{
-            // Source badge top-right — shows addon name + codec warning
-            topControlsGroupEnd: (
-              <div className="flex items-center gap-2">
-                {!isWebCompatAudio(currentStream) && (
-                  <span className="text-xs font-semibold text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded" title="Audio codec may not play in browser">
-                    ⚠ No audio
-                  </span>
-                )}
-                <button
-                  onClick={() => setShowSources(true)}
-                  className="flex items-center gap-1.5 bg-white/8 hover:bg-white/12 border border-white/10 rounded-lg px-2.5 py-1.5 transition-colors"
-                >
-                  <span className="text-xs font-medium text-white/70">
-                    {currentStream.addonName || 'Source'}
-                  </span>
-                  <SFSymbol name="chevron.up.chevron.down" size={10} opacity={0.4} />
-                </button>
+        {/* Subtitle overlay rendered by Vidstack */}
+        <Captions className="luna-captions" />
+
+        {/* Buffering spinner — DefaultBufferingIndicator shows when media is waiting */}
+        <DefaultBufferingIndicator />
+
+        {/* Tap / double-tap gestures */}
+        <Gesture className="absolute inset-0 z-0" event="pointerup" action="toggle:paused" />
+        <Gesture className="absolute left-0 top-0 h-full w-1/4 z-0" event="dblpointerup" action="seek:-15" />
+        <Gesture className="absolute right-0 top-0 h-full w-1/4 z-0" event="dblpointerup" action="seek:15" />
+
+        {/* Controls — Vidstack handles show/hide on mouse activity */}
+        <Controls.Root className="luna-controls absolute inset-0 flex flex-col justify-between pointer-events-none select-none">
+
+          {/* ── TOP BAR ── */}
+          <Controls.Group className="flex items-center justify-between px-5 pt-5 pointer-events-auto"
+            style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.65) 0%, transparent 100%)' }}>
+            <button
+              onClick={onBack}
+              className="flex items-center gap-1.5 text-white/80 hover:text-white text-sm font-medium transition-colors"
+            >
+              <SFSymbol name="chevron.left" size={14} opacity={0.8} />
+              Back
+            </button>
+
+            <p className="text-sm font-semibold text-white/70 truncate max-w-[40%]">{title}</p>
+
+            {/* Source switcher badge */}
+            <button
+              onClick={() => setShowSources(true)}
+              className="flex items-center gap-1.5 bg-white/8 hover:bg-white/12 border border-white/10 rounded-lg px-2.5 py-1.5 transition-colors"
+            >
+              {!isWebCompatAudio(currentStream) && (
+                <span className="text-[10px] font-bold text-yellow-400">⚠</span>
+              )}
+              <span className="text-xs font-medium text-white/65">{currentStream.addonName || 'Source'}</span>
+              <SFSymbol name="chevron.left" size={9} opacity={0.35} className="rotate-270" />
+            </button>
+          </Controls.Group>
+
+          {/* ── CENTER — skip + play ── */}
+          <Controls.Group className="flex items-center justify-center gap-10 pointer-events-auto">
+            <SeekButton seconds={-15} className="text-white/75 hover:text-white transition-opacity hover:opacity-100 opacity-80">
+              <SFSymbol name="gobackward.15" size={36} />
+            </SeekButton>
+
+            <PlayButton className="w-16 h-16 rounded-full bg-white/15 hover:bg-white/22 flex items-center justify-center transition-colors">
+              <SFSymbol name="play.fill" size={26} className="media-paused:block hidden" />
+              <SFSymbol name="pause.fill" size={26} className="media-paused:hidden block" />
+            </PlayButton>
+
+            <SeekButton seconds={15} className="text-white/75 hover:text-white transition-opacity hover:opacity-100 opacity-80">
+              <SFSymbol name="goforward.15" size={36} />
+            </SeekButton>
+          </Controls.Group>
+
+          {/* ── BOTTOM SHELF ── */}
+          <Controls.Group className="px-5 pb-6 pointer-events-auto"
+            style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.80) 0%, transparent 100%)' }}>
+
+            <p className="text-sm font-semibold text-white/80 mb-3">{title}</p>
+
+            {/* Scrubber */}
+            <TimeSlider.Root className="luna-slider group mb-2">
+              <TimeSlider.Track className="relative h-[3px] w-full rounded-full bg-white/15 group-hover:h-[5px] transition-all">
+                <TimeSlider.TrackFill className="absolute h-full rounded-full bg-white origin-left" />
+                <TimeSlider.Progress className="absolute h-full rounded-full bg-white/25 origin-left" />
+              </TimeSlider.Track>
+              <TimeSlider.Thumb className="absolute top-1/2 -translate-y-1/2 w-3 h-3 rounded-full bg-white opacity-0 group-hover:opacity-100 transition-opacity -translate-x-1/2" />
+              <TimeSlider.Preview className="luna-slider-preview">
+                <TimeSlider.Value className="text-xs text-white bg-black/80 px-1.5 py-0.5 rounded font-medium" type="pointer" format="time" />
+              </TimeSlider.Preview>
+            </TimeSlider.Root>
+
+            {/* Time + controls row */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1 text-xs text-white/40 font-medium tabular-nums">
+                <Time type="current" />
+                <span>/</span>
+                <Time type="duration" />
               </div>
-            ),
-            // Back button top-left
-            topControlsGroupStart: (
-              <button
-                onClick={onBack}
-                className="flex items-center gap-1.5 text-white/75 hover:text-white text-sm font-medium transition-colors"
-              >
-                <SFSymbol name="chevron.left" size={14} opacity={0.75} />
-                Back
-              </button>
-            ),
-          }}
-        />
+
+              <div className="flex items-center gap-1">
+                <MuteButton className="player-btn">
+                  <SFSymbol name="speaker.slash.fill" size={18} opacity={0.7} className="media-muted:block hidden" />
+                  <SFSymbol name="speaker.1.fill" size={18} opacity={0.7} className="media-muted:hidden media-volume-low:block hidden" />
+                  <SFSymbol name="speaker.3" size={18} opacity={0.7} className="media-muted:hidden media-volume-high:block hidden" />
+                </MuteButton>
+
+                <CaptionButton className="player-btn">
+                  <SFSymbol name="captions.bubble.fill" size={18} className="media-captions-on:opacity-100 opacity-50" />
+                </CaptionButton>
+
+                {/* Speed picker */}
+                <div className="relative">
+                  <button
+                    onClick={() => setShowSpeed(p => !p)}
+                    className="player-btn text-xs font-bold text-white/50 hover:text-white/80 w-9 h-9 flex items-center justify-center rounded-full transition-colors"
+                  >
+                    1×
+                  </button>
+                  {showSpeed && (
+                    <div className="absolute bottom-full right-0 mb-2 bg-neutral-900 border border-white/10 rounded-xl p-1 min-w-[110px] z-30">
+                      {speeds.map(s => (
+                        <button
+                          key={s}
+                          onClick={() => { if (playerRef.current) playerRef.current.playbackRate = s; setShowSpeed(false); }}
+                          className="w-full text-left px-3 py-2 rounded-lg text-sm text-white/65 hover:bg-white/6 hover:text-white transition-colors"
+                        >
+                          {s === 1 ? 'Normal' : `${s}×`}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <FullscreenButton className="player-btn">
+                  <SFSymbol name="arrow.up.left.and.arrow.down.right" size={17} opacity={0.7} className="media-fullscreen:hidden block" />
+                  <SFSymbol name="arrow.down.right.and.arrow.up.left" size={17} opacity={0.7} className="media-fullscreen:block hidden" />
+                </FullscreenButton>
+              </div>
+            </div>
+          </Controls.Group>
+        </Controls.Root>
       </MediaPlayer>
 
-      {/* Sources panel — slide in from right */}
+      {/* ── SOURCES PANEL ── */}
       {showSources && (
         <div className="absolute inset-0 z-40 flex justify-end">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowSources(false)} />
           <div className="relative w-80 max-w-[85vw] h-full bg-neutral-950 border-l border-white/8 overflow-y-auto">
-            <div className="p-4 border-b border-white/8 flex items-center justify-between">
+            <div className="p-4 border-b border-white/8 flex items-center justify-between sticky top-0 bg-neutral-950 z-10">
               <h3 className="text-sm font-semibold text-white">Sources</h3>
               <button onClick={() => setShowSources(false)} className="p-1 rounded-full hover:bg-white/8">
                 <SFSymbol name="xmark" size={14} opacity={0.5} />
               </button>
             </div>
+
+            {/* Only show web-compatible streams */}
             {(() => {
-              const sorted = [...streams].sort((a, b) => (isWebCompatAudio(a) ? 0 : 1) - (isWebCompatAudio(b) ? 0 : 1));
+              const compatible = streams.filter(isWebCompatAudio);
               const grp: Record<string, StreamItem[]> = {};
-              for (const s of sorted) { const k = s.addonName || 'Unknown'; (grp[k] ??= []).push(s); }
+              for (const s of compatible) { const k = s.addonName || 'Unknown'; (grp[k] ??= []).push(s); }
+
+              if (compatible.length === 0) {
+                return (
+                  <div className="px-4 py-8 text-center">
+                    <p className="text-white/40 text-sm">No web-compatible streams found</p>
+                    <p className="text-white/25 text-xs mt-1">All streams have DTS/TrueHD audio</p>
+                  </div>
+                );
+              }
+
               return Object.entries(grp).map(([name, items]) => (
                 <div key={name} className="border-b border-white/4 last:border-b-0">
                   <div className="px-4 pt-3 pb-1">
@@ -190,22 +283,28 @@ export default function Player({
                   </div>
                   {items.map((s, i) => {
                     const isActive = s.url === currentStream.url;
-                    const quality = parseQuality(s);
-                    const webCompat = isWebCompatAudio(s);
+                    const q = parseQuality(s);
+                    // Parse human-readable info from description (Torrentio puts "1080p 🎥 H.264 🎵 AAC 👤 12 💾 8.3 GB")
+                    const desc = s.description || '';
+                    const info = desc
+                      .replace(/\[.*?\]/g, '') // remove brackets
+                      .replace(/[^\x00-\x7F🎥🎵👤💾⚙️\s\.]/g, '') // keep useful emoji
+                      .trim() || s.title || s.name || 'Unknown';
+
                     return (
                       <button
-                        key={s.url || s.infoHash || s.externalUrl || `${name}-${i}`}
-                        onClick={() => switchSrc(s)}
-                        className={`w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 ${isActive ? 'border-l-2 border-white bg-white/4' : ''}`}
+                        key={s.url || s.infoHash || `${name}-${i}`}
+                        onClick={() => { setShowSources(false); onSwitchStream(s); }}
+                        className={`w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 transition-colors ${isActive ? 'border-l-2 border-white bg-white/4' : ''}`}
                       >
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0 ${quality.color}`}>{quality.label}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0 ${q.color}`}>{q.label}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white/85 truncate">{s.title || s.name || 'Unknown'}</p>
-                          <p className="text-xs text-white/35 mt-0.5">{s.addonName}</p>
+                          <p className="text-sm text-white/85 truncate">{info}</p>
+                          {s.description && (
+                            <p className="text-xs text-white/30 mt-0.5 truncate">{s.description}</p>
+                          )}
                         </div>
-                        {!webCompat && (
-                          <span className="text-xs font-semibold text-yellow-400 bg-yellow-400/10 px-1.5 py-0.5 rounded flex-shrink-0">⚠ No audio</span>
-                        )}
+                        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white flex-shrink-0" />}
                       </button>
                     );
                   })}

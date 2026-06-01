@@ -76,45 +76,51 @@ body {
   display: none;
 }
 
-/* ─── Luna Player — Monochrome Vidstack Theme ─── */
-.luna-player {
-  /* Accent / brand colour: pure white, no purple */
-  --media-brand: #ffffff;
-  --media-focus-ring-color: rgba(255, 255, 255, 0.4);
+/* ─── Luna Player — Custom Vidstack Layout ─── */
 
-  /* Scrubber */
-  --media-slider-track-bg: rgba(255, 255, 255, 0.15);
-  --media-slider-track-fill-bg: #ffffff;
-  --media-slider-thumb-bg: #ffffff;
-  --media-slider-thumb-shadow: 0 0 0 3px rgba(255,255,255,0.2);
-  --media-slider-preview-bg: rgba(0, 0, 0, 0.8);
-
-  /* Controls overlay */
-  --media-controls-bg: linear-gradient(
-    to top,
-    rgba(0, 0, 0, 0.88) 0%,
-    rgba(0, 0, 0, 0.3) 50%,
-    transparent 100%
-  );
-  --media-controls-color: rgba(255, 255, 255, 0.85);
-
-  /* Buttons */
-  --media-button-hover-bg: rgba(255, 255, 255, 0.08);
-  --media-button-color: rgba(255, 255, 255, 0.8);
-
-  /* Menus (subtitle / audio / quality panels) */
-  --media-menu-bg: #141414;
-  --media-menu-border: 1px solid rgba(255, 255, 255, 0.08);
-  --media-menu-border-radius: 14px;
-  --media-menu-item-hover-bg: rgba(255, 255, 255, 0.06);
-
-  /* Captions */
-  --media-user-font-size: 16px;
-  --media-cue-bg: rgba(0, 0, 0, 0.8);
-  --media-cue-color: #ffffff;
-  --media-cue-border-radius: 4px;
-  --media-cue-padding: 0.2em 0.5em;
-
-  /* Font */
-  --media-font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+/* Controls show/hide — Vidstack sets data-visible when active */
+.luna-controls {
+  opacity: 0;
+  transition: opacity 0.2s ease;
 }
+.luna-controls[data-visible] {
+  opacity: 1;
+}
+
+/* Shared button style */
+.player-btn {
+  @apply w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/8 transition-colors;
+}
+
+/* TimeSlider — pointer-events needed on the root */
+.luna-slider {
+  @apply relative w-full flex items-center h-5 cursor-pointer;
+  --slider-fill: 0%;
+}
+
+/* Slider preview tooltip */
+.luna-slider-preview {
+  @apply absolute bottom-full left-0 -translate-x-1/2 mb-2 pointer-events-none;
+}
+
+/* Captions overlay */
+.luna-captions {
+  @apply absolute bottom-24 left-0 right-0 z-10;
+  --cue-bg: rgba(0, 0, 0, 0.8);
+  --cue-color: #fff;
+  --cue-font-size: 16px;
+  --cue-padding: 0.2em 0.6em;
+  --cue-border-radius: 4px;
+}
+
+/* Vidstack base resets */
+.luna-player media-player {
+  display: contents;
+}
+
+/* Vidstack media state CSS helpers used by SFSymbol show/hide */
+.media-paused\:block[data-paused], [data-paused] .media-paused\:block { display: block !important; }
+.media-paused\:hidden[data-paused], [data-paused] .media-paused\:hidden { display: none !important; }
+.media-fullscreen\:hidden[data-fullscreen], [data-fullscreen] .media-fullscreen\:hidden { display: none !important; }
+.media-fullscreen\:block[data-fullscreen], [data-fullscreen] .media-fullscreen\:block { display: block !important; }
+.media-captions-on\:opacity-100[data-captions], [data-captions] .media-captions-on\:opacity-100 { opacity: 1 !important; }
