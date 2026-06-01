@@ -10,7 +10,7 @@ import { FolderGrid } from '@/components/FolderGrid';
 import { FeaturedHomeItem, HomeCatalogRow, MetaDetail, WatchProgressEntry } from '@/lib/types';
 import { getWatchProgress, getSystemAddon } from '@/lib/services/api';
 import { fetchCatalog, fetchManifest, fetchMeta } from '@/lib/stremio';
-import { buildHomeRows, pickFeaturedItems, selectInitialCatalogs } from './home-data';
+import { buildHomeRows, pickFeaturedItems } from './home-data';
 import Link from 'next/link';
 
 interface ContinueWatchingItem extends WatchProgressEntry {
@@ -91,11 +91,12 @@ export default function HomePage() {
       const cwWithMeta: ContinueWatchingItem[] = await Promise.all(
         cw.map(async (entry) => {
           try {
-            const meta = await fetchMeta(manifest.transportUrl!, entry.media_type, entry.media_id);
+            const baseId = entry.media_id.split(':')[0]; // strips :season:episode suffix for TV shows
+            const meta = await fetchMeta(manifest.transportUrl!, entry.media_type, baseId);
             return {
               ...entry,
-              poster: meta?.poster,
               resolvedName: meta?.name,
+              poster: meta?.poster ?? meta?.background ?? undefined,
             };
           } catch {
             return { ...entry };
@@ -104,10 +105,10 @@ export default function HomePage() {
       );
       setContinueWatching(cwWithMeta);
 
-      // Fetch catalog rows
-      const initialCatalogs = selectInitialCatalogs(manifest);
+      // Fetch ALL catalog rows (not just top 4) so folder rows are populated
+      const allCatalogs = manifest.catalogs || [];
       const catalogResults = await Promise.allSettled(
-        initialCatalogs.map(async (catalog) => {
+        allCatalogs.map(async (catalog) => {
           const extras: Record<string, string> = {};
           for (const e of catalog.extra ?? []) {
             if (e.options?.length) extras[e.name] = e.options[0];
