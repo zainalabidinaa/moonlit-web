@@ -152,7 +152,7 @@ export default function Player({
 
             <button
               onClick={() => setShowSources(true)}
-              className="flex items-center gap-2 bg-white/8 hover:bg-white/14 border border-white/10 rounded-xl px-3.5 py-2 transition-colors"
+              className="flex items-center gap-2 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-3.5 py-2 transition-colors"
             >
               {!isWebCompatAudio(currentStream) && (
                 <span className="text-xs font-bold text-yellow-400">⚠</span>
@@ -228,7 +228,7 @@ export default function Player({
                         <button
                           key={s}
                           onClick={() => { if (playerRef.current) playerRef.current.playbackRate = s; setShowSpeed(false); }}
-                          className="w-full text-left px-4 py-2.5 rounded-xl text-sm text-white/65 hover:bg-white/7 hover:text-white transition-colors font-medium"
+                          className="w-full text-left px-4 py-2.5 rounded-xl text-sm text-white/65 hover:bg-white/10 hover:text-white transition-colors font-medium"
                         >
                           {s === 1 ? 'Normal' : `${s}×`}
                         </button>
@@ -254,7 +254,7 @@ export default function Player({
           <div className="relative w-80 max-w-[85vw] h-full bg-neutral-950 border-l border-white/8 overflow-y-auto">
             <div className="p-4 border-b border-white/8 flex items-center justify-between sticky top-0 bg-neutral-950 z-10">
               <h3 className="text-sm font-semibold text-white">Sources</h3>
-              <button onClick={() => setShowSources(false)} className="p-1 rounded-full hover:bg-white/8">
+              <button onClick={() => setShowSources(false)} className="p-1 rounded-full hover:bg-white/10">
                 <SFSymbol name="xmark" size={14} opacity={0.5} />
               </button>
             </div>
