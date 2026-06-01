@@ -10,17 +10,87 @@ struct HomeScreen: View {
     @State private var selectedMedia: MetaPreview?
     @State private var showDetail = false
 
+    private let mainRowNames: Set<String> = [
+        "Popular Movies", "Popular TV Shows",
+        "Trending Movies", "Trending TV Shows"
+    ]
+
+    private var featuredItems: [MetaPreview] {
+        let mainRows = catalogRepo.catalogRows.filter { mainRowNames.contains($0.title) }
+        var seen = Set<String>()
+        var candidates: [MetaPreview] = []
+        for row in mainRows {
+            for item in row.items where !seen.contains(item.id) {
+                seen.insert(item.id)
+                candidates.append(item)
+            }
+        }
+        return candidates
+            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+            .prefix(5)
+            .map { $0 }
+    }
+
+    @State private var heroIndex = 0
+    @State private var heroTimer: Timer? = nil
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 0) {
+                    // Hero Section
+                    if !featuredItems.isEmpty {
+                        HeroSection(
+                            item: featuredItems[heroIndex],
+                            onTap: {
+                                selectedMedia = featuredItems[heroIndex]
+                                showDetail = true
+                            },
+                            dotCount: featuredItems.count,
+                            activeIndex: heroIndex,
+                            onDotTap: { i in
+                                withAnimation(.easeInOut(duration: 0.4)) {
+                                    heroIndex = i
+                                }
+                                startHeroTimer()
+                            }
+                        )
+                        .ignoresSafeArea(edges: .top)
+                    }
+
+                    // Continue Watching
                     if !homeRepo.continueWatchingItems.isEmpty {
-                        ContinueWatchingRow(items: homeRepo.continueWatchingItems)
+                        ContinueWatchingRow(
+                            items: homeRepo.continueWatchingItems,
+                            onTap: { item in
+                                // ContinueWatchingItem -> navigate via mediaId lookup
+                                if let match = catalogRepo.catalogRows
+                                    .flatMap({ $0.items })
+                                    .first(where: { $0.id == item.mediaId }) {
+                                    selectedMedia = match
+                                    showDetail = true
+                                } else {
+                                    // Fallback: build a minimal MetaPreview from the CW item
+                                    selectedMedia = MetaPreview(
+                                        id: item.mediaId,
+                                        type: item.mediaType == "movie" ? .movie : .series,
+                                        name: item.name,
+                                        poster: item.poster
+                                    )
+                                    showDetail = true
+                                }
+                            }
+                        )
+                        .padding(.top, 16)
                     }
 
                     if !catalogRepo.catalogRows.isEmpty {
+                        // Main rows
+                        let mainRows = catalogRepo.catalogRows.filter { mainRowNames.contains($0.title) }
+                        let folderRows = catalogRepo.catalogRows.filter { !mainRowNames.contains($0.title) }
+
                         LazyVStack(spacing: 24) {
-                            ForEach(catalogRepo.catalogRows) { row in
+                            ForEach(mainRows) { row in
                                 CatalogRowView(row: row) { item in
                                     selectedMedia = item
                                     showDetail = true
@@ -37,6 +107,16 @@ struct HomeScreen: View {
                                 }
                             }
                         }
+                        .padding(.top, 24)
+
+                        // Folder grid
+                        if !folderRows.isEmpty {
+                            FolderGridSection(rows: folderRows) { item in
+                                selectedMedia = item
+                                showDetail = true
+                            }
+                            .padding(.top, 24)
+                        }
                     } else if catalogRepo.isLoading {
                         VStack {
                             Spacer().frame(height: 100)
@@ -45,11 +125,12 @@ struct HomeScreen: View {
                             Spacer()
                         }
                     }
+
+                    Spacer().frame(height: 32)
                 }
             }
+            .ignoresSafeArea(edges: .top)
             .background(LunaTheme.background)
-            .navigationTitle("Luna")
-            .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if let profile = profileManager.currentProfile {
@@ -86,10 +167,210 @@ struct HomeScreen: View {
                     )
                 }
                 await homeRepo.loadContinueWatching(profileId: profile.id)
+                startHeroTimer()
+            }
+            .onDisappear {
+                heroTimer?.invalidate()
+                heroTimer = nil
+            }
+        }
+    }
+
+    private func startHeroTimer() {
+        heroTimer?.invalidate()
+        guard featuredItems.count > 1 else { return }
+        heroTimer = Timer.scheduledTimer(withTimeInterval: 6, repeats: true) { _ in
+            withAnimation(.easeInOut(duration: 0.4)) {
+                heroIndex = (heroIndex + 1) % featuredItems.count
             }
         }
     }
 }
+
+// MARK: - Hero Section
+
+struct HeroSection: View {
+    let item: MetaPreview
+    let onTap: () -> Void
+    let dotCount: Int
+    let activeIndex: Int
+    let onDotTap: (Int) -> Void
+
+    var body: some View {
+        ZStack(alignment: .bottomLeading) {
+            // Backdrop image
+            Group {
+                if let banner = item.banner ?? item.poster, let url = URL(string: banner) {
+                    AsyncImage(url: url) { phase in
+                        if case .success(let img) = phase {
+                            img.resizable().aspectRatio(contentMode: .fill)
+                        } else { LunaTheme.background }
+                    }
+                } else {
+                    LunaTheme.surface
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 420)
+            .clipped()
+
+            // Gradients
+            LinearGradient(
+                colors: [.clear, LunaTheme.background.opacity(0.7), LunaTheme.background],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 420)
+
+            LinearGradient(
+                colors: [LunaTheme.background.opacity(0.7), .clear],
+                startPoint: .leading,
+                endPoint: .trailing
+            )
+            .frame(height: 420)
+
+            // Content
+            VStack(alignment: .leading, spacing: 0) {
+                Text(item.type == .movie ? "Popular Movies" : "Popular TV Shows")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(LunaTheme.accent)
+                    .tracking(2)
+                    .textCase(.uppercase)
+                    .padding(.bottom, 8)
+
+                Text(item.name)
+                    .font(.system(size: 40, weight: .black))
+                    .foregroundColor(.white)
+                    .lineLimit(2)
+                    .minimumScaleFactor(0.7)
+                    .padding(.bottom, 6)
+
+                HStack(spacing: 8) {
+                    if let rating = item.imdbRating {
+                        Label(rating, systemImage: "star.fill")
+                            .font(.caption)
+                            .foregroundColor(.yellow)
+                    }
+                    if let release = item.releaseInfo {
+                        Text(release).font(.caption).foregroundColor(.white.opacity(0.6))
+                    }
+                    if let genres = item.genres?.prefix(2) {
+                        Text(genres.joined(separator: ", "))
+                            .font(.caption)
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+                .padding(.bottom, 16)
+
+                HStack(spacing: 12) {
+                    Button(action: onTap) {
+                        Label("Watch Now", systemImage: "play.fill")
+                            .font(.subheadline.bold())
+                            .foregroundColor(.black)
+                            .padding(.horizontal, 20).padding(.vertical, 11)
+                            .background(Color.white).clipShape(Capsule())
+                    }
+                    Button(action: onTap) {
+                        Label("My List", systemImage: "plus")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 16).padding(.vertical, 11)
+                            .background(Color.white.opacity(0.15)).clipShape(Capsule())
+                            .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
+                    }
+                }
+            }
+            .padding(.horizontal, 20).padding(.bottom, 24)
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // Dots
+            if dotCount > 1 {
+                HStack(spacing: 5) {
+                    ForEach(0..<dotCount, id: \.self) { i in
+                        Button { onDotTap(i) } label: {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(i == activeIndex ? Color.white : Color.white.opacity(0.3))
+                                .frame(width: i == activeIndex ? 20 : 6, height: 3)
+                        }
+                        .animation(.easeInOut(duration: 0.25), value: activeIndex)
+                    }
+                }
+                .padding(.trailing, 16).padding(.bottom, 16)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        }
+        .frame(height: 420).clipped()
+    }
+}
+
+// MARK: - Folder Grid
+
+struct FolderGridSection: View {
+    let rows: [CatalogRow]
+    let onTap: (MetaPreview) -> Void
+
+    private let columns = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Browse")
+                .font(.headline).foregroundColor(.white).padding(.horizontal)
+            LazyVGrid(columns: columns, spacing: 8) {
+                ForEach(rows) { row in
+                    FolderCell(row: row, onTap: onTap)
+                }
+            }
+            .padding(.horizontal)
+        }
+    }
+}
+
+struct FolderCell: View {
+    let row: CatalogRow
+    let onTap: (MetaPreview) -> Void
+
+    var body: some View {
+        let coverURL: URL? = {
+            if let ci = row.coverImage { return URL(string: ci) }
+            if let p = row.items.first?.poster { return URL(string: p) }
+            return nil
+        }()
+
+        Button {
+            if let first = row.items.first { onTap(first) }
+        } label: {
+            ZStack(alignment: .bottom) {
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(LunaTheme.surfaceElevated)
+                    .aspectRatio(2/3, contentMode: .fit)
+                if let url = coverURL {
+                    AsyncImage(url: url) { phase in
+                        if case .success(let img) = phase {
+                            img.resizable().aspectRatio(contentMode: .fill)
+                        }
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .aspectRatio(2/3, contentMode: .fit)
+                }
+                LinearGradient(colors: [.black.opacity(0.75), .clear], startPoint: .bottom, endPoint: .top)
+                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .aspectRatio(2/3, contentMode: .fit)
+                Text(row.title)
+                    .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                    .lineLimit(2).multilineTextAlignment(.leading).padding(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Catalog Row View
 
 struct CatalogRowView: View {
     let row: CatalogRow
@@ -129,8 +410,11 @@ struct CatalogRowView: View {
     }
 }
 
+// MARK: - Continue Watching
+
 struct ContinueWatchingRow: View {
     let items: [ContinueWatchingItem]
+    let onTap: (ContinueWatchingItem) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -143,6 +427,7 @@ struct ContinueWatchingRow: View {
                 LazyHStack(spacing: 12) {
                     ForEach(items) { item in
                         ContinueWatchingCard(item: item)
+                            .onTapGesture { onTap(item) }
                     }
                 }
                 .padding(.horizontal)
@@ -158,22 +443,50 @@ struct ContinueWatchingCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(LunaTheme.surfaceElevated)
-                    .frame(width: 160, height: 90)
+                Group {
+                    if let poster = item.poster, let url = URL(string: poster) {
+                        AsyncImage(url: url) { phase in
+                            if case .success(let img) = phase {
+                                img.resizable().aspectRatio(contentMode: .fill)
+                            } else {
+                                RoundedRectangle(cornerRadius: 8).fill(LunaTheme.surfaceElevated)
+                            }
+                        }
+                    } else {
+                        RoundedRectangle(cornerRadius: 8).fill(LunaTheme.surfaceElevated)
+                    }
+                }
+                .frame(width: 192, height: 108).clipped().cornerRadius(8)
 
-                ProgressView(value: item.progressFraction)
-                    .tint(LunaTheme.accent)
-                    .scaleEffect(x: 1, y: 2, anchor: .center)
-                    .padding(.horizontal, 4)
-                    .padding(.bottom, 4)
+                // Play overlay circle
+                Circle().fill(Color.black.opacity(0.5)).frame(width: 36, height: 36)
+                    .overlay(
+                        Image(systemName: "play.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                            .offset(x: 1)
+                    )
+                    .padding(.bottom, 16)
+
+                // Progress bar
+                VStack(spacing: 0) {
+                    Spacer()
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            Rectangle().fill(Color.white.opacity(0.2)).frame(height: 3)
+                            Rectangle()
+                                .fill(LunaTheme.accent)
+                                .frame(width: geo.size.width * item.progressFraction, height: 3)
+                        }
+                    }.frame(height: 3)
+                }.cornerRadius(8)
             }
+            .frame(width: 192, height: 108)
 
             Text(item.name)
-                .font(.caption)
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .frame(width: 160)
+                .font(.caption).foregroundColor(.white).lineLimit(1).frame(width: 192, alignment: .leading)
+            Text("\(Int(item.progressFraction * 100))% watched")
+                .font(.caption2).foregroundColor(LunaTheme.textSecondary)
         }
     }
 }
