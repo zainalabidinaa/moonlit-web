@@ -112,7 +112,8 @@ export default function DetailPage() {
   }
 
   function handlePlay(stream: StreamItem) {
-    if (!stream.url) return;
+    const streamUrl = stream.url || stream.externalUrl;
+    if (!streamUrl) return;
     const mediaId = selectedEpisodeId || id;
     const cacheKey = `${type}:${mediaId}`;
     cacheStreams(cacheKey, streams);
@@ -121,7 +122,7 @@ export default function DetailPage() {
     navigate({
       to: '/watch/$type/$id',
       params: { type, id: mediaId },
-      search: { url: stream.url, cid: cacheKey, title: watchTitle, pos: savedPositionSeconds > 0 ? savedPositionSeconds : undefined },
+      search: { url: streamUrl, cid: cacheKey, title: watchTitle, pos: savedPositionSeconds > 0 ? savedPositionSeconds : undefined },
     });
   }
 

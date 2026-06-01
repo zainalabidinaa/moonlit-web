@@ -8,15 +8,12 @@ import { getCachedStreams, getCachedStream } from '@/lib/stream-cache';
 
 export default function WatchPage() {
   const { type, id } = useParams({ strict: false }) as { type: string; id: string };
-  const search = useSearch({ strict: false }) as { url?: string; cid?: string; title?: string; pos?: number };
+  const { url: streamUrl = '', cid: cacheId = '', title: displayTitle, pos: resumePosition } =
+    useSearch({ strict: false }) as { url?: string; cid?: string; title?: string; pos?: number };
   const router = useRouter();
   const { addons } = useAuth();
 
-  const streamUrl = search.url ?? '';
-  const cacheId = search.cid ?? '';
-  const displayTitle = search.title ?? decodeURIComponent(id);
-  const resumePosition = search.pos;
-
+  const resolvedTitle = displayTitle || decodeURIComponent(id);
   const allStreams: StreamItem[] = cacheId ? (getCachedStreams(cacheId) ?? []) : [];
   const cachedStream = cacheId && streamUrl ? getCachedStream(cacheId, streamUrl) : null;
   const fallbackStream: StreamItem = { url: streamUrl, addonName: 'Direct' };
@@ -32,11 +29,12 @@ export default function WatchPage() {
   }, [type, id, addons]);
 
   function handleSwitchStream(newStream: StreamItem) {
-    if (!newStream.url) return;
+    const url = newStream.url || newStream.externalUrl;
+    if (!url) return;
     const video = document.querySelector('video');
     savedPosition.current = video?.currentTime || 0;
     setActiveStream(newStream);
-    setActiveUrl(newStream.url);
+    setActiveUrl(url);
   }
 
   if (!streamUrl) return null;
@@ -46,7 +44,7 @@ export default function WatchPage() {
       streamUrl={activeUrl}
       streams={allStreams}
       currentStream={activeStream}
-      title={displayTitle}
+      title={resolvedTitle}
       mediaId={id}
       mediaType={type}
       startPosition={savedPosition.current > 0 ? savedPosition.current : resumePosition}

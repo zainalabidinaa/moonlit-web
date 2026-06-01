@@ -100,6 +100,12 @@ const browseRoute = createRoute({
 const watchRoute = createRoute({
   getParentRoute: () => protectedLayout,
   path: '/watch/$type/$id',
+  validateSearch: (search: Record<string, unknown>) => ({
+    url: String(search.url ?? ''),
+    cid: String(search.cid ?? ''),
+    title: String(search.title ?? ''),
+    pos: search.pos !== undefined ? Number(search.pos) : undefined as number | undefined,
+  }),
   component: lazily(() => import('@/routes/watch')),
 });
 

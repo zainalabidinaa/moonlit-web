@@ -11,7 +11,7 @@ import {
   Play, Pause, RotateCcw, RotateCw,
   Volume2, Volume1, VolumeX,
   Captions as CaptionsIcon, Maximize, Minimize,
-  ChevronLeft, X, AlertTriangle,
+  ChevronLeft, X,
 } from 'lucide-react';
 import { useMediaState } from '@vidstack/react';
 import { StreamItem } from '@/lib/types';
@@ -32,35 +32,100 @@ interface PlayerProps {
   onBack: () => void;
 }
 
-function parseQuality(s: StreamItem): { label: string; color: string } {
-  const t = `${s.name ?? ''} ${s.title ?? ''} ${s.description ?? ''}`.toLowerCase();
-  if (t.includes('2160') || t.includes('4k') || t.includes('uhd')) return { label: '4K', color: 'text-yellow-400 bg-yellow-400/10' };
-  if (t.includes('1080')) return { label: '1080p', color: 'text-blue-400 bg-blue-400/10' };
-  if (t.includes('720')) return { label: '720p', color: 'text-slate-400 bg-slate-400/10' };
-  return { label: 'SD', color: 'text-slate-500 bg-slate-500/10' };
+// ── Stream metadata parser ─────────────────────────────────────────────────
+
+interface StreamMeta {
+  resolution: '4K' | '1080p' | '720p' | 'SD';
+  resolutionColor: string;
+  videoCodec: string | null;
+  audioCodec: string | null;
+  audioCompatible: boolean;
+  hdr: boolean;
+  sizeFmt: string | null;
+  debrid: string | null;
+  indexer: string | null;
+  releaseTitle: string;
 }
 
-const BAD_AUDIO = ['dts', 'truehd', 'atmos', 'remux', 'blu-ray', 'bluray'];
-function isWebCompatAudio(s: StreamItem): boolean {
-  const t = `${s.name ?? ''} ${s.title ?? ''} ${s.description ?? ''}`.toLowerCase();
-  return !BAD_AUDIO.some(k => t.includes(k));
+function parseStreamMeta(s: StreamItem): StreamMeta {
+  const raw = `${s.name ?? ''} ${s.title ?? ''} ${s.description ?? ''}`;
+  const t = raw.toLowerCase();
+
+  // Resolution
+  let resolution: StreamMeta['resolution'] = 'SD';
+  let resolutionColor = 'text-slate-400 bg-slate-400/10';
+  if (t.includes('2160') || t.includes('4k') || t.includes('uhd')) {
+    resolution = '4K'; resolutionColor = 'text-yellow-400 bg-yellow-400/15';
+  } else if (t.includes('1080')) {
+    resolution = '1080p'; resolutionColor = 'text-blue-400 bg-blue-400/15';
+  } else if (t.includes('720')) {
+    resolution = '720p'; resolutionColor = 'text-slate-300 bg-slate-400/10';
+  }
+
+  // Video codec
+  let videoCodec: string | null = null;
+  if (t.includes('av1')) videoCodec = 'AV1';
+  else if (t.includes('hevc') || t.includes('x265') || t.includes('h.265') || t.includes('h265')) videoCodec = 'HEVC';
+  else if (t.includes('avc') || t.includes('x264') || t.includes('h.264') || t.includes('h264')) videoCodec = 'AVC';
+
+  // Audio codec
+  let audioCodec: string | null = null;
+  let audioCompatible = true;
+  if (t.includes('truehd')) { audioCodec = 'TrueHD'; audioCompatible = false; }
+  else if (t.includes('atmos')) { audioCodec = 'Atmos'; audioCompatible = false; }
+  else if (t.includes('dts:x') || t.includes('dtsx')) { audioCodec = 'DTS-X'; audioCompatible = false; }
+  else if (t.includes('dts-hd') || t.includes('dtshd')) { audioCodec = 'DTS-HD'; audioCompatible = false; }
+  else if (t.includes('dts')) { audioCodec = 'DTS'; audioCompatible = false; }
+  else if (t.includes('eac3') || t.includes('dd+') || t.includes('ddp') || t.includes('e-ac3')) { audioCodec = 'DD+'; audioCompatible = true; }
+  else if (t.includes('ac3') || t.includes('dolby digital')) { audioCodec = 'DD'; audioCompatible = true; }
+  else if (t.includes('aac')) { audioCodec = 'AAC'; audioCompatible = true; }
+
+  if (!audioCompatible && (t.includes('remux') || t.includes('blu-ray') || t.includes('bluray'))) {
+    audioCompatible = false;
+  }
+
+  // HDR
+  const hdr = t.includes('hdr') || t.includes('dolby vision') || t.includes(' dv ') || t.includes('[dv]');
+
+  // File size — match patterns like "5.97 GB" or "1.2GB"
+  const sizeMatch = raw.match(/(\d+\.?\d*)\s*(GB|MB|TB)/i);
+  const sizeFmt = sizeMatch ? `${sizeMatch[1]} ${sizeMatch[2].toUpperCase()}` : null;
+
+  // Debrid provider
+  let debrid: string | null = null;
+  if (t.includes('real-debrid') || t.includes('realdebrid') || t.includes('[rd]') || t.includes('(rd)') || / rd[ \])]/.test(t)) debrid = 'RD';
+  else if (t.includes('torbox') || t.includes('[tb]') || t.includes('(tb)')) debrid = 'TB';
+  else if (t.includes('premiumize') || t.includes('[pm]') || t.includes('(pm)')) debrid = 'PM';
+  else if (t.includes('alldebrid') || t.includes('[ad]') || t.includes('(ad)')) debrid = 'AD';
+  else if (t.includes('debrid-link') || t.includes('[dl]') || t.includes('(dl)')) debrid = 'DL';
+
+  // Indexer — common names
+  const indexers = ['knaben', 'yts', 'yify', '1337x', 'nyaa', 'rutor', 'rarbg', 'eztv', 'thepiratebay', 'tpb', 'zooqle'];
+  const indexer = indexers.find(i => t.includes(i)) ?? null;
+
+  // Release title — strip bracketed tokens
+  const releaseTitle = raw.replace(/\[.*?\]/g, '').replace(/\(.*?\)/g, '').replace(/\s{2,}/g, ' ').trim() || s.name || s.title || 'Unknown';
+
+  return { resolution, resolutionColor, videoCodec, audioCodec, audioCompatible, hdr, sizeFmt, debrid, indexer, releaseTitle };
 }
 
-// Seek icon with number overlay (mimics SF Symbol gobackward/goforward)
+// ── Seek icon ─────────────────────────────────────────────────────────────
+
 function SeekIcon({ seconds, direction }: { seconds: number; direction: 'back' | 'fwd' }) {
   return (
-    <div className="relative flex items-center justify-center w-14 h-14">
+    <div className="relative flex items-center justify-center w-12 h-12">
       {direction === 'back'
-        ? <RotateCcw size={48} strokeWidth={1.5} className="text-white" />
-        : <RotateCw size={48} strokeWidth={1.5} className="text-white" />}
-      <span className="absolute text-white font-bold text-[13px] leading-none" style={{ marginTop: 2 }}>
+        ? <RotateCcw size={42} strokeWidth={1.5} className="text-white" />
+        : <RotateCw size={42} strokeWidth={1.5} className="text-white" />}
+      <span className="absolute text-white font-bold text-[11px] leading-none" style={{ marginTop: 2 }}>
         {seconds}
       </span>
     </div>
   );
 }
 
-// Inner component — must live inside <MediaPlayer> to call useMediaState
+// ── PlayerUI (must live inside <MediaPlayer> to use useMediaState) ─────────
+
 function PlayerUI({
   title, currentStream, streams, subtitles,
   mediaId, mediaType, onBack, onSwitchStream, playerRef,
@@ -86,7 +151,7 @@ function PlayerUI({
   const [showSources, setShowSources] = useState(false);
   const [showSpeed, setShowSpeed] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   const resetHide = useCallback(() => {
@@ -105,16 +170,30 @@ function PlayerUI({
   useEffect(() => () => { if (hideTimer.current) clearTimeout(hideTimer.current); }, []);
 
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
+  const currentMeta = parseStreamMeta(currentStream);
+
+  // Source name for buffering overlay — strip generic fallbacks
+  const sourceName = currentStream.addonName && currentStream.addonName !== 'Direct'
+    ? currentStream.addonName
+    : null;
 
   return (
     <>
-      {/* Vidstack subtitle overlay */}
+      {/* Subtitle overlay */}
       <Captions className="absolute bottom-24 left-0 right-0 z-10 text-center pointer-events-none" />
 
-      {/* Buffering spinner */}
-      {(waiting || !canPlay) && (
+      {/* Buffering state — show addon name pulsing when loading and controls hidden */}
+      {(waiting || !canPlay) && !showControls && sourceName && (
         <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          <div className="w-14 h-14 rounded-full border-2 border-white/20 border-t-white animate-spin" />
+          <span className="text-white/70 text-2xl font-bold tracking-wide animate-pulse select-none">
+            {sourceName}
+          </span>
+        </div>
+      )}
+      {/* Fallback spinner when controls ARE visible or no source name */}
+      {(waiting || !canPlay) && (showControls || !sourceName) && (
+        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
+          <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white animate-spin" />
         </div>
       )}
 
@@ -125,38 +204,35 @@ function PlayerUI({
         onMouseLeave={() => { if (!paused && !showSources && !showSpeed) setShowControls(false); }}
         onClick={() => { if (!paused) resetHide(); }}
       >
-        {/* TOP */}
-        <div className="flex items-center justify-between px-8 pt-6 pb-20" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%)' }}>
+        {/* TOP BAR */}
+        <div className="flex items-center justify-between px-8 pt-6 pb-24" style={{ background: 'linear-gradient(to bottom, rgba(0,0,0,0.85) 0%, transparent 100%)' }}>
           <button onClick={onBack} className="flex items-center gap-2 text-white/80 hover:text-white transition-colors font-medium text-base">
             <ChevronLeft size={22} strokeWidth={2} />
             Back
           </button>
           <p className="text-base font-semibold text-white/70 truncate max-w-[45%]">{title}</p>
-          <button onClick={() => setShowSources(true)} className="flex items-center gap-2 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-4 py-2 transition-colors">
-            {!isWebCompatAudio(currentStream) && <AlertTriangle size={13} className="text-yellow-400" />}
-            <span className="text-sm font-medium text-white/65">{currentStream.addonName || 'Source'}</span>
+          {/* Source button shows current stream quality + compatibility warning */}
+          <button
+            onClick={() => setShowSources(true)}
+            className="flex items-center gap-1.5 bg-white/10 hover:bg-white/15 border border-white/10 rounded-xl px-3 py-2 transition-colors"
+          >
+            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${currentMeta.resolutionColor}`}>
+              {currentMeta.resolution}
+            </span>
+            {!currentMeta.audioCompatible && (
+              <span className="text-[10px] font-bold text-red-400 bg-red-400/15 px-1.5 py-0.5 rounded">
+                {currentMeta.audioCodec ?? '!'}
+              </span>
+            )}
+            <span className="text-sm font-medium text-white/65 ml-1">{currentStream.addonName || 'Source'}</span>
           </button>
         </div>
 
-        {/* CENTER */}
-        <div className="flex items-center justify-center gap-16 pointer-events-auto">
-          <SeekButton seconds={-15} className="opacity-75 hover:opacity-100 transition-opacity active:scale-90">
-            <SeekIcon seconds={15} direction="back" />
-          </SeekButton>
+        {/* CENTER — empty, play/pause moved to bottom bar */}
+        <div className="flex-1" />
 
-          <PlayButton className="hover:scale-110 active:scale-95 transition-transform pointer-events-auto">
-            {paused
-              ? <Play size={76} strokeWidth={0} fill="white" />
-              : <Pause size={76} strokeWidth={0} fill="white" />}
-          </PlayButton>
-
-          <SeekButton seconds={15} className="opacity-75 hover:opacity-100 transition-opacity active:scale-90">
-            <SeekIcon seconds={15} direction="fwd" />
-          </SeekButton>
-        </div>
-
-        {/* BOTTOM */}
-        <div className="px-8 pb-8 pt-20" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 100%)' }}>
+        {/* BOTTOM BAR */}
+        <div className="px-6 pb-8 pt-24" style={{ background: 'linear-gradient(to top, rgba(0,0,0,0.88) 0%, transparent 100%)' }}>
           <p className="text-base font-bold text-white mb-4 truncate">{title}</p>
 
           {/* Scrubber */}
@@ -171,42 +247,54 @@ function PlayerUI({
             </TimeSlider.Preview>
           </TimeSlider.Root>
 
-          {/* Controls row */}
+          {/* Controls row — Netflix layout: time left | seek+play+seek center | icons right */}
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-sm font-medium text-white/50 tabular-nums">
+            {/* Left: time */}
+            <div className="flex items-center gap-1.5 text-sm font-medium text-white/50 tabular-nums w-28">
               <Time type="current" />
               <span className="text-white/25">·</span>
               <Time type="duration" />
             </div>
 
-            <div className="flex items-center gap-0.5">
-              <MuteButton className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
-                <VolumeIcon size={22} strokeWidth={1.8} className="text-white/80" />
+            {/* Center: seek back, play/pause, seek forward */}
+            <div className="flex items-center gap-4">
+              <SeekButton seconds={-15} className="opacity-75 hover:opacity-100 transition-opacity active:scale-90">
+                <SeekIcon seconds={15} direction="back" />
+              </SeekButton>
+
+              <PlayButton className="hover:scale-110 active:scale-95 transition-transform">
+                {paused
+                  ? <Play size={56} strokeWidth={0} fill="white" />
+                  : <Pause size={56} strokeWidth={0} fill="white" />}
+              </PlayButton>
+
+              <SeekButton seconds={15} className="opacity-75 hover:opacity-100 transition-opacity active:scale-90">
+                <SeekIcon seconds={15} direction="fwd" />
+              </SeekButton>
+            </div>
+
+            {/* Right: volume, captions, speed, fullscreen */}
+            <div className="flex items-center gap-0.5 w-28 justify-end">
+              <MuteButton className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+                <VolumeIcon size={20} strokeWidth={1.8} className="text-white/80" />
               </MuteButton>
 
-              <CaptionButton className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
-                <CaptionsIcon size={22} strokeWidth={1.8} className="text-white/80" />
+              <CaptionButton className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+                <CaptionsIcon size={20} strokeWidth={1.8} className="text-white/80" />
               </CaptionButton>
 
-              {/* Speed */}
               <div className="relative">
                 <button
                   onClick={() => setShowSpeed(p => !p)}
-                  className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-sm font-bold text-white/55 hover:text-white"
+                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-sm font-bold text-white/55 hover:text-white"
                 >
                   {speed === 1 ? '1×' : `${speed}×`}
                 </button>
                 {showSpeed && (
                   <div className="absolute bottom-full right-0 mb-3 bg-[#141414] border border-white/10 rounded-2xl p-1.5 min-w-[130px] z-30 shadow-xl">
                     {speeds.map(s => (
-                      <button
-                        key={s}
-                        onClick={() => {
-                          if (playerRef.current) playerRef.current.playbackRate = s;
-                          setSpeed(s); setShowSpeed(false);
-                        }}
-                        className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${s === speed ? 'text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}
-                      >
+                      <button key={s} onClick={() => { if (playerRef.current) playerRef.current.playbackRate = s; setSpeed(s); setShowSpeed(false); }}
+                        className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${s === speed ? 'text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
                         {s === 1 ? 'Normal' : `${s}×`}
                       </button>
                     ))}
@@ -214,10 +302,10 @@ function PlayerUI({
                 )}
               </div>
 
-              <FullscreenButton className="w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+              <FullscreenButton className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
                 {fullscreen
-                  ? <Minimize size={20} strokeWidth={1.8} className="text-white/80" />
-                  : <Maximize size={20} strokeWidth={1.8} className="text-white/80" />}
+                  ? <Minimize size={18} strokeWidth={1.8} className="text-white/80" />
+                  : <Maximize size={18} strokeWidth={1.8} className="text-white/80" />}
               </FullscreenButton>
             </div>
           </div>
@@ -228,54 +316,79 @@ function PlayerUI({
       {showSources && (
         <div className="absolute inset-0 z-40 flex justify-end">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowSources(false)} />
-          <div className="relative w-80 max-w-[85vw] h-full bg-neutral-950 border-l border-white/10 overflow-y-auto">
-            <div className="p-4 border-b border-white/10 flex items-center justify-between sticky top-0 bg-neutral-950 z-10">
-              <h3 className="text-sm font-semibold text-white">Sources</h3>
+          <div className="relative w-84 max-w-[90vw] h-full bg-[#0e0e0e] border-l border-white/8 overflow-y-auto">
+            <div className="p-4 border-b border-white/8 flex items-center justify-between sticky top-0 bg-[#0e0e0e] z-10">
+              <div>
+                <h3 className="text-sm font-semibold text-white">Sources</h3>
+                <p className="text-[11px] text-white/30 mt-0.5">{streams.length} available</p>
+              </div>
               <button onClick={() => setShowSources(false)} className="p-2 rounded-full hover:bg-white/10">
                 <X size={14} className="text-white/50" />
               </button>
             </div>
-            {(() => {
-              const compatible = streams.filter(isWebCompatAudio);
-              if (compatible.length === 0) return (
-                <div className="px-4 py-10 text-center">
-                  <p className="text-white/40 text-sm">No web-compatible streams</p>
-                  <p className="text-white/25 text-xs mt-1">All have DTS/TrueHD audio</p>
-                </div>
-              );
-              const grp: Record<string, StreamItem[]> = {};
-              for (const s of compatible) { const k = s.addonName || 'Unknown'; (grp[k] ??= []).push(s); }
-              return Object.entries(grp).map(([name, items]) => (
-                <div key={name} className="border-b border-white/5 last:border-b-0">
-                  <p className="text-[10px] font-semibold text-white/25 uppercase tracking-wider px-4 pt-3 pb-1">{name}</p>
-                  {items.map((s, i) => {
-                    const isActive = s.url === currentStream.url;
-                    const q = parseQuality(s);
-                    const info = s.description?.replace(/\[.*?\]/g, '').trim() || s.title || s.name || 'Unknown';
-                    return (
-                      <button
-                        key={s.url || `${name}-${i}`}
-                        onClick={() => { setShowSources(false); onSwitchStream(s); }}
-                        className={`w-full text-left px-4 py-3 hover:bg-white/5 flex items-center gap-3 transition-colors ${isActive ? 'border-l-2 border-white bg-white/5' : ''}`}
-                      >
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded flex-shrink-0 ${q.color}`}>{q.label}</span>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm text-white/85 truncate">{info}</p>
-                          {s.description && <p className="text-xs text-white/30 mt-0.5 truncate">{s.description}</p>}
+
+            {streams.length === 0 ? (
+              <div className="px-4 py-12 text-center">
+                <p className="text-white/40 text-sm">No sources found</p>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1.5">
+                {streams.map((s, i) => {
+                  const meta = parseStreamMeta(s);
+                  const isActive = (s.url && s.url === currentStream.url) || (s.url === undefined && s.title === currentStream.title);
+                  const sourceLabel = [meta.debrid, meta.indexer].filter(Boolean).join(' · ') || s.addonName || 'Unknown';
+
+                  return (
+                    <button
+                      key={s.url || `stream-${i}`}
+                      onClick={() => { setShowSources(false); onSwitchStream(s); }}
+                      className={`w-full text-left px-3.5 py-3 rounded-xl hover:bg-white/5 transition-colors ${isActive ? 'ring-1 ring-white/40 bg-white/5' : ''}`}
+                    >
+                      {/* Top row: badges + size */}
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-1 flex-wrap">
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${meta.resolutionColor}`}>
+                            {meta.resolution}
+                          </span>
+                          {meta.videoCodec && (
+                            <span className="text-[10px] font-semibold text-white/50 bg-white/8 px-1.5 py-0.5 rounded">
+                              {meta.videoCodec}
+                            </span>
+                          )}
+                          {meta.audioCodec && (
+                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${meta.audioCompatible ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
+                              {meta.audioCodec}
+                            </span>
+                          )}
+                          {meta.hdr && (
+                            <span className="text-[10px] font-semibold text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">
+                              HDR
+                            </span>
+                          )}
                         </div>
-                        {isActive && <div className="w-1.5 h-1.5 rounded-full bg-white flex-shrink-0" />}
-                      </button>
-                    );
-                  })}
-                </div>
-              ));
-            })()}
+                        {meta.sizeFmt && (
+                          <span className="text-[11px] text-white/35 font-medium flex-shrink-0">{meta.sizeFmt}</span>
+                        )}
+                      </div>
+
+                      {/* Source line */}
+                      <p className="text-xs text-white/50 mb-0.5">{sourceLabel}</p>
+
+                      {/* Release title */}
+                      <p className="text-[11px] text-white/25 truncate leading-relaxed">{meta.releaseTitle}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       )}
     </>
   );
 }
+
+// ── Main Player shell ──────────────────────────────────────────────────────
 
 export default function Player({
   streamUrl, streams, currentStream, title,
@@ -285,12 +398,9 @@ export default function Player({
   const playerRef = useRef<MediaPlayerInstance>(null);
   const { currentProfile } = useAuth();
 
-  // Always try HLS.js first — many streams (Real-Debrid, AlOStreams etc.) are HLS
-  // without .m3u8 in the URL. If HLS.js fails to parse the manifest, fall back to native.
   const [srcType, setSrcType] = useState<'application/x-mpegurl' | 'video/mp4'>('application/x-mpegurl');
   const src = { src: streamUrl, type: srcType };
 
-  // Reset src type when stream changes
   useEffect(() => { setSrcType('application/x-mpegurl'); }, [streamUrl]);
 
   const onProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
@@ -309,10 +419,7 @@ export default function Player({
   }, [currentStream]);
 
   const onError = useCallback(() => {
-    // HLS.js failed (not an HLS stream) — retry with native video
-    if (srcType === 'application/x-mpegurl') {
-      setSrcType('video/mp4');
-    }
+    if (srcType === 'application/x-mpegurl') setSrcType('video/mp4');
   }, [srcType]);
 
   useEffect(() => {
