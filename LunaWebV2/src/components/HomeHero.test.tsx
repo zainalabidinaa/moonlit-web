@@ -5,6 +5,12 @@ import { render, screen } from '@testing-library/react';
 import { FeaturedHomeItem, HomeCatalogRow, MetaDetail, MetaPreview } from '@/lib/types';
 import { HomeHero } from './HomeHero';
 
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ children, to, ...props }: { children: React.ReactNode; to?: string }) => (
+    <a href={to || '#'} {...props}>{children}</a>
+  ),
+}));
+
 const mockRow: HomeCatalogRow = {
   id: 'test_movie_trending',
   title: 'Trending Movies',

@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import {
   MediaPlayer, MediaProvider, Track,
-  PlayButton, MuteButton, FullscreenButton, SeekButton, CaptionButton,
-  TimeSlider, Captions, Time,
+  PlayButton, MuteButton, FullscreenButton, SeekButton,
+  TimeSlider, VolumeSlider, Captions, Time,
   isHLSProvider,
   type MediaPlayerInstance, type MediaProviderAdapter,
 } from '@vidstack/react';
@@ -18,6 +18,7 @@ import { StreamItem } from '@/lib/types';
 import { SubtitleItem } from '@/lib/stremio';
 import { updateWatchProgress } from '@/lib/services/api';
 import { useAuth } from '@/app/AuthProvider';
+import { getVidstackSourceType, streamMatchesUrl, VidstackSourceType } from '@/lib/player-utils';
 
 interface PlayerProps {
   streamUrl: string;
@@ -151,18 +152,20 @@ function PlayerUI({
 
   const [showControls, setShowControls] = useState(true);
   const [showSources, setShowSources] = useState(false);
+  const [showTracks, setShowTracks] = useState(false);
   const [showSpeed, setShowSpeed] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [selectedSubtitleId, setSelectedSubtitleId] = useState<string>('off');
   const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const speeds = [0.5, 0.75, 1, 1.25, 1.5, 2];
 
   const resetHide = useCallback(() => {
     setShowControls(true);
     if (hideTimer.current) clearTimeout(hideTimer.current);
-    if (!paused && !showSources && !showSpeed) {
+    if (!paused && !showSources && !showTracks && !showSpeed) {
       hideTimer.current = setTimeout(() => setShowControls(false), 3500);
     }
-  }, [paused, showSources, showSpeed]);
+  }, [paused, showSources, showTracks, showSpeed]);
 
   useEffect(() => {
     if (paused) { setShowControls(true); if (hideTimer.current) clearTimeout(hideTimer.current); }
@@ -173,25 +176,30 @@ function PlayerUI({
 
   const VolumeIcon = muted || volume === 0 ? VolumeX : volume < 0.5 ? Volume1 : Volume2;
   const currentMeta = parseStreamMeta(currentStream);
+  const sourceName = currentStream.addonName && currentStream.addonName !== 'Direct' ? currentStream.addonName : 'Source';
+
+  function selectSubtitle(subtitleId: string) {
+    setSelectedSubtitleId(subtitleId);
+    const tracks = Array.from((playerRef.current?.textTracks ?? []) as Iterable<{ id?: string; label?: string; mode?: string }>);
+    tracks.forEach(track => {
+      const matches = subtitleId !== 'off' && (track.id === subtitleId || track.label === subtitleId);
+      track.mode = matches ? 'showing' : 'disabled';
+    });
+  }
 
   return (
     <>
       {/* Subtitle overlay */}
       <Captions className="absolute bottom-24 left-0 right-0 z-10 text-center pointer-events-none" />
 
-      {/* Buffering — show title logo pulsing when controls are hidden, spinner otherwise */}
+      {/* Buffering — show title/source branding instead of a spinner-first state. */}
       {(waiting || !canPlay) && !showControls && (
-        <div className="absolute inset-0 flex items-center justify-center z-20 pointer-events-none">
-          {mediaLogo ? (
-            <img
-              src={mediaLogo}
-              alt={title}
-              className="max-h-24 max-w-xs object-contain animate-pulse select-none"
-              draggable={false}
-            />
-          ) : (
-            <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-white animate-spin" />
-          )}
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-5 z-20 pointer-events-none">
+          {mediaLogo ? <img src={mediaLogo} alt={title} className="max-h-24 max-w-xs object-contain animate-pulse select-none" draggable={false} /> : <span className="text-white/75 text-3xl font-bold tracking-wide animate-pulse">{title}</span>}
+          <div className="w-56 h-1 rounded-full bg-white/10 overflow-hidden">
+            <div className="h-full w-1/2 rounded-full bg-luna-accent animate-pulse" />
+          </div>
+          <p className="text-sm text-white/45">Loading from {sourceName}</p>
         </div>
       )}
       {/* Spinner when controls are visible (user is interacting) */}
@@ -205,7 +213,7 @@ function PlayerUI({
       <div
         className={`absolute inset-0 z-10 flex flex-col justify-between transition-opacity duration-300 select-none ${showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
         onMouseMove={resetHide}
-        onMouseLeave={() => { if (!paused && !showSources && !showSpeed) setShowControls(false); }}
+        onMouseLeave={() => { if (!paused && !showSources && !showTracks && !showSpeed) setShowControls(false); }}
         onClick={() => { if (!paused) resetHide(); }}
       >
         {/* TOP BAR */}
@@ -268,8 +276,8 @@ function PlayerUI({
 
               <PlayButton className="hover:scale-110 active:scale-95 transition-transform">
                 {paused
-                  ? <Play size={56} strokeWidth={0} fill="white" />
-                  : <Pause size={56} strokeWidth={0} fill="white" />}
+                  ? <Play size={70} strokeWidth={0} fill="white" />
+                  : <Pause size={70} strokeWidth={0} fill="white" />}
               </PlayButton>
 
               <SeekButton seconds={15} className="opacity-75 hover:opacity-100 transition-opacity active:scale-90">
@@ -278,19 +286,26 @@ function PlayerUI({
             </div>
 
             {/* Right: volume, captions, speed, fullscreen */}
-            <div className="flex items-center gap-0.5 w-28 justify-end">
-              <MuteButton className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
-                <VolumeIcon size={20} strokeWidth={1.8} className="text-white/80" />
+            <div className="flex items-center gap-2 w-64 justify-end">
+              <MuteButton className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+                <VolumeIcon size={30} strokeWidth={1.8} className="text-white/90" />
               </MuteButton>
 
-              <CaptionButton className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
-                <CaptionsIcon size={20} strokeWidth={1.8} className="text-white/80" />
-              </CaptionButton>
+              <VolumeSlider.Root className="group relative flex w-24 items-center h-8 cursor-pointer">
+                <VolumeSlider.Track className="relative h-1 w-full rounded-full bg-white/20 group-hover:h-[5px] transition-all duration-150">
+                  <VolumeSlider.TrackFill className="absolute h-full rounded-full bg-white" style={{ width: 'var(--slider-fill, 0%)' }} />
+                </VolumeSlider.Track>
+                <VolumeSlider.Thumb className="absolute top-1/2 -translate-y-1/2 w-3.5 h-3.5 rounded-full bg-white shadow-lg -translate-x-1/2" style={{ left: 'var(--slider-fill, 0%)' }} />
+              </VolumeSlider.Root>
+
+              <button onClick={() => setShowTracks(true)} className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+                <CaptionsIcon size={30} strokeWidth={1.8} className="text-white/90" />
+              </button>
 
               <div className="relative">
                 <button
                   onClick={() => setShowSpeed(p => !p)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-sm font-bold text-white/55 hover:text-white"
+                  className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors text-base font-bold text-white/65 hover:text-white"
                 >
                   {speed === 1 ? '1×' : `${speed}×`}
                 </button>
@@ -306,10 +321,10 @@ function PlayerUI({
                 )}
               </div>
 
-              <FullscreenButton className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
+              <FullscreenButton className="w-12 h-12 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95">
                 {fullscreen
-                  ? <Minimize size={18} strokeWidth={1.8} className="text-white/80" />
-                  : <Maximize size={18} strokeWidth={1.8} className="text-white/80" />}
+                  ? <Minimize size={28} strokeWidth={1.8} className="text-white/90" />
+                  : <Maximize size={28} strokeWidth={1.8} className="text-white/90" />}
               </FullscreenButton>
             </div>
           </div>
@@ -320,11 +335,11 @@ function PlayerUI({
       {showSources && (
         <div className="absolute inset-0 z-40 flex justify-end">
           <div className="absolute inset-0 bg-black/60" onClick={() => setShowSources(false)} />
-          <div className="relative w-84 max-w-[90vw] h-full bg-[#0e0e0e] border-l border-white/8 overflow-y-auto">
-            <div className="p-4 border-b border-white/8 flex items-center justify-between sticky top-0 bg-[#0e0e0e] z-10">
+          <div className="relative w-[420px] max-w-[92vw] h-full bg-[#090910]/95 backdrop-blur-2xl border-l border-white/10 overflow-y-auto shadow-2xl">
+            <div className="p-5 border-b border-white/8 flex items-center justify-between sticky top-0 bg-[#090910]/95 backdrop-blur-xl z-10">
               <div>
-                <h3 className="text-sm font-semibold text-white">Sources</h3>
-                <p className="text-[11px] text-white/30 mt-0.5">{streams.length} available</p>
+                <h3 className="text-lg font-semibold text-white">Sources</h3>
+                <p className="text-xs text-white/35 mt-0.5">{streams.length} available · {sourceName}</p>
               </div>
               <button onClick={() => setShowSources(false)} className="p-2 rounded-full hover:bg-white/10">
                 <X size={14} className="text-white/50" />
@@ -336,17 +351,19 @@ function PlayerUI({
                 <p className="text-white/40 text-sm">No sources found</p>
               </div>
             ) : (
-              <div className="p-2 space-y-1.5">
+              <div className="p-3 space-y-2">
                 {streams.map((s, i) => {
                   const meta = parseStreamMeta(s);
-                  const isActive = (s.url && s.url === currentStream.url) || (s.url === undefined && s.title === currentStream.title);
+                  const streamUrl = s.url || s.externalUrl || '';
+                  const activeUrl = currentStream.url || currentStream.externalUrl || '';
+                  const isActive = streamUrl ? streamMatchesUrl(s, activeUrl) : s.title === currentStream.title;
                   const sourceLabel = [meta.debrid, meta.indexer].filter(Boolean).join(' · ') || s.addonName || 'Unknown';
 
                   return (
                     <button
-                      key={s.url || `stream-${i}`}
+                      key={streamUrl || `stream-${i}`}
                       onClick={() => { setShowSources(false); onSwitchStream(s); }}
-                      className={`w-full text-left px-3.5 py-3 rounded-xl hover:bg-white/5 transition-colors ${isActive ? 'ring-1 ring-white/40 bg-white/5' : ''}`}
+                      className={`w-full text-left px-4 py-3.5 rounded-2xl border transition-colors ${isActive ? 'border-luna-accent/70 bg-luna-accent/10' : 'border-white/8 bg-white/[0.035] hover:bg-white/[0.07]'}`}
                     >
                       {/* Top row: badges + size */}
                       <div className="flex items-center justify-between gap-2 mb-1.5">
@@ -376,7 +393,7 @@ function PlayerUI({
                       </div>
 
                       {/* Source line */}
-                      <p className="text-xs text-white/50 mb-0.5">{sourceLabel}</p>
+                      <p className="text-sm text-white/70 mb-0.5">{sourceLabel}</p>
 
                       {/* Release title */}
                       <p className="text-[11px] text-white/25 truncate leading-relaxed">{meta.releaseTitle}</p>
@@ -385,6 +402,47 @@ function PlayerUI({
                 })}
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* AUDIO + SUBTITLES PANEL */}
+      {showTracks && (
+        <div className="absolute inset-0 z-40 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setShowTracks(false)} />
+          <div className="relative w-[980px] max-w-[94vw] max-h-[76vh] overflow-hidden rounded-2xl bg-[#242424]/98 shadow-2xl border border-white/8">
+            <div className="flex items-center justify-between px-8 py-6 border-b border-white/8">
+              <div>
+                <h3 className="text-2xl font-bold text-white">Audio & Subtitles</h3>
+                <p className="text-sm text-white/45 mt-1">Choose audio tracks and captions for this stream</p>
+              </div>
+              <button onClick={() => setShowTracks(false)} className="p-2 rounded-full hover:bg-white/10">
+                <X size={22} className="text-white/70" />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-0 overflow-y-auto max-h-[60vh]">
+              <div className="px-8 py-6 border-r border-white/8">
+                <h4 className="text-xl font-bold text-white mb-5">Audio</h4>
+                <button className="flex w-full items-center gap-4 py-3 text-left text-lg text-white">
+                  <span className="w-5 text-white">✓</span>
+                  <span>{currentMeta.audioCodec ? `${currentMeta.audioCodec} Audio` : 'Default Audio'}</span>
+                </button>
+                <p className="mt-4 text-sm leading-relaxed text-white/35">Additional audio tracks appear here when the stream exposes them to the browser.</p>
+              </div>
+              <div className="px-8 py-6">
+                <h4 className="text-xl font-bold text-white mb-5">Subtitles</h4>
+                <button onClick={() => selectSubtitle('off')} className={`flex w-full items-center gap-4 py-3 text-left text-lg ${selectedSubtitleId === 'off' ? 'text-white' : 'text-white/55 hover:text-white'}`}>
+                  <span className="w-5 text-white">{selectedSubtitleId === 'off' ? '✓' : ''}</span>
+                  <span>Off</span>
+                </button>
+                {subtitles.map(sub => (
+                  <button key={sub.id} onClick={() => selectSubtitle(sub.id)} className={`flex w-full items-center gap-4 py-3 text-left text-lg ${selectedSubtitleId === sub.id ? 'text-white' : 'text-white/55 hover:text-white'}`}>
+                    <span className="w-5 text-white">{selectedSubtitleId === sub.id ? '✓' : ''}</span>
+                    <span>{sub.name || sub.lang || 'Subtitle'}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -402,10 +460,10 @@ export default function Player({
   const playerRef = useRef<MediaPlayerInstance>(null);
   const { currentProfile } = useAuth();
 
-  const [srcType, setSrcType] = useState<'application/x-mpegurl' | 'video/mp4'>('application/x-mpegurl');
+  const [srcType, setSrcType] = useState<VidstackSourceType>(() => getVidstackSourceType(streamUrl));
   const src = { src: streamUrl, type: srcType };
 
-  useEffect(() => { setSrcType('application/x-mpegurl'); }, [streamUrl]);
+  useEffect(() => { setSrcType(getVidstackSourceType(streamUrl)); }, [streamUrl]);
 
   const onProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
     if (isHLSProvider(provider)) {

@@ -5,6 +5,7 @@ import Player from '@/components/Player';
 import { StreamItem } from '@/lib/types';
 import { SubtitleItem, fetchSubtitlesFromAll } from '@/lib/stremio';
 import { getCachedStreams, getCachedStream } from '@/lib/stream-cache';
+import { getStreamUrl } from '@/lib/player-utils';
 
 export default function WatchPage() {
   const { type, id } = useParams({ strict: false }) as { type: string; id: string };
@@ -29,7 +30,7 @@ export default function WatchPage() {
   }, [type, id, addons]);
 
   function handleSwitchStream(newStream: StreamItem) {
-    const url = newStream.url || newStream.externalUrl;
+    const url = getStreamUrl(newStream);
     if (!url) return;
     const video = document.querySelector('video');
     savedPosition.current = video?.currentTime || 0;

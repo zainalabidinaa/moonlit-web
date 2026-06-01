@@ -1,4 +1,5 @@
 import { StreamItem } from './types';
+import { streamMatchesUrl } from './player-utils';
 
 const cache = new Map<string, StreamItem[]>();
 
@@ -13,7 +14,7 @@ export function getCachedStreams(key: string): StreamItem[] | null {
 export function getCachedStream(key: string, streamUrl: string): StreamItem | null {
   const streams = cache.get(key);
   if (!streams) return null;
-  return streams.find(s => s.url === streamUrl) ?? null;
+  return streams.find(s => streamMatchesUrl(s, streamUrl)) ?? null;
 }
 
 export function clearCache() {

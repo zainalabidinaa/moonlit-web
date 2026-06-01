@@ -10,6 +10,7 @@ import { Collection, FeaturedHomeItem, HomeCatalogRow, MetaDetail, MetaPreview, 
 import { getWatchProgress, getSystemAddon, getCollections } from '@/lib/services/api';
 import { fetchCatalog, fetchManifest, fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
 import { cacheStreams } from '@/lib/stream-cache';
+import { formatContinueWatchingTitle, getStreamUrl } from '@/lib/player-utils';
 import { buildHomeRows, pickFeaturedItems } from './home-data';
 
 const MAIN_NAMES = ['Popular Movies', 'Popular TV Shows', 'Trending Movies', 'Trending TV Shows'];
@@ -210,12 +211,10 @@ export default function HomePage() {
       if (picked) {
         const cacheKey = `${item.media_type}:${item.media_id}`;
         cacheStreams(cacheKey, streams);
-        const streamUrl = picked.url || picked.externalUrl!;
+        const streamUrl = getStreamUrl(picked)!;
         const displayName = item.name ?? cwMetas?.[item.media_id]?.name ?? baseId;
         const parts = item.media_id.split(':');
-        const watchTitle = item.media_type === 'series' && parts.length >= 3
-          ? `${displayName} — S${parts[1]}:E${parts[2]}`
-          : displayName;
+        const watchTitle = formatContinueWatchingTitle({ mediaId: item.media_id, mediaType: item.media_type, name: displayName });
         navigate({
           to: '/watch/$type/$id',
           params: { type: item.media_type, id: item.media_id },
@@ -298,7 +297,12 @@ export default function HomePage() {
                       {/* Hover / loading overlay */}
                       <div className={`absolute inset-0 bg-black/40 flex items-center justify-center transition-opacity duration-200 ${isLoading ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
                         {isLoading ? (
-                          <div className="w-8 h-8 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+                          <div className="flex flex-col items-center gap-2 px-3 text-center">
+                            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/80 animate-pulse">Sources</span>
+                            <div className="h-0.5 w-16 overflow-hidden rounded-full bg-white/20">
+                              <div className="h-full w-1/2 rounded-full bg-luna-accent animate-pulse" />
+                            </div>
+                          </div>
                         ) : (
                           <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
                             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -312,7 +316,7 @@ export default function HomePage() {
                       </div>
                     </div>
                     <p className="text-xs text-white font-medium truncate">
-                      {name || parts[0]}
+                      {formatContinueWatchingTitle({ mediaId: item.media_id, mediaType: item.media_type, name })}
                     </p>
                     <p className="text-xs text-luna-muted mt-0.5">
                       {item.media_type === 'series' && parts.length >= 3 ? `S${parts[1]} E${parts[2]} · ` : ''}

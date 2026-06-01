@@ -167,6 +167,7 @@ async function fetchSubtitles(baseURL: string, type: string, id: string): Promis
 
 // Community OpenSubtitles Stremio addon — public, no auth, always available
 const OPENSUBTITLES_ADDON_URL = 'https://opensubtitles-v3.strem.io';
+const OPENSUBTITLES_PRO_ADDON_URL = 'https://opensubtitlesv3-pro.dexter21767.com/eyJsYW5ncyI6WyJlbmdsaXNoIl0sInNvdXJjZSI6ImFsbCIsImFpVHJhbnNsYXRlZCI6ZmFsc2UsImF1dG9BZGp1c3RtZW50IjpmYWxzZX0=';
 
 export async function fetchSubtitlesFromAll(
   type: string,
@@ -178,8 +179,9 @@ export async function fetchSubtitlesFromAll(
   // we try all of them rather than filtering by resource declaration.
   const urls = [
     ...addons.filter(a => !!a.transportUrl).map(a => a.transportUrl!),
+    OPENSUBTITLES_PRO_ADDON_URL,
     OPENSUBTITLES_ADDON_URL,
-  ];
+  ].filter((url, index, all) => all.indexOf(url) === index);
   const results = await Promise.allSettled(
     urls.map(url => fetchSubtitles(url, type, id))
   );
