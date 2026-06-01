@@ -139,6 +139,8 @@ export default function Player({
     const tryHls = (isHls || hasHeaders) && Hls.isSupported();
 
     if (tryHls) {
+      let mediaErrCount = 0;
+
       const hls = new Hls({
         renderTextTracksNatively: false,
         startLevel: -1,
@@ -176,14 +178,23 @@ export default function Player({
       hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, (_e, d) => setActiveAudio(d.id));
       hls.on(Hls.Events.SUBTITLE_TRACK_SWITCH, (_e, d) => {
         setActiveSub(d.id);
-        hls.subtitleDisplay = d.id >= 0;
+        // DO NOT set hls.subtitleDisplay here — it conflicts with custom overlay
       });
 
       hls.on(Hls.Events.ERROR, (_e, data) => {
         if (data.fatal) {
           console.log('[hls] fatal error type:', data.type);
           if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            hls.recoverMediaError();
+            mediaErrCount++;
+            if (mediaErrCount <= 2) {
+              hls.recoverMediaError();
+            } else {
+              // Fallback: destroy HLS and try direct src
+              hls.destroy(); hlsRef.current = null;
+              video.src = streamUrl;
+              video.play().catch(() => {});
+              // If that also fails, the video element's 'error' event will set state='error'
+            }
           } else {
             setState('error');
             setErrMsg(data.type === Hls.ErrorTypes.NETWORK_ERROR ? 'Network error' : 'Playback error');
@@ -249,11 +260,16 @@ export default function Player({
       let text = '';
       for (let i = 0; i < video!.textTracks.length; i++) {
         const track = video!.textTracks[i];
-        if (track.mode === 'disabled') continue;
+        if (track.kind !== 'subtitles' && track.kind !== 'captions') continue;
+        if (track.mode === 'disabled' || track.mode === 'hidden') continue;
         if (!track.activeCues?.length) continue;
         for (let j = 0; j < track.activeCues.length; j++) {
           const cue = track.activeCues[j] as VTTCue;
-          if (cue.text) text += (text ? '\n' : '') + cue.text;
+          const cueHTML = (cue as VTTCue).getCueAsHTML?.();
+          const cueText = cueHTML
+            ? cueHTML.textContent ?? ''
+            : (cue as VTTCue).text?.replace(/<[^>]+>/g, '') ?? '';
+          if (cueText.trim()) text += (text ? '\n' : '') + cueText.trim();
         }
         if (text) break;
       }
@@ -267,9 +283,12 @@ export default function Player({
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    for (let i = 0; i < video.textTracks.length; i++) {
-      video.textTracks[i].mode = i === activeSub ? 'showing' : 'disabled';
-    }
+    const subtitleTracks = Array.from(video.textTracks).filter(
+      t => t.kind === 'subtitles' || t.kind === 'captions'
+    );
+    subtitleTracks.forEach((track, i) => {
+      track.mode = i === activeSub ? 'showing' : 'disabled';
+    });
     if (activeSub < 0) setActiveCueText('');
   }, [activeSub]);
 
@@ -572,6 +591,7 @@ export default function Player({
               className="relative flex-1 h-5 flex items-center cursor-pointer group"
               onMouseDown={onSeekBarMouseDown}
               onMouseMove={onSeekMove}
+              onMouseLeave={() => { if (!isDragging) setTooltipPos(0); }}
             >
               <div className="w-full h-[2.5px] group-hover:h-[5px] bg-white/12 rounded-full relative transition-all">
                 <div className="absolute left-0 top-0 h-full bg-white/16 rounded-full" style={{ width: `${bufPct}%` }} />
@@ -759,8 +779,8 @@ export default function Player({
               return Object.entries(grp).map(([name, items]) => (
                 <div key={name} className="border-b border-white/4 last:border-b-0">
                   <div className="px-4 pt-3 pb-1"><p className="text-[10px] font-semibold text-white/25 uppercase tracking-wider">{name}</p></div>
-                  {items.map(s => (
-                    <button key={s.url || Math.random().toString()} onClick={() => switchSrc(s)}
+                  {items.map((s, i) => (
+                    <button key={s.url || s.infoHash || s.externalUrl || `${s.addonName}-${i}`} onClick={() => switchSrc(s)}
                       className={`w-full text-left px-4 py-3 hover:bg-white/4 flex items-center justify-between ${s.url === currentStream.url ? 'bg-luna-accent/10 border-l-2 border-luna-accent' : ''}`}>
                       <div className="min-w-0 flex-1"><p className="text-sm text-white truncate">{s.title || s.name || s.description || 'Unknown'}</p></div>
                       {s.url === currentStream.url && <div className="w-1.5 h-1.5 rounded-full bg-luna-accent flex-shrink-0 ml-2" />}
