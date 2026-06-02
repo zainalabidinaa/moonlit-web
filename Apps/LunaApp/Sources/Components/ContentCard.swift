@@ -91,11 +91,19 @@ struct ContentCard: View {
     }
 
     private var cardWidth: CGFloat {
-        resolvedShape == .landscape ? 200 : 120
+        switch resolvedShape {
+        case .landscape: return 200
+        case .square:    return 140
+        case .poster:    return 120
+        }
     }
 
     private var cardHeight: CGFloat {
-        resolvedShape == .landscape ? 112 : 180
+        switch resolvedShape {
+        case .landscape: return 112
+        case .square:    return 140
+        case .poster:    return 180
+        }
     }
 }
 
