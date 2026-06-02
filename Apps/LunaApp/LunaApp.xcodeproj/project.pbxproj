@@ -16,29 +16,29 @@
 		686742C906F6505703092384 /* AuthScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC9E52B6F1F02AA0DEB87EFC /* AuthScreen.swift */; };
 		820BAC8791A33426DA083C58 /* ProfilePickerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9DF866A3E0E86D182E4E9B76 /* ProfilePickerScreen.swift */; };
 		9D4E0D93663B1850ADCBF81B /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6FD24D68DBBAB57E9D8FC0 /* SettingsScreen.swift */; };
+		A22222222222222222222222 /* Resources/Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11111111111111111111111 /* Resources/Assets.xcassets */; };
 		A41D3574B0860B92B8B5AEDB /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAD567E5F1A6F35B412CA5D2 /* ContentView.swift */; };
 		CC04D7816468C4295A23224C /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B09F922B13BDAE26C9D8D09 /* LibraryScreen.swift */; };
 		DC87974D2CDD0738F492C161 /* ProfileSelectionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 602AEA64A4AEEB986BCCF030 /* ProfileSelectionScreen.swift */; };
 		DF7E51B56A0B680B99CADF12 /* PlayerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = A181B6B8151B673BA741C9D1 /* PlayerScreen.swift */; };
 		E416FBBA817F1C4807C7DA01 /* StreamSelectionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7C55E48E637AA4A974497787 /* StreamSelectionScreen.swift */; };
 		FFEE989D846E33C03915C982 /* LunaApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8997E09659D665EA90785B88 /* LunaApp.swift */; };
-		A22222222222222222222222 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11111111111111111111111 /* Assets.xcassets */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		A11111111111111111111111 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		00168395CD29DECF58929337 /* ContentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentCard.swift; sourceTree = "<group>"; };
 		154121DC1EBCCE63654E64A7 /* SearchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScreen.swift; sourceTree = "<group>"; };
 		1B09F922B13BDAE26C9D8D09 /* LibraryScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryScreen.swift; sourceTree = "<group>"; };
 		2F6FD24D68DBBAB57E9D8FC0 /* SettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsScreen.swift; sourceTree = "<group>"; };
 		38D997F95CAF97AFFC4D4489 /* LunaCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LunaCore; path = ../../Packages/LunaCore; sourceTree = SOURCE_ROOT; };
 		5531073B5639881F588923FD /* DetailScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailScreen.swift; sourceTree = "<group>"; };
-		55968AE93644270FC62BDB1F /* LunaApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LunaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		55968AE93644270FC62BDB1F /* LunaApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LunaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		602AEA64A4AEEB986BCCF030 /* ProfileSelectionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSelectionScreen.swift; sourceTree = "<group>"; };
 		68E00BE18255F4D9413A264A /* AdminDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminDashboard.swift; sourceTree = "<group>"; };
 		7C55E48E637AA4A974497787 /* StreamSelectionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamSelectionScreen.swift; sourceTree = "<group>"; };
 		8997E09659D665EA90785B88 /* LunaApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LunaApp.swift; sourceTree = "<group>"; };
 		9DF866A3E0E86D182E4E9B76 /* ProfilePickerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePickerScreen.swift; sourceTree = "<group>"; };
+		A11111111111111111111111 /* Resources/Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Resources/Assets.xcassets; sourceTree = "<group>"; };
 		A181B6B8151B673BA741C9D1 /* PlayerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerScreen.swift; sourceTree = "<group>"; };
 		AAD567E5F1A6F35B412CA5D2 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		AC9E52B6F1F02AA0DEB87EFC /* AuthScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthScreen.swift; sourceTree = "<group>"; };
@@ -56,23 +56,12 @@
 		};
 /* End PBXFrameworksBuildPhase section */
 
-/* Begin PBXResourcesBuildPhase section */
-		A33333333333333333333333 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				A22222222222222222222222 /* Assets.xcassets in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXResourcesBuildPhase section */
-
 /* Begin PBXGroup section */
 		384A6FC407F9048C66A7E665 = {
 			isa = PBXGroup;
 			children = (
 				FB8CF744AB2BB6CEC4A7158E /* Packages */,
-				A11111111111111111111111 /* Assets.xcassets */,
+				A11111111111111111111111 /* Resources/Assets.xcassets */,
 				FF894D15BAF1F72E2304102E /* Sources */,
 				FA83959789E2C0959454512A /* Products */,
 			);
@@ -170,8 +159,6 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1430;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = 3A9E79CCB60B3AF1BAA6CAD1 /* Build configuration list for PBXProject "LunaApp" */;
 			developmentRegion = en;
@@ -194,6 +181,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		A33333333333333333333333 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				A22222222222222222222222 /* Resources/Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		487558CD4A76833032A8F0FA /* Sources */ = {
@@ -225,6 +223,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 5TWS8P597N;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSAppTransportSecurity = "[\"NSAllowsArbitraryLoads\": true]";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -314,6 +313,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
+				DEVELOPMENT_TEAM = 5TWS8P597N;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSAppTransportSecurity = "[\"NSAllowsArbitraryLoads\": true]";
 				LD_RUNPATH_SEARCH_PATHS = (

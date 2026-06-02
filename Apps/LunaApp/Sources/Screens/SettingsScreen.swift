@@ -137,41 +137,99 @@ struct AddonsScreen: View {
             ZStack {
                 LunaTheme.background.ignoresSafeArea()
 
-                List {
-                    Section("Default Addons") {
-                        ForEach(Array(LunaConfig.defaultAddons.enumerated()), id: \.offset) { _, url in
-                            Text(url)
-                                .font(.caption)
-                                .foregroundColor(LunaTheme.textSecondary)
+                if addonRepo.isLoading {
+                    VStack(spacing: 16) {
+                        ProgressView().tint(LunaTheme.accent)
+                        Text("Loading addons...")
+                            .font(.subheadline)
+                            .foregroundColor(LunaTheme.textSecondary)
+                    }
+                } else if let error = addonRepo.errorMessage, addonRepo.managedAddons.isEmpty {
+                    VStack(spacing: 16) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 44))
+                            .foregroundColor(.orange)
+                        Text("Failed to load addons")
+                            .font(.headline)
+                            .foregroundColor(.white)
+                        Text(error)
+                            .font(.subheadline)
+                            .foregroundColor(LunaTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
+                        Button {
+                            Task {
+                                guard let profile = ProfileManager.shared.currentProfile else { return }
+                                await addonRepo.loadAddons(profileId: profile.id)
+                            }
+                        } label: {
+                            Label("Retry", systemImage: "arrow.clockwise")
+                                .font(.subheadline.weight(.semibold))
+                                .padding(.horizontal, 24)
+                                .padding(.vertical, 10)
+                        }
+                        .glassCard(cornerRadius: 12, interactive: true)
+                        .foregroundColor(.white)
+                    }
+                } else {
+                    List {
+                        Section("Default Addons") {
+                            ForEach(Array(LunaConfig.defaultAddons.enumerated()), id: \.offset) { _, url in
+                                Text(url)
+                                    .font(.caption)
+                                    .foregroundColor(LunaTheme.textSecondary)
+                            }
+                        }
+
+                        Section("Installed (\(addonRepo.managedAddons.count))") {
+                            if addonRepo.managedAddons.isEmpty {
+                                Text("No addons loaded. Pull to refresh or check your connection.")
+                                    .font(.caption)
+                                    .foregroundColor(LunaTheme.textTertiary)
+                            }
+                            ForEach(addonRepo.managedAddons) { addon in
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text(addon.displayName)
+                                            .foregroundColor(.white)
+                                        Text(addon.manifestUrl)
+                                            .font(.caption)
+                                            .foregroundColor(LunaTheme.textTertiary)
+                                        if let err = addon.errorMessage {
+                                            Text("Error: \(err)")
+                                                .font(.caption2)
+                                                .foregroundColor(.orange)
+                                        }
+                                    }
+                                    Spacer()
+                                    Toggle("", isOn: Binding(
+                                        get: { addon.enabled },
+                                        set: { _ in addonRepo.toggleAddon(url: addon.manifestUrl) }
+                                    ))
+                                    .labelsHidden()
+                                }
+                            }
+                            .onDelete { indexSet in
+                                for idx in indexSet {
+                                    addonRepo.removeAddon(url: addonRepo.managedAddons[idx].manifestUrl)
+                                }
+                            }
+                        }
+
+                        if let error = addonRepo.errorMessage, !addonRepo.managedAddons.isEmpty {
+                            Section("Warning") {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
                         }
                     }
-
-                    Section("Installed (\(addonRepo.managedAddons.count))") {
-                        ForEach(addonRepo.managedAddons) { addon in
-                            HStack {
-                                VStack(alignment: .leading) {
-                                    Text(addon.displayName)
-                                        .foregroundColor(.white)
-                                    Text(addon.manifestUrl)
-                                        .font(.caption)
-                                        .foregroundColor(LunaTheme.textTertiary)
-                                }
-                                Spacer()
-                                Toggle("", isOn: Binding(
-                                    get: { addon.enabled },
-                                    set: { _ in addonRepo.toggleAddon(url: addon.manifestUrl) }
-                                ))
-                                .labelsHidden()
-                            }
-                        }
-                        .onDelete { indexSet in
-                            for idx in indexSet {
-                                addonRepo.removeAddon(url: addonRepo.managedAddons[idx].manifestUrl)
-                            }
-                        }
+                    .scrollContentBackground(.hidden)
+                    .refreshable {
+                        guard let profile = ProfileManager.shared.currentProfile else { return }
+                        await addonRepo.loadAddons(profileId: profile.id)
                     }
                 }
-                .scrollContentBackground(.hidden)
             }
             .navigationTitle("Addons")
             .navigationBarTitleDisplayMode(.inline)
@@ -224,6 +282,12 @@ struct AddonsScreen: View {
                             Button("Cancel") { showAddSheet = false }
                         }
                     }
+                }
+            }
+            .task {
+                guard let profile = ProfileManager.shared.currentProfile else { return }
+                if addonRepo.managedAddons.isEmpty {
+                    await addonRepo.loadAddons(profileId: profile.id)
                 }
             }
         }
