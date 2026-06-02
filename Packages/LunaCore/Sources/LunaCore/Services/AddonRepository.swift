@@ -46,6 +46,9 @@ public class AddonRepository: ObservableObject {
         defer { isLoading = false }
 
         let remoteUrls = (try? await syncService.pullAddons(profileId: profileId)) ?? []
+        if remoteUrls.isEmpty {
+            print("[Luna] No remote addons found for profile \(profileId), using defaults only.")
+        }
         // Always include defaults; append any user extras that aren't in defaults
         var merged = LunaConfig.defaultAddons
         for url in remoteUrls where !merged.contains(url) {
@@ -59,6 +62,7 @@ public class AddonRepository: ObservableObject {
 
     public func refreshFromUrls(_ urls: [String]) async {
         var addons: [ManagedAddon] = []
+        var fetchErrors: [String] = []
         let existing = managedAddons
 
         await withTaskGroup(of: ManagedAddon?.self) { group in
@@ -73,6 +77,7 @@ public class AddonRepository: ObservableObject {
                             sortOrder: index
                         )
                     } catch {
+                        print("[Luna] Addon fetch failed: \(url) — \(error.localizedDescription)")
                         if let found = existing.first(where: { $0.manifestUrl == url }) {
                             var copy = found
                             copy.errorMessage = error.localizedDescription
@@ -88,6 +93,13 @@ public class AddonRepository: ObservableObject {
                     addons.append(addon)
                 }
             }
+        }
+
+        if addons.isEmpty, !urls.isEmpty {
+            errorMessage = "Failed to load any addons. Check your connection."
+            print("[Luna] All addon fetches failed. \(urls.count) URLs attempted.")
+        } else if !addons.isEmpty {
+            errorMessage = nil
         }
 
         addons.sort { $0.sortOrder < $1.sortOrder }

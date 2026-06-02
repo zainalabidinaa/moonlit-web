@@ -107,8 +107,18 @@ struct HomeScreen: View {
                                                 rowId: row.id,
                                                 addons: addonRepo.enabledAddons
                                             )
-                                        }
-                                    }
+                        }
+                    } else {
+                        VStack {
+                            Spacer().frame(height: 100)
+                            EmptyStateView(
+                                icon: "antenna.radiowaves.left.and.right",
+                                title: "No content available",
+                                message: addonRepo.errorMessage ?? "Failed to load catalogs. Pull to retry or check your addons in Settings."
+                            )
+                            Spacer()
+                        }
+                    }
                                 }
                             }
                         }
