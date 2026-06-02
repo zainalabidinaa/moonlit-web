@@ -12,7 +12,7 @@ struct ContentView: View {
                 if profileManager.currentProfile != nil {
                     MainTabView()
                 } else if !profileManager.profiles.isEmpty {
-                    ProfileSelectionScreen()
+                    ProfilePickerScreen()
                 } else {
                     CreateFirstProfileScreen()
                 }
