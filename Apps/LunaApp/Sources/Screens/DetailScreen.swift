@@ -218,8 +218,7 @@ struct DetailScreen: View {
                                                             .font(.caption).fontWeight(.semibold)
                                                             .foregroundColor(LunaTheme.textSecondary)
                                                             .padding(.horizontal, 12).padding(.vertical, 7)
-                                                            .background(LunaTheme.surface)
-                                                            .cornerRadius(8)
+                                                            .glassCapsule(interactive: true)
                                                     }
                                                 }
                                             }
@@ -268,7 +267,7 @@ struct DetailScreen: View {
                                                     .font(.subheadline).fontWeight(.medium)
                                                     .padding(.horizontal, 16).padding(.vertical, 8)
                                                     .glassCapsule(interactive: true)
-                                                    .foregroundColor(selectedSeasonId == season.id || (selectedSeasonId == nil && seasons.sorted(by: { $0.number < $1.number }).first?.id == season.id) ? .black : LunaTheme.textSecondary)
+                                                    .foregroundColor(selectedSeasonId == season.id || (selectedSeasonId == nil && seasons.sorted(by: { $0.number < $1.number }).first?.id == season.id) ? .white : LunaTheme.textSecondary)
                                             }
                                         }
                                     }
