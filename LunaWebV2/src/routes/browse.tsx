@@ -4,10 +4,8 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/AuthProvider';
 import { Sidebar } from '@/components/Sidebar';
 import { MetaDetail, StreamItem, Season } from '@/lib/types';
-import { fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
+import { fetchMeta } from '@/lib/stremio';
 import { isInLibrary, toggleLibrary, getWatchProgress } from '@/lib/services/api';
-import { cacheStreams } from '@/lib/stream-cache';
-import { getPlayableStreamUrl, sortStreamsForBrowserPlayback } from '@/lib/player-utils';
 
 const PlayIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -28,7 +26,6 @@ export default function DetailPage() {
   const [loadingStreams, setLoadingStreams] = useState(false);
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
-  const [autoPlaying, setAutoPlaying] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ['browse', type, id, currentProfile?.id],
@@ -127,28 +124,17 @@ export default function DetailPage() {
     });
   }
 
-  async function handleAutoPlay(streamId?: string) {
+  function handleAutoPlay(streamId?: string) {
     const sid = streamId || id;
-    setAutoPlaying(true);
-    const allStreams = await fetchStreamsFromAll(type, sid, addons);
-    const playable = sortStreamsForBrowserPlayback(allStreams);
-    const picked = playable[0];
-    if (picked) {
-      const cacheKey = `${type}:${sid}`;
-      cacheStreams(cacheKey, allStreams);
-      const streamUrl = getPlayableStreamUrl(picked)!;
-      const ep = streamId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === streamId) : null;
-      const watchTitle = ep ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}` : (detail?.name || '');
-      navigate({
-        to: '/watch/$type/$id',
-        params: { type, id: sid },
-        search: { url: streamUrl, cid: cacheKey, title: watchTitle, logo: detail?.logo ?? undefined, pos: savedPositionSeconds > 0 ? savedPositionSeconds : undefined },
-      });
-    } else {
-      setAutoPlaying(false);
-      setStreams(allStreams);
-      setShowStreams(true);
-    }
+    const ep = streamId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === streamId) : null;
+    const watchTitle = ep
+      ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}`
+      : (detail?.name || '');
+    navigate({
+      to: '/watch/$type/$id',
+      params: { type, id: sid },
+      search: { url: '', cid: '', title: watchTitle, logo: detail?.logo ?? undefined, pos: savedPositionSeconds > 0 ? savedPositionSeconds : undefined },
+    });
   }
 
   if (isLoading) {
@@ -233,10 +219,10 @@ export default function DetailPage() {
             <div className="flex gap-3 flex-wrap">
               {!isSeries && (
                 <>
-                  <button onClick={() => handleAutoPlay()} disabled={autoPlaying}
-                    className={`flex items-center gap-2 px-8 py-2.5 bg-white text-black font-semibold rounded-md transition-all ${autoPlaying ? 'opacity-70' : 'hover:bg-white/90'}`}>
-                    {autoPlaying ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-black border-t-transparent" /> : <PlayIcon />}
-                    {autoPlaying ? 'Loading...' : 'Play'}
+                  <button onClick={() => handleAutoPlay()}
+                    className="flex items-center gap-2 px-8 py-2.5 bg-white hover:bg-white/90 text-black font-semibold rounded-md transition-all">
+                    <PlayIcon />
+                    Play
                   </button>
                   <button onClick={() => loadStreams()}
                     className="flex items-center gap-2 px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white font-semibold rounded-md transition-all text-sm">
@@ -408,26 +394,6 @@ export default function DetailPage() {
 
       {isSeries && <div className="px-6 pb-8 max-w-5xl">{trailersSection}</div>}
 
-      {autoPlaying && (
-        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-black/90">
-          {backdropSrc && <div className="absolute inset-0 bg-cover bg-center opacity-30 blur-md" style={{ backgroundImage: `url(${backdropSrc})` }} />}
-          <div className="relative z-10 flex w-[360px] max-w-[86vw] flex-col items-center gap-5 rounded-3xl border border-white/10 bg-black/35 px-8 py-8 backdrop-blur-xl">
-            {detail?.logo ? <img src={detail.logo} alt="" className="h-12 sm:h-16 object-contain animate-pulse" /> : <h2 className="text-2xl font-bold text-white animate-pulse">{title}</h2>}
-            <div className="w-full space-y-2 text-sm text-white/55">
-              {addons.filter(a => a.resources?.some(r => (typeof r === 'string' ? r : r.name) === 'stream')).slice(0, 4).map(addon => (
-                <div key={addon.id} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-                  <span>{addon.name}</span>
-                  <span className="text-luna-accent">checking</span>
-                </div>
-              ))}
-            </div>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-              <div className="h-full w-1/2 rounded-full bg-luna-accent animate-pulse" />
-            </div>
-            <p className="text-sm text-white/45">Finding the best source...</p>
-          </div>
-        </div>
-      )}
     </Sidebar>
   );
 }
