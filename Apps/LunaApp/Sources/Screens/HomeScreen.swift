@@ -123,10 +123,24 @@ struct HomeScreen: View {
                             .padding(.top, 24)
                         }
                     } else if catalogRepo.isLoading {
-                        VStack {
-                            Spacer().frame(height: 100)
-                            ProgressView()
-                                .tint(LunaTheme.accent)
+                        VStack(spacing: 24) {
+                            Spacer().frame(height: 20)
+                            ShimmerCard(width: 375, height: 200, cornerRadius: 12)
+                                .padding(.horizontal)
+                            ShimmerCard(width: 120, height: 16, cornerRadius: 4)
+                                .padding(.horizontal)
+                            HStack(spacing: 12) {
+                                ForEach(0..<3, id: \.self) { _ in
+                                    ShimmerCard(width: 180, height: 100, cornerRadius: 8)
+                                }
+                            }
+                            .padding(.horizontal)
+                            HStack(spacing: 12) {
+                                ForEach(0..<4, id: \.self) { _ in
+                                    ShimmerCard(width: 105, height: 158, cornerRadius: 8)
+                                }
+                            }
+                            .padding(.horizontal)
                             Spacer()
                         }
                     }
@@ -206,15 +220,22 @@ struct HeroSection: View {
     let activeIndex: Int
     let onDotTap: (Int) -> Void
 
+    @State private var imageFailed = false
+
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            // Backdrop image
             Group {
-                if let banner = item.banner ?? item.poster, let url = URL(string: banner) {
+                if let banner = item.banner ?? item.poster, let url = URL(string: banner), !imageFailed {
                     AsyncImage(url: url) { phase in
-                        if case .success(let img) = phase {
+                        switch phase {
+                        case .success(let img):
                             img.resizable().aspectRatio(contentMode: .fill)
-                        } else { LunaTheme.background }
+                        case .failure:
+                            LunaTheme.background
+                                .onAppear { imageFailed = true }
+                        default:
+                            LunaTheme.background
+                        }
                     }
                 } else {
                     LunaTheme.surface
@@ -224,7 +245,6 @@ struct HeroSection: View {
             .frame(height: 420)
             .clipped()
 
-            // Gradients
             LinearGradient(
                 colors: [.clear, LunaTheme.background.opacity(0.7), LunaTheme.background],
                 startPoint: .top,
@@ -238,6 +258,18 @@ struct HeroSection: View {
                 endPoint: .trailing
             )
             .frame(height: 420)
+
+            // Glass overlay card
+            if #available(iOS 26, *) {
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .fill(.clear)
+                    .glassEffect(
+                        .clear.interactive(),
+                        in: .rect(cornerRadius: 22, style: .continuous)
+                    )
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 8)
+            }
 
             // Content
             VStack(alignment: .leading, spacing: 0) {
@@ -280,20 +312,19 @@ struct HeroSection: View {
                             .padding(.horizontal, 20).padding(.vertical, 11)
                             .background(Color.white).clipShape(Capsule())
                     }
+
                     Button(action: onTap) {
                         Label("My List", systemImage: "plus")
                             .font(.subheadline.weight(.semibold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 16).padding(.vertical, 11)
-                            .background(Color.white.opacity(0.15)).clipShape(Capsule())
-                            .overlay(Capsule().stroke(Color.white.opacity(0.2), lineWidth: 1))
                     }
+                    .glassCapsule(interactive: true, clear: true)
                 }
             }
-            .padding(.horizontal, 20).padding(.bottom, 24)
+            .padding(.horizontal, 24).padding(.bottom, 24)
             .frame(maxWidth: .infinity, alignment: .leading)
 
-            // Dots
             if dotCount > 1 {
                 HStack(spacing: 5) {
                     ForEach(0..<dotCount, id: \.self) { i in
@@ -477,7 +508,8 @@ struct ContinueWatchingCard: View {
                         RoundedRectangle(cornerRadius: 8).fill(LunaTheme.surfaceElevated)
                     }
                 }
-                .frame(width: 192, height: 108).clipped().cornerRadius(8)
+                .frame(width: 192, height: 108).clipped()
+                .glassCard(cornerRadius: 8)
 
                 // Play overlay circle
                 Circle().fill(Color.black.opacity(0.5)).frame(width: 36, height: 36)
