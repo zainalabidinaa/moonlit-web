@@ -166,7 +166,7 @@ struct AdminInviteCodesView: View {
 
                         Button {
                             Task {
-                                try await adminService.generateInviteCode(maxUses: maxUses)
+                                let _ = try await adminService.generateInviteCode(maxUses: maxUses)
                                 showGenerateSheet = false
                             }
                         } label: {

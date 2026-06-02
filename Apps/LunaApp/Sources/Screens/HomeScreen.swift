@@ -204,7 +204,7 @@ struct HomeScreen: View {
                 heroTimer?.invalidate()
                 heroTimer = nil
             }
-            .onChange(of: featuredItems.count) { newCount in
+            .onChange(of: featuredItems.count) { _, newCount in
                 heroIndex = 0
                 startHeroTimer()
             }

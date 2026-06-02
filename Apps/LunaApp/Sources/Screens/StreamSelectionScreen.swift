@@ -71,8 +71,12 @@ struct StreamSelectionScreen: View {
                 }
             }
             .fullScreenCover(isPresented: $showPlayer) {
-                if let launch = playerLaunch {
-                    PlayerScreen(launch: launch)
+                if let launch = playerLaunch, let url = URL(string: launch.sourceUrl) {
+                    PlayerScreen(
+                        streamURL: url,
+                        title: launch.title,
+                        onDismiss: { showPlayer = false }
+                    )
                 }
             }
             .task {
