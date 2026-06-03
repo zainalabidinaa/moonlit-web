@@ -24,7 +24,7 @@ export default function WebCodecsPlayer({
   });
   const [showControls, setShowControls] = useState(true);
   const [showSources, setShowSources] = useState(false);
-  const hideTimer = useRef<ReturnType<typeof setTimeout>>();
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const resetHide = useCallback(() => {
     setShowControls(true);

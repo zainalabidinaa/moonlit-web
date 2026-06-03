@@ -11,7 +11,7 @@
  * relative to it so they render at the correct wall-clock time.
  */
 
-import WebDemuxer, { AVMediaType } from 'web-demuxer';
+import { WebDemuxer, AVMediaType } from 'web-demuxer';
 
 export interface WebCodecsPlayerState {
   duration: number;
