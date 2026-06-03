@@ -124,7 +124,7 @@ function SeekIcon({ seconds, direction }: { seconds: number; direction: 'back' |
 
 function PlayerUI({
   title, mediaLogo, currentStream, streams, subtitles,
-  mediaId, mediaType, onBack, onSwitchStream, onPlaybackStalled, playerRef,
+  mediaId, mediaType, onBack, onSwitchStream, onPlaybackStalled, openSources, playerRef,
 }: {
   title: string;
   mediaLogo?: string;
@@ -136,6 +136,7 @@ function PlayerUI({
   onBack: () => void;
   onSwitchStream: (s: StreamItem) => void;
   onPlaybackStalled: () => void;
+  openSources?: boolean;
   playerRef: React.RefObject<MediaPlayerInstance | null>;
 }) {
   const paused = useMediaState('paused');
@@ -168,6 +169,8 @@ function PlayerUI({
   }, [paused, resetHide]);
 
   useEffect(() => () => { if (hideTimer.current) clearTimeout(hideTimer.current); }, []);
+
+  useEffect(() => { if (openSources) setShowSources(true); }, [openSources]);
 
   // Auto-unmute: player starts muted for reliable autoplay, unmute as soon as playback begins
   useEffect(() => {
@@ -466,14 +469,14 @@ export default function Player({
   const { currentProfile } = useAuth();
 
   const [srcType, setSrcType] = useState<VidstackSourceType>(() => getInitialSourceType(streamUrl, currentStream));
-  const [failedUrls, setFailedUrls] = useState<Set<string>>(() => new Set());
   const [playbackError, setPlaybackError] = useState<string | null>(null);
+  const [forceOpenSources, setForceOpenSources] = useState(false);
 
   // Stable, memoized src object — prevents unnecessary Vidstack source updates
   const src = useMemo(() => ({ src: streamUrl, type: srcType }), [streamUrl, srcType]);
 
   useEffect(() => { setSrcType(getInitialSourceType(streamUrl, currentStream)); }, [currentStream, streamUrl]);
-  useEffect(() => { setFailedUrls(new Set()); setPlaybackError(null); }, [mediaId]);
+  useEffect(() => { setPlaybackError(null); setForceOpenSources(false); }, [mediaId]);
 
   const onProviderChange = useCallback((provider: MediaProviderAdapter | null) => {
     console.log('[player] provider:', provider?.constructor?.name ?? 'null', '| src:', streamUrl, '| type:', srcType);
@@ -534,24 +537,9 @@ export default function Player({
       return;
     }
 
-    // 3. Failover to the next source
-    const nextFailed = new Set(failedUrls);
-    nextFailed.add(streamUrl);
-    setFailedUrls(nextFailed);
-
-    const nextStream = sortStreamsForBrowserPlayback(streams).find(stream => {
-      const url = getPlayableStreamUrl(stream);
-      return url && url !== streamUrl && !nextFailed.has(url);
-    });
-
-    if (nextStream) {
-      const p = playerRef.current;
-      if (p?.currentTime) savedFailoverPosition.current = p.currentTime;
-      onSwitchStream(nextStream);
-    } else {
-      setPlaybackError('No playable sources found');
-    }
-  }, [failedUrls, onSwitchStream, srcType, streamUrl, streams, currentStream]);
+    // Stream failed — let the user pick a different source.
+    setPlaybackError('This stream failed to play.');
+  }, [onSwitchStream, srcType, streamUrl, currentStream]);
 
   useEffect(() => {
     if (!currentProfile) return;
@@ -580,14 +568,15 @@ export default function Player({
 
   return (
     <div className="fixed inset-0 bg-black z-50">
-      {/* Error overlay — shown when all streams fail */}
+      {/* Error overlay */}
       {playbackError && (
         <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black/90">
           <p className="text-white text-lg font-semibold">Playback Error</p>
           <p className="text-white/50 text-sm">{playbackError}</p>
           <div className="flex gap-3 mt-2">
             <button onClick={onBack} className="px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-full text-sm">Back</button>
-            <button onClick={() => { setPlaybackError(null); setSrcType(getInitialSourceType(streamUrl, currentStream)); setFailedUrls(new Set()); }} className="px-6 py-2.5 bg-luna-accent hover:bg-purple-400 text-white font-semibold rounded-full text-sm">Retry</button>
+            <button onClick={() => { setPlaybackError(null); setSrcType(getInitialSourceType(streamUrl, currentStream)); }} className="px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-full text-sm">Retry</button>
+            <button onClick={() => { setPlaybackError(null); setForceOpenSources(true); }} className="px-6 py-2.5 bg-luna-accent hover:bg-purple-400 text-white font-semibold rounded-full text-sm">Choose source</button>
           </div>
         </div>
       )}
@@ -633,6 +622,7 @@ export default function Player({
           onBack={onBack}
           onSwitchStream={onSwitchStream}
           onPlaybackStalled={onError}
+          openSources={forceOpenSources}
           playerRef={playerRef}
         />
       </MediaPlayer>
