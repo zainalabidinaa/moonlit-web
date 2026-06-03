@@ -120,6 +120,123 @@ function SeekIcon({ seconds, direction }: { seconds: number; direction: 'back' |
   );
 }
 
+// ── SourcesPanel ──────────────────────────────────────────────────────────
+
+function SourcesPanel({
+  sortedStreams, streams, currentStream, onClose, onSwitchStream,
+}: {
+  sortedStreams: StreamItem[];
+  streams: StreamItem[];
+  currentStream: StreamItem;
+  onClose: () => void;
+  onSwitchStream: (s: StreamItem) => void;
+}) {
+  const addonNames = useMemo(() => {
+    const names = [...new Set(sortedStreams.map(s => s.addonName).filter(Boolean))] as string[];
+    return names;
+  }, [sortedStreams]);
+
+  const [activeAddon, setActiveAddon] = useState<string | null>(null);
+
+  const filtered = activeAddon ? sortedStreams.filter(s => s.addonName === activeAddon) : sortedStreams;
+  const activeUrl = currentStream.url || currentStream.externalUrl || '';
+
+  return (
+    <div className="absolute inset-0 z-40 flex justify-end">
+      <div className="absolute inset-0 bg-black/60" onClick={onClose} />
+      <div className="relative w-[460px] max-w-[92vw] h-full bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.18),rgba(8,8,12,0.98)_42%)] border-l border-white/10 flex flex-col shadow-2xl backdrop-blur-2xl">
+        {/* Header */}
+        <div className="p-6 border-b border-white/8 bg-[#090910]/90 backdrop-blur-xl shrink-0">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-luna-accent">Now Playing</p>
+              <h3 className="mt-1 text-2xl font-black text-white">Sources</h3>
+            </div>
+            <button onClick={onClose} className="p-2 rounded-full bg-white/5 hover:bg-white/10">
+              <X size={18} className="text-white/60" />
+            </button>
+          </div>
+          {/* Addon filter tabs */}
+          {addonNames.length > 1 && (
+            <div className="flex gap-2 flex-wrap">
+              <button
+                onClick={() => setActiveAddon(null)}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeAddon === null ? 'bg-luna-accent text-white' : 'bg-white/8 text-white/50 hover:text-white hover:bg-white/12'}`}
+              >
+                All ({sortedStreams.length})
+              </button>
+              {addonNames.map(name => (
+                <button
+                  key={name}
+                  onClick={() => setActiveAddon(name)}
+                  className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeAddon === name ? 'bg-luna-accent text-white' : 'bg-white/8 text-white/50 hover:text-white hover:bg-white/12'}`}
+                >
+                  {name} ({sortedStreams.filter(s => s.addonName === name).length})
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Stream list */}
+        <div className="overflow-y-auto flex-1">
+          {filtered.length === 0 ? (
+            <div className="px-4 py-12 text-center">
+              <p className="text-white/40 text-sm">{streams.length === 0 ? 'No sources found' : 'No sources found for this addon'}</p>
+            </div>
+          ) : (
+            <div className="p-4 space-y-3">
+              {filtered.map((s, i) => {
+                const meta = parseStreamMeta(s);
+                const sUrl = s.url || '';
+                const isActive = sUrl ? streamMatchesUrl(s, activeUrl) : s.title === currentStream.title;
+                const sourceLabel = [meta.debrid, meta.indexer].filter(Boolean).join(' · ') || s.addonName || 'Unknown';
+                const score = browserPlaybackScore(s);
+
+                return (
+                  <button
+                    key={sUrl || `stream-${i}`}
+                    onClick={() => onSwitchStream(s)}
+                    className={`w-full text-left p-4 rounded-3xl border transition-all duration-200 ${isActive ? 'border-luna-accent/80 bg-luna-accent/15 shadow-[0_0_30px_rgba(139,92,246,0.18)]' : 'border-white/10 bg-white/[0.045] hover:bg-white/[0.08] hover:border-white/20'}`}
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-3">
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className={`text-[11px] font-black px-2 py-1 rounded-lg ${meta.resolutionColor}`}>{meta.resolution}</span>
+                        {meta.videoCodec && <span className="text-[10px] font-semibold text-white/50 bg-white/8 px-1.5 py-0.5 rounded">{meta.videoCodec}</span>}
+                        {meta.audioCodec && (
+                          <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${meta.audioCompatible ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
+                            {meta.audioCodec}
+                          </span>
+                        )}
+                        {meta.hdr && <span className="text-[10px] font-semibold text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">HDR</span>}
+                      </div>
+                      {s.addonName && activeAddon === null && (
+                        <span className="text-[10px] font-semibold text-white/30 flex-shrink-0">{s.addonName}</span>
+                      )}
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-base font-bold text-white/85 truncate">{sourceLabel}</p>
+                        <p className="mt-1 text-xs text-white/35 truncate leading-relaxed">{meta.releaseTitle}</p>
+                      </div>
+                      <div className="flex-shrink-0 text-right">
+                        {meta.sizeFmt && <p className="text-xs font-semibold text-white/45">{meta.sizeFmt}</p>}
+                        <p className={`mt-1 text-[10px] font-bold uppercase ${score > 120 ? 'text-emerald-400' : score > 60 ? 'text-yellow-300' : 'text-red-300'}`}>
+                          {score > 120 ? 'Best' : score > 60 ? 'OK' : 'Risky'}
+                        </p>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── PlayerUI (must live inside <MediaPlayer> to use useMediaState) ─────────
 
 function PlayerUI({
@@ -343,74 +460,13 @@ function PlayerUI({
 
       {/* SOURCES PANEL */}
       {showSources && (
-        <div className="absolute inset-0 z-40 flex justify-end">
-          <div className="absolute inset-0 bg-black/60" onClick={() => setShowSources(false)} />
-          <div className="relative w-[460px] max-w-[92vw] h-full bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.18),rgba(8,8,12,0.98)_42%)] border-l border-white/10 overflow-y-auto shadow-2xl backdrop-blur-2xl">
-            <div className="p-6 border-b border-white/8 sticky top-0 bg-[#090910]/90 backdrop-blur-xl z-10">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-luna-accent">Now Playing</p>
-                  <h3 className="mt-1 text-2xl font-black text-white">Sources</h3>
-                  <p className="text-sm text-white/45 mt-1">Best browser-compatible streams first</p>
-                </div>
-                <button onClick={() => setShowSources(false)} className="p-2 rounded-full bg-white/5 hover:bg-white/10">
-                  <X size={18} className="text-white/60" />
-                </button>
-              </div>
-            </div>
-
-            {sortedStreams.length === 0 ? (
-              <div className="px-4 py-12 text-center">
-                <p className="text-white/40 text-sm">{streams.length === 0 ? 'No sources found' : 'No browser-playable sources found'}</p>
-              </div>
-            ) : (
-              <div className="p-4 space-y-3">
-                {sortedStreams.map((s, i) => {
-                  const meta = parseStreamMeta(s);
-                  const sUrl = s.url || '';
-                  const activeUrl = currentStream.url || currentStream.externalUrl || '';
-                  const isActive = sUrl ? streamMatchesUrl(s, activeUrl) : s.title === currentStream.title;
-                  const sourceLabel = [meta.debrid, meta.indexer].filter(Boolean).join(' · ') || s.addonName || 'Unknown';
-                  const score = browserPlaybackScore(s);
-
-                  return (
-                    <button
-                      key={sUrl || `stream-${i}`}
-                      onClick={() => { setShowSources(false); onSwitchStream(s); }}
-                      className={`w-full text-left p-4 rounded-3xl border transition-all duration-200 ${isActive ? 'border-luna-accent/80 bg-luna-accent/15 shadow-[0_0_30px_rgba(139,92,246,0.18)]' : 'border-white/10 bg-white/[0.045] hover:bg-white/[0.08] hover:border-white/20'}`}
-                    >
-                      <div className="flex items-center justify-between gap-3 mb-3">
-                        <div className="flex items-center gap-1 flex-wrap">
-                          <span className={`text-[11px] font-black px-2 py-1 rounded-lg ${meta.resolutionColor}`}>{meta.resolution}</span>
-                          {meta.videoCodec && <span className="text-[10px] font-semibold text-white/50 bg-white/8 px-1.5 py-0.5 rounded">{meta.videoCodec}</span>}
-                          {meta.audioCodec && (
-                            <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${meta.audioCompatible ? 'text-emerald-400 bg-emerald-400/10' : 'text-red-400 bg-red-400/10'}`}>
-                              {meta.audioCodec}
-                            </span>
-                          )}
-                          {meta.hdr && <span className="text-[10px] font-semibold text-purple-400 bg-purple-400/10 px-1.5 py-0.5 rounded">HDR</span>}
-                        </div>
-                        <span className="text-xs text-white/40 font-semibold flex-shrink-0">#{i + 1}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="text-base font-bold text-white/85 truncate">{sourceLabel}</p>
-                          <p className="mt-1 text-xs text-white/35 truncate leading-relaxed">{meta.releaseTitle}</p>
-                        </div>
-                        <div className="flex-shrink-0 text-right">
-                          {meta.sizeFmt && <p className="text-xs font-semibold text-white/45">{meta.sizeFmt}</p>}
-                          <p className={`mt-1 text-[10px] font-bold uppercase ${score > 120 ? 'text-emerald-400' : score > 60 ? 'text-yellow-300' : 'text-red-300'}`}>
-                            {score > 120 ? 'Best' : score > 60 ? 'OK' : 'Risky'}
-                          </p>
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
+        <SourcesPanel
+          sortedStreams={sortedStreams}
+          streams={streams}
+          currentStream={currentStream}
+          onClose={() => setShowSources(false)}
+          onSwitchStream={(s) => { setShowSources(false); onSwitchStream(s); }}
+        />
       )}
 
       {/* AUDIO + SUBTITLES PANEL */}
