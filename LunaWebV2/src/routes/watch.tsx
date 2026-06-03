@@ -31,6 +31,13 @@ export default function WatchPage() {
   const [fetchError, setFetchError] = useState<string | null>(initialUrl ? '' : null);
   const savedPosition = useRef(0);
 
+  // Pre-warm the streaming server so it's ready if a non-direct stream is picked.
+  // Fire-and-forget — we don't care about the response.
+  useEffect(() => {
+    const serverUrl = getStreamingServerUrl();
+    if (serverUrl) fetch(`${serverUrl}/settings`, { signal: AbortSignal.timeout(10000) }).catch(() => {});
+  }, []);
+
   // Auto-fetch streams when navigated without a URL (Play button flow)
   useEffect(() => {
     if (initialUrl || authLoading) return;
