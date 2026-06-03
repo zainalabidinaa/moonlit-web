@@ -19,6 +19,7 @@ interface AuthContextType {
   createProfile: (name: string) => Promise<void>;
   deleteProfile: (profileId: string) => Promise<void>;
   refreshProfiles: () => Promise<void>;
+  refreshAddons: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -159,7 +160,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       selectProfile: handleSelectProfile,
       createProfile: handleCreateProfile,
       deleteProfile: handleDeleteProfile,
-      refreshProfiles: () => user ? loadProfiles(user.id) : Promise.resolve()
+      refreshProfiles: () => user ? loadProfiles(user.id) : Promise.resolve(),
+      refreshAddons: () => currentProfile ? loadAddons(currentProfile.id) : Promise.resolve()
     }}>
       {children}
     </AuthContext.Provider>

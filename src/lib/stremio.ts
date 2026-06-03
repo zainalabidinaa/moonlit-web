@@ -142,6 +142,26 @@ function hasResource(addon: AddonManifest, name: string): boolean {
   return !!addon.resources?.some(r => (typeof r === 'string' ? r : r.name) === name);
 }
 
+/**
+ * Returns true if the addon can provide `resourceName` for `contentType`.
+ * Checks resource-level types first (Stremio v4+ manifests), then falls
+ * back to the top-level `types` array. If neither declares types, assume
+ * the addon supports all types (some older addons omit the field entirely).
+ */
+function addonSupportsType(addon: AddonManifest, resourceName: string, contentType: string): boolean {
+  if (!addon.resources) return false;
+  for (const r of addon.resources) {
+    const rName = typeof r === 'string' ? r : r.name;
+    if (rName !== resourceName) continue;
+    // Resource found — check its declared types
+    const rTypes = typeof r === 'string' ? null : r.types;
+    if (rTypes && rTypes.length > 0) return rTypes.includes(contentType);
+    // Fall back to top-level types; if absent, assume all types supported
+    return addon.types ? addon.types.includes(contentType) : true;
+  }
+  return false;
+}
+
 export interface SubtitleItem {
   id: string;
   url: string;
@@ -200,7 +220,7 @@ export async function fetchStreamsFromAll(
 ): Promise<StreamItem[]> {
   const results = await Promise.allSettled(
     addons
-      .filter(a => a.transportUrl && hasResource(a, 'stream') && a.types?.includes(type))
+      .filter(a => a.transportUrl && addonSupportsType(a, 'stream', type))
       .map(async addon => {
         const streams = await fetchStreams(addon.transportUrl!, type, id);
         return streams.map(s => ({ ...s, addonName: addon.name, addonId: addon.id }));
