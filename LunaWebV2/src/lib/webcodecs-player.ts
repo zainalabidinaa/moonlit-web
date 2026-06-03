@@ -1,17 +1,9 @@
 /**
  * Client-side MKV/any-container player using web-demuxer (WebAssembly) + WebCodecs.
- * Replaces the Render remux server for incompatible streams — no cold start, no round-trip.
- *
- * Architecture:
- *  web-demuxer (WASM) → raw encoded packets
- *  VideoDecoder       → VideoFrame → Canvas 2D
- *  AudioDecoder       → AudioData  → AudioContext (scheduled AudioBufferSourceNodes)
- *
- * A/V sync: AudioContext.currentTime is the clock; video frames are scheduled
- * relative to it so they render at the correct wall-clock time.
+ * Uses the library's built-in helpers: getDecoderConfig() + read() + genEncodedChunk().
  */
 
-import { WebDemuxer, AVMediaType } from 'web-demuxer';
+import { WebDemuxer } from 'web-demuxer';
 
 export interface WebCodecsPlayerState {
   duration: number;
@@ -23,8 +15,6 @@ export interface WebCodecsPlayerState {
 
 type StateListener = (state: WebCodecsPlayerState) => void;
 
-const WASM_PATH = '/web-demuxer-mini.wasm';
-
 export class WebCodecsPlayerEngine {
   private demuxer: WebDemuxer | null = null;
   private videoDecoder: VideoDecoder | null = null;
@@ -34,22 +24,14 @@ export class WebCodecsPlayerEngine {
   private ctx: CanvasRenderingContext2D | null = null;
 
   private _state: WebCodecsPlayerState = {
-    duration: 0,
-    currentTime: 0,
-    isPlaying: false,
-    isReady: false,
-    error: null,
+    duration: 0, currentTime: 0, isPlaying: false, isReady: false, error: null,
   };
 
   private listeners = new Set<StateListener>();
   private pumpAbort: AbortController | null = null;
-  // When playback started: audioCtx.currentTime at that moment
   private audioStartTime = 0;
-  // PTS offset: the stream PTS value that corresponds to audioStartTime
   private ptsOffset = 0;
   private videoPaused = false;
-
-  // ── Public API ───────────────────────────────────────────────────────────
 
   subscribe(fn: StateListener) {
     this.listeners.add(fn);
@@ -63,32 +45,32 @@ export class WebCodecsPlayerEngine {
     this.audioCtx = new AudioContext();
 
     try {
-      this.demuxer = new WebDemuxer({ wasmLoaderPath: WASM_PATH });
-      // Proxy through Vercel to handle CORS
+      this.demuxer = new WebDemuxer({ wasmFilePath: '/web-demuxer-mini.wasm' });
       const proxied = `/api/media-proxy?url=${encodeURIComponent(url)}`;
       await this.demuxer.load(proxied);
 
-      const videoStream = await this.demuxer.getAVStream(AVMediaType.AVMEDIA_TYPE_VIDEO);
-      const audioStream = await this.demuxer.getAVStream(AVMediaType.AVMEDIA_TYPE_AUDIO).catch(() => null);
+      // Use library helpers for decoder config
+      const videoConfig = await this.demuxer.getDecoderConfig('video');
+      const audioConfig = await this.demuxer.getDecoderConfig('audio').catch(() => null);
 
-      canvas.width = videoStream.codecpar.width;
-      canvas.height = videoStream.codecpar.height;
+      const videoStream = await this.demuxer.getMediaStream('video');
+      canvas.width = videoStream.width || 1920;
+      canvas.height = videoStream.height || 1080;
 
-      this._setupVideoDecoder(videoStream);
-      if (audioStream) this._setupAudioDecoder(audioStream);
+      this._setupVideoDecoder(videoConfig as VideoDecoderConfig);
+      if (audioConfig) this._setupAudioDecoder(audioConfig as AudioDecoderConfig);
 
-      const duration = videoStream.duration ?? 0;
-      this._setState({ duration, isReady: true });
+      this._setState({ duration: videoStream.duration, isReady: true });
     } catch (e) {
-      this._setState({ error: String(e) });
+      this._setState({ error: `Failed to load: ${e}` });
     }
   }
 
   play() {
     if (!this._state.isReady || this._state.isPlaying) return;
     this.audioCtx?.resume();
-    this._setState({ isPlaying: true });
     this.videoPaused = false;
+    this._setState({ isPlaying: true });
     this._startPump(this._state.currentTime);
   }
 
@@ -106,8 +88,8 @@ export class WebCodecsPlayerEngine {
     this.audioDecoder?.flush();
     this._setState({ currentTime: time, isPlaying: false });
     if (wasPlaying) {
-      this._setState({ isPlaying: true });
       this.videoPaused = false;
+      this._setState({ isPlaying: true });
       this._startPump(time);
     }
   }
@@ -117,7 +99,7 @@ export class WebCodecsPlayerEngine {
     this.videoDecoder?.close();
     this.audioDecoder?.close();
     this.audioCtx?.close();
-    this.demuxer?.destroy?.();
+    this.demuxer?.destroy();
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────
@@ -127,33 +109,22 @@ export class WebCodecsPlayerEngine {
     this.listeners.forEach(fn => fn(this._state));
   }
 
-  private _setupVideoDecoder(stream: any) {
+  private _setupVideoDecoder(config: VideoDecoderConfig) {
     this.videoDecoder = new VideoDecoder({
       output: (frame) => this._onVideoFrame(frame),
       error: (e) => this._setState({ error: `Video decoder: ${e.message}` }),
     });
-    this.videoDecoder.configure({
-      codec: stream.codecpar.codecString ?? 'avc1.64001f',
-      codedWidth: stream.codecpar.width,
-      codedHeight: stream.codecpar.height,
-      ...(stream.codecpar.extradata?.byteLength ? { description: stream.codecpar.extradata } : {}),
-    });
+    this.videoDecoder.configure(config);
   }
 
-  private _setupAudioDecoder(stream: any) {
-    this.audioDecoder = new AudioDecoder({
-      output: (data) => this._onAudioData(data),
-      error: (e) => console.warn('Audio decoder:', e.message),
-    });
+  private _setupAudioDecoder(config: AudioDecoderConfig) {
     try {
-      this.audioDecoder.configure({
-        codec: stream.codecpar.codecString ?? 'mp4a.40.2',
-        sampleRate: stream.codecpar.sampleRate,
-        numberOfChannels: stream.codecpar.channels,
-        ...(stream.codecpar.extradata?.byteLength ? { description: stream.codecpar.extradata } : {}),
+      this.audioDecoder = new AudioDecoder({
+        output: (data) => this._onAudioData(data),
+        error: (e) => console.warn('Audio decoder:', e.message),
       });
+      this.audioDecoder.configure(config);
     } catch {
-      // Audio codec unsupported — video-only playback
       this.audioDecoder = null;
     }
   }
@@ -163,8 +134,8 @@ export class WebCodecsPlayerEngine {
 
     const ptsSec = (frame.timestamp ?? 0) / 1e6;
     const now = this.audioCtx!.currentTime;
-    const expectedTime = this.audioStartTime + (ptsSec - this.ptsOffset);
-    const delay = (expectedTime - now) * 1000;
+    const expectedAt = this.audioStartTime + (ptsSec - this.ptsOffset);
+    const delayMs = (expectedAt - now) * 1000;
 
     const render = () => {
       if (this.videoPaused) { frame.close(); return; }
@@ -173,34 +144,25 @@ export class WebCodecsPlayerEngine {
       this._setState({ currentTime: ptsSec });
     };
 
-    if (delay > 10) {
-      setTimeout(render, delay);
-    } else {
-      render();
-    }
+    if (delayMs > 10) setTimeout(render, delayMs);
+    else render();
   }
 
   private _onAudioData(data: AudioData) {
     if (!this.audioCtx) { data.close(); return; }
-
-    const buffer = this.audioCtx.createBuffer(
-      data.numberOfChannels,
-      data.numberOfFrames,
-      data.sampleRate,
-    );
-    for (let ch = 0; ch < data.numberOfChannels; ch++) {
-      const dest = buffer.getChannelData(ch);
-      data.copyTo(dest, { planeIndex: ch, format: 'f32-planar' });
-    }
-    data.close();
-
-    const source = this.audioCtx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(this.audioCtx.destination);
-
-    const ptsSec = (data.timestamp ?? 0) / 1e6;
-    const scheduleAt = this.audioStartTime + (ptsSec - this.ptsOffset);
-    source.start(Math.max(scheduleAt, this.audioCtx.currentTime));
+    try {
+      const buf = this.audioCtx.createBuffer(data.numberOfChannels, data.numberOfFrames, data.sampleRate);
+      for (let ch = 0; ch < data.numberOfChannels; ch++) {
+        data.copyTo(buf.getChannelData(ch), { planeIndex: ch, format: 'f32-planar' });
+      }
+      data.close();
+      const src = this.audioCtx.createBufferSource();
+      src.buffer = buf;
+      src.connect(this.audioCtx.destination);
+      const ptsSec = (data.timestamp ?? 0) / 1e6;
+      const scheduleAt = this.audioStartTime + (ptsSec - this.ptsOffset);
+      src.start(Math.max(scheduleAt, this.audioCtx.currentTime));
+    } catch { data.close(); }
   }
 
   private async _startPump(fromTime: number) {
@@ -208,52 +170,41 @@ export class WebCodecsPlayerEngine {
     this.pumpAbort = new AbortController();
     const signal = this.pumpAbort.signal;
 
-    // Sync clocks: record current audio time as the reference for PTS fromTime
     this.audioStartTime = this.audioCtx!.currentTime;
     this.ptsOffset = fromTime;
 
-    const CHUNK_SECS = 10;
+    const CHUNK = 10;
     let cursor = fromTime;
 
     try {
-      while (!signal.aborted) {
-        const end = cursor + CHUNK_SECS;
+      while (!signal.aborted && cursor < this._state.duration) {
+        const end = cursor + CHUNK;
 
-        // Video packets
-        if (this.videoDecoder) {
-          for await (const pkt of this.demuxer.readAVPacket(cursor, end, AVMediaType.AVMEDIA_TYPE_VIDEO)) {
-            if (signal.aborted) return;
-            this.videoDecoder.decode(new EncodedVideoChunk({
-              type: pkt.flags === 1 ? 'key' : 'delta',
-              timestamp: pkt.pts,
-              duration: pkt.duration,
-              data: pkt.data,
-            }));
-          }
+        // read() returns ReadableStream<EncodedVideoChunk | EncodedAudioChunk>
+        const videoStream = this.demuxer.read('video', cursor, end);
+        const reader = videoStream.getReader();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done || signal.aborted) break;
+          this.videoDecoder?.decode(value as EncodedVideoChunk);
         }
+        reader.releaseLock();
 
-        // Audio packets
         if (this.audioDecoder) {
-          for await (const pkt of this.demuxer.readAVPacket(cursor, end, AVMediaType.AVMEDIA_TYPE_AUDIO)) {
-            if (signal.aborted) return;
-            this.audioDecoder.decode(new EncodedAudioChunk({
-              type: 'key',
-              timestamp: pkt.pts,
-              duration: pkt.duration,
-              data: pkt.data,
-            }));
+          const audioStream = this.demuxer.read('audio', cursor, end);
+          const areader = audioStream.getReader();
+          while (true) {
+            const { done, value } = await areader.read();
+            if (done || signal.aborted) break;
+            this.audioDecoder.decode(value as EncodedAudioChunk);
           }
+          areader.releaseLock();
         }
 
         cursor = end;
-        if (cursor >= this._state.duration) break;
-
-        // Pace the pump: wait until we're ~3s from the end of the decoded window
-        // so we don't flood the decoder with the whole file at once
-        await new Promise<void>(resolve => setTimeout(resolve, (CHUNK_SECS - 3) * 1000));
+        // Pace: wait until ~3s before end of decoded window so we don't flood the decoder
+        if (!signal.aborted) await new Promise<void>(r => setTimeout(r, (CHUNK - 3) * 1000));
       }
-    } catch {
-      // Pump aborted or stream ended — normal
-    }
+    } catch { /* pump stopped */ }
   }
 }
