@@ -50,19 +50,17 @@ export default function WatchPage() {
     }
 
     let cancelled = false;
-    // Still fetch in the background to refresh the list, but if we have cached
-    // streams we already set fetchError='' so the player shows immediately.
     if (!hasCachedStreams) setFetchError(null);
 
     (async () => {
       try {
-        const fetched = hasCachedStreams ? cachedStreams : await fetchStreamsFromAll(type, id, addons);
+        // Always fetch fresh — if we had cached streams they were used to start
+        // playback immediately, but we still refresh so newly-added addons appear.
+        const fetched = await fetchStreamsFromAll(type, id, addons);
         if (cancelled) return;
-        if (!hasCachedStreams) {
-          const cacheKey = `${type}:${id}`;
-          cacheStreams(cacheKey, fetched);
-          setAllStreams(fetched);
-        }
+        const cacheKey = `${type}:${id}`;
+        cacheStreams(cacheKey, fetched);
+        setAllStreams(fetched);
 
         const best = sortStreamsForBrowserPlayback(fetched)[0];
         if (best) {

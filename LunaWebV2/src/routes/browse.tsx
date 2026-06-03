@@ -103,13 +103,15 @@ export default function DetailPage() {
   }
 
   // Background prefetch: start fetching streams as soon as the page loads so
-  // clicking Play is instant instead of waiting for addon responses.
+  // clicking Play is instant. Re-runs when addons change (e.g. newly installed).
   useEffect(() => {
     if (!addons.length) return;
     const sid = selectedEpisodeId || id;
     const cacheKey = `${type}:${sid}`;
-    if (prefetchedRef.current === cacheKey) return;
-    prefetchedRef.current = cacheKey;
+    const addonKey = addons.map(a => a.id).join(',');
+    const fullKey = `${cacheKey}:${addonKey}`;
+    if (prefetchedRef.current === fullKey) return;
+    prefetchedRef.current = fullKey;
     fetchStreamsFromAll(type, sid, addons).then(fetched => {
       if (fetched.length > 0) cacheStreams(cacheKey, fetched);
     }).catch(() => {});
