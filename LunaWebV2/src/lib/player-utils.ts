@@ -40,7 +40,11 @@ export function sortStreamsForBrowserPlayback(streams: StreamItem[]): StreamItem
 }
 
 const HLS_URL_PATTERNS = ['.m3u8', '.m3u', '/manifest', '/playlist', '/hls/', 'type=hls'];
-const HLS_DOMAIN_PATTERNS = ['real-debrid.com', 'alldebrid.com', 'premiumize.me', 'debrid.it', 'debrid.net'];
+// Debrid domains removed — they primarily serve MP4 files (not HLS manifests).
+// Type is now resolved by the client-side probe in stream-resolver.ts which
+// follows redirects and reads the actual content. Keeping domain guesses here
+// caused Vidstack to always try HLS first for debrid links, wasting a round-trip.
+const HLS_DOMAIN_PATTERNS: string[] = [];
 
 export function getInitialSourceType(url: string, stream?: Pick<StreamItem, 'behaviorHints'>): VidstackSourceType {
   if (stream?.behaviorHints?.webPlayableType) return stream.behaviorHints.webPlayableType;

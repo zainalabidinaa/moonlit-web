@@ -6,6 +6,7 @@ import { StreamItem } from '@/lib/types';
 import { SubtitleItem, fetchSubtitlesFromAll, fetchStreamsFromAll } from '@/lib/stremio';
 import { getCachedStreams, getCachedStream, cacheStreams } from '@/lib/stream-cache';
 import { getPlayableStreamUrl, sortStreamsForBrowserPlayback } from '@/lib/player-utils';
+import { probeStreamClient } from '@/lib/stream-resolver';
 import { ChevronLeft } from 'lucide-react';
 
 export default function WatchPage() {
@@ -45,8 +46,20 @@ export default function WatchPage() {
 
       const best = sortStreamsForBrowserPlayback(fetched)[0];
       if (best) {
-        setActiveStream(best);
-        setActiveUrl(getPlayableStreamUrl(best) ?? '');
+        const rawUrl = getPlayableStreamUrl(best) ?? '';
+        // Client-side probe: runs from browser (user's IP/session), so debrid
+        // IP-lock doesn't apply. Gets final CDN URL after redirects + real type.
+        // Race against 2.5s so a slow probe doesn't delay the player.
+        const probe = await Promise.race([
+          probeStreamClient(rawUrl),
+          new Promise<null>(r => setTimeout(() => r(null), 2500)),
+        ]);
+        const finalUrl = probe?.finalUrl ?? rawUrl;
+        const streamWithProbe = probe
+          ? { ...best, url: finalUrl, behaviorHints: { ...best.behaviorHints, webPlayableType: probe.type } }
+          : best;
+        setActiveStream(streamWithProbe);
+        setActiveUrl(finalUrl);
         setFetchError('');
       } else {
         setFetchError('No playable sources found for this title.');
