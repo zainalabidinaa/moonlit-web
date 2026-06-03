@@ -49,20 +49,20 @@ export default function WatchPage() {
         const best = sortStreamsForBrowserPlayback(fetched)[0];
         if (best) {
           const rawUrl = getPlayableStreamUrl(best) ?? '';
-          // Client-side probe: runs from browser (user's IP/session), so debrid
-          // IP-lock doesn't apply. Gets final CDN URL after redirects + real type.
-          // Race against 2.5s so a slow probe doesn't delay the player.
+          // Probe for type detection only — NEVER use probe.finalUrl.
+          // Debrid CDN URLs (returned after following redirects) have short
+          // expiry times and become stale by the time the player uses them.
+          // Always keep the original URL so the player gets a fresh redirect.
           const probe = await Promise.race([
             probeStreamClient(rawUrl, { headers: best.behaviorHints?.proxyHeaders?.request }),
             new Promise<null>(r => setTimeout(() => r(null), 2500)),
           ]);
           if (cancelled) return;
-          const finalUrl = probe?.finalUrl ?? rawUrl;
-          const streamWithProbe = probe
-            ? { ...best, url: finalUrl, behaviorHints: { ...best.behaviorHints, webPlayableType: probe.type } }
+          const streamWithType = probe?.type
+            ? { ...best, behaviorHints: { ...best.behaviorHints, webPlayableType: probe.type } }
             : best;
-          setActiveStream(streamWithProbe);
-          setActiveUrl(finalUrl);
+          setActiveStream(streamWithType);
+          setActiveUrl(rawUrl);
           setFetchError('');
         } else {
           setFetchError('No playable sources found for this title.');
