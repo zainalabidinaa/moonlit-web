@@ -14,7 +14,7 @@ const STORAGE_KEY = 'luna_streaming_server_url';
 
 // Set this to your deployed Railway/Render URL to make it the default for everyone.
 // e.g. 'https://luna-stremio-server.up.railway.app'
-const DEFAULT_STREAMING_SERVER_URL = '';
+const DEFAULT_STREAMING_SERVER_URL = 'https://server-fuqr.onrender.com';
 
 /** Returns the configured remux server base URL (no trailing slash), or '' if disabled. */
 export function getStreamingServerUrl(): string {

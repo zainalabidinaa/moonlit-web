@@ -54,13 +54,20 @@ export default function WatchPage() {
           const tier = getStreamCompatibility(best);
           console.log(`[watch] stream tier: ${tier} | server: ${serverUrl ? 'configured' : 'none'}`);
 
-          if (serverUrl && tier !== 'direct') {
+          // Mixed content: HTTP stream on an HTTPS page → browser will block it.
+          // Route through the server even for direct-tier streams in this case.
+          const isMixedContent = serverUrl && rawUrl.startsWith('http:') && window.location.protocol === 'https:';
+
+          if (serverUrl && (tier !== 'direct' || isMixedContent)) {
             // Tier 2 (remux): container wrong, codecs fine → broad codec list,
             //   server copies all streams — fast (~1s extra).
             // Tier 3 (transcode): codecs need conversion → browser-detected list,
             //   server re-encodes only what's needed.
-            const remuxed = buildRemuxUrl(serverUrl, rawUrl, tier);
-            console.log(`[watch] routing via server (${tier}): ${remuxed}`);
+            // Tier 1 (direct) via server: mixed-content bypass — server proxies
+            //   the HTTP stream over HTTPS so the browser accepts it.
+            const effectiveTier = tier === 'direct' ? 'remux' : tier;
+            const remuxed = buildRemuxUrl(serverUrl, rawUrl, effectiveTier);
+            console.log(`[watch] routing via server (${effectiveTier}): ${remuxed}`);
             setActiveStream({
               ...best,
               behaviorHints: { ...best.behaviorHints, webPlayableType: 'application/x-mpegurl' },
