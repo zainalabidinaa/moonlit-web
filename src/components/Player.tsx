@@ -241,7 +241,7 @@ function SourcesPanel({
 
 function PlayerUI({
   title, mediaLogo, currentStream, streams, subtitles,
-  mediaId, mediaType, onBack, onSwitchStream, onPlaybackStalled, openSources, showControlsRef, playerRef,
+  mediaId, mediaType, onBack, onSwitchStream, onPlaybackStalled, openSources, showControlsRef, playerRef, suppressErrorRef,
 }: {
   title: string;
   mediaLogo?: string;
@@ -256,6 +256,7 @@ function PlayerUI({
   openSources?: boolean;
   showControlsRef?: React.MutableRefObject<(() => void) | null>;
   playerRef: React.RefObject<MediaPlayerInstance | null>;
+  suppressErrorRef: React.MutableRefObject<boolean>;
 }) {
   const paused = useMediaState('paused');
   const waiting = useMediaState('waiting');
@@ -548,6 +549,7 @@ export default function Player({
 }: PlayerProps) {
   const playerRef = useRef<MediaPlayerInstance>(null);
   const savedFailoverPosition = useRef(0);
+  const suppressErrorRef = useRef(false);
   const { currentProfile } = useAuth();
 
   const [srcType, setSrcType] = useState<VidstackSourceType>(() => getInitialSourceType(streamUrl, currentStream));
@@ -709,6 +711,7 @@ export default function Player({
           onPlaybackStalled={onError}
           openSources={forceOpenSources}
           showControlsRef={showControlsRef}
+          suppressErrorRef={suppressErrorRef}
           playerRef={playerRef}
         />
       </MediaPlayer>
