@@ -65,7 +65,12 @@ export function getStreamCompatibility(stream: StreamItem): StreamTier {
     text.includes('hevc') || text.includes('h.265') || text.includes('h265') || text.includes('x265') ||
     text.includes('dolby vision') || text.includes('[dv]') || / dv[ \].]/.test(text);
   const badAudio =
-    text.includes('truehd') || text.includes('atmos') || text.includes('dts');
+    text.includes('truehd') || text.includes('atmos') || text.includes('dts') ||
+    // EAC3/DDP — Dolby Digital Plus, typically 5.1ch — not reliably decodable
+    // in browsers (Chrome requires OS-level codec support, Firefox doesn't support it).
+    // The remux server dowmixes to AAC stereo which works everywhere.
+    text.includes('eac3') || text.includes('e-ac3') || text.includes('dd+') ||
+    text.includes('ddp') || text.includes('ddp5') || text.includes('dd5');
 
   if (badVideo || badAudio) return 'transcode';
 
