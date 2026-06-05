@@ -1,17 +1,22 @@
 import SwiftUI
 
+@MainActor
 public struct LunaTheme {
-    public static let primary = Color.purple
-    public static let secondary = Color.indigo
-    public static let accent = Color(red: 0.8, green: 0.4, blue: 1.0)
+    public static var primary: Color { ThemeManager.shared.accent }
+    public static var secondary: Color { ThemeManager.shared.palette.primaryVariant }
+    public static var accent: Color { ThemeManager.shared.accent }
 
-    public static let background = Color(hex: "080808")
-    public static let surface = Color(hex: "111111")
-    public static let surfaceElevated = Color(hex: "1c1c1e")
+    public static var background: Color { ThemeManager.shared.background }
+    public static var surface: Color { ThemeManager.shared.surface }
+    public static var surfaceElevated: Color { ThemeManager.shared.surfaceElevated }
+    public static var surfaceContainer: Color { ThemeManager.shared.surfaceContainer }
 
-    public static let textPrimary = Color.white
-    public static let textSecondary = Color.white.opacity(0.7)
-    public static let textTertiary = Color.white.opacity(0.5)
+    public static var textPrimary: Color { .white }
+    public static var textSecondary: Color { .white.opacity(0.7) }
+    public static var textTertiary: Color { .white.opacity(0.5) }
+    public static var outline: Color { .white.opacity(0.08) }
+    public static var focusRing: Color { ThemeManager.shared.focusRing }
+    public static var focusBackground: Color { ThemeManager.shared.focusBackground }
 
     /// Top clearance for content sitting beneath the floating pill navbar.
     public static let navBarTopInset: CGFloat = 64
@@ -51,7 +56,7 @@ public enum AppCardSurface {
     case darkGlass
 }
 
-@available(iOS 26, *)
+@available(iOS 26, macOS 26, *)
 private struct GlassCardModifier: ViewModifier {
     let cornerRadius: CGFloat
     let interactive: Bool
@@ -82,7 +87,7 @@ private struct GlassCardFallback: ViewModifier {
     }
 }
 
-@available(iOS 26, *)
+@available(iOS 26, macOS 26, *)
 private struct GlassCapsuleModifier: ViewModifier {
     let interactive: Bool
     let clear: Bool
@@ -126,7 +131,7 @@ private struct GlassCapsuleFallback: ViewModifier {
     }
 }
 
-@available(iOS 26, *)
+@available(iOS 26, macOS 26, *)
 private struct GlassCircleModifier: ViewModifier {
     let clear: Bool
 
@@ -162,7 +167,7 @@ private struct GlassCircleFallback: ViewModifier {
 extension View {
     @ViewBuilder
     public func glassCard(cornerRadius: CGFloat = 12, interactive: Bool = false) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             self.modifier(GlassCardModifier(cornerRadius: cornerRadius, interactive: interactive))
         } else {
             self.modifier(GlassCardFallback(cornerRadius: cornerRadius))
@@ -171,7 +176,7 @@ extension View {
 
     @ViewBuilder
     public func glassCapsule(interactive: Bool = false, clear: Bool = false) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             self.modifier(GlassCapsuleModifier(interactive: interactive, clear: clear))
         } else {
             self.modifier(GlassCapsuleFallback(clear: clear))
@@ -180,7 +185,7 @@ extension View {
 
     @ViewBuilder
     public func glassCircle(clear: Bool = false) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             self.modifier(GlassCircleModifier(clear: clear))
         } else {
             self.modifier(GlassCircleFallback(clear: clear))
@@ -192,7 +197,7 @@ extension View {
         surfaceStyle: AppCardSurface = .regular,
         cornerRadius: CGFloat = 14
     ) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             switch surfaceStyle {
             case .regular:
                 self.glassEffect(
@@ -217,7 +222,7 @@ extension View {
         tint: Color = LunaTheme.accent,
         cornerRadius: CGFloat = 14
     ) -> some View {
-        if #available(iOS 26, *) {
+        if #available(iOS 26, macOS 26, *) {
             self.buttonStyle(.glassProminent)
                 .tint(tint)
         } else {
