@@ -3,34 +3,50 @@ import AVKit
 import LunaCore
 
 struct PlayerScreen: View {
-    let streamURL: URL
-    let title: String
+    let launch: PlayerLaunch
     let onDismiss: () -> Void
 
-    @State private var player = AVPlayer()
+    @StateObject private var engine = PlayerEngine.shared
     @State private var showControls = true
-    @State private var currentTime: TimeInterval = 0
-    @State private var duration: TimeInterval = 1
-    @State private var isPlaying = false
-    @State private var playbackSpeed: Float = 1.0
+    @State private var gestureState = PlayerGestureState()
+    @State private var isLocked = false
+    @State private var showUnlockHint = false
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            CustomPlayerView(player: player)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        showControls.toggle()
-                    }
+            if let player = engine.player {
+                EnginePlayerView(player: player)
+                    .ignoresSafeArea()
+                    .playerGestures(
+                        engine: engine,
+                        state: $gestureState,
+                        showControls: $showControls,
+                        isLocked: $isLocked
+                    )
+            } else if engine.isLoading {
+                VStack(spacing: 12) {
+                    ProgressView().tint(.white)
+                    Text("Loading...")
+                        .font(.subheadline)
+                        .foregroundColor(LunaTheme.textSecondary)
                 }
+            }
 
-            if showControls {
+            PlayerFeedbackPill(mode: gestureState.mode, value: feedbackText)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+
+            PlayerLockMode(isLocked: $isLocked, showHint: $showUnlockHint)
+
+            if showControls && !isLocked {
                 VStack {
                     // Top bar
                     HStack {
-                        Button { onDismiss() } label: {
+                        Button {
+                            engine.stop()
+                            onDismiss()
+                        } label: {
                             Image(systemName: "xmark")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
@@ -41,17 +57,30 @@ struct PlayerScreen: View {
                         Spacer()
 
                         VStack(spacing: 2) {
-                            Text(title)
+                            Text(launch.title)
                                 .font(.headline)
                                 .foregroundColor(.white)
-                            Text(timeRemaining)
-                                .font(.caption)
-                                .foregroundColor(LunaTheme.textSecondary)
+                                .lineLimit(1)
+                            if engine.duration > 0 {
+                                Text(timeRemaining)
+                                    .font(.caption)
+                                    .foregroundColor(LunaTheme.textSecondary)
+                            }
                         }
 
                         Spacer()
 
-                        Button { /* ellipsis menu */ } label: {
+                        Button {
+                            withAnimation { isLocked.toggle() }
+                        } label: {
+                            Image(systemName: isLocked ? "lock.fill" : "lock.open")
+                                .font(.system(size: 16, weight: .semibold))
+                                .foregroundColor(.white)
+                                .frame(width: 40, height: 40)
+                        }
+                        .glassCircle(clear: true)
+
+                        Button { /* ellipsis */ } label: {
                             Image(systemName: "ellipsis")
                                 .font(.system(size: 16, weight: .semibold))
                                 .foregroundColor(.white)
@@ -64,20 +93,6 @@ struct PlayerScreen: View {
 
                     Spacer()
 
-                    // Center play/pause
-                    Button {
-                        togglePlayPause()
-                    } label: {
-                        Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                            .font(.system(size: 28))
-                            .foregroundColor(.white)
-                            .frame(width: 64, height: 64)
-                    }
-                    .glassCircle(clear: true)
-                    .contentTransition(.symbolEffect(.replace))
-
-                    Spacer()
-
                     // Bottom transport
                     VStack(spacing: 12) {
                         // Progress
@@ -85,10 +100,10 @@ struct PlayerScreen: View {
                             if #available(iOS 26, *) {
                                 Slider(
                                     value: Binding(
-                                        get: { currentTime },
-                                        set: { seek(to: $0) }
+                                        get: { engine.currentPosition },
+                                        set: { engine.seek(to: $0) }
                                     ),
-                                    in: 0...max(duration, 1)
+                                    in: 0...max(engine.duration, 1)
                                 )
                                 .labelsHidden()
                                 .tint(.white)
@@ -102,16 +117,16 @@ struct PlayerScreen: View {
                                         Capsule()
                                             .fill(Color.white)
                                             .frame(
-                                                width: duration > 0
-                                                    ? geo.size.width * (currentTime / duration)
+                                                width: engine.duration > 0
+                                                    ? min(geo.size.width * (engine.currentPosition / max(engine.duration, 0.001)), geo.size.width)
                                                     : 0,
                                                 height: 4
                                             )
                                         Circle()
                                             .fill(.white)
                                             .frame(width: 14, height: 14)
-                                            .offset(x: duration > 0
-                                                ? geo.size.width * (currentTime / duration) - 7
+                                            .offset(x: engine.duration > 0
+                                                ? min(geo.size.width * (engine.currentPosition / max(engine.duration, 0.001)) - 7, geo.size.width - 7)
                                                 : -7)
                                     }
                                 }
@@ -119,74 +134,21 @@ struct PlayerScreen: View {
                             }
 
                             HStack {
-                                Text(formatTime(currentTime))
+                                Text(formatTime(engine.currentPosition))
                                 Spacer()
-                                Text("-\(formatTime(max(duration - currentTime, 0)))")
+                                Text("-\(formatTime(max(engine.duration - engine.currentPosition, 0)))")
                             }
                             .font(.caption)
                             .foregroundColor(LunaTheme.textSecondary)
                         }
 
-                        // Transport pill
-                        HStack(spacing: 0) {
-                            Button {
-                                playbackSpeed = max(0.5, playbackSpeed - 0.25)
-                                player.rate = playbackSpeed
-                            } label: {
-                                Text("\(playbackSpeed, specifier: "%.2f")x")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 36)
-                            }
-                            .glassCapsule(interactive: true, clear: true)
-
-                            Spacer()
-
-                            HStack(spacing: 24) {
-                                Button {
-                                    seek(by: -15)
-                                } label: {
-                                    Image(systemName: "gobackward.15")
-                                        .font(.title3)
-                                        .foregroundColor(.white)
-                                }
-
-                                Button {
-                                    togglePlayPause()
-                                } label: {
-                                    Image(systemName: isPlaying ? "pause.fill" : "play.fill")
-                                        .font(.title2)
-                                        .foregroundColor(.white)
-                                        .frame(width: 44, height: 44)
-                                }
-                                .glassCircle(clear: true)
-                                .contentTransition(.symbolEffect(.replace))
-
-                                Button {
-                                    seek(by: 30)
-                                } label: {
-                                    Image(systemName: "goforward.30")
-                                        .font(.title3)
-                                        .foregroundColor(.white)
-                                }
-                            }
-
-                            Spacer()
-
-                            Button {
-                                player.isMuted.toggle()
-                            } label: {
-                                Image(systemName: player.isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                                    .font(.system(size: 16))
-                                    .foregroundColor(.white)
-                                    .frame(width: 44, height: 36)
-                            }
-                            .glassCapsule(interactive: true, clear: true)
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .glassCard(cornerRadius: 18)
-                        .padding(.horizontal, 8)
+                        PlayerBottomBar(
+                            engine: engine,
+                            hasMultipleSources: true,
+                            hasEpisodes: launch.seasonNumber != nil,
+                            hasExternalUrl: false
+                        )
+                        .padding(.bottom, 40)
                     }
                     .padding(.bottom, 40)
                 }
@@ -194,18 +156,29 @@ struct PlayerScreen: View {
         }
         .preferredColorScheme(.dark)
         .onAppear {
-            player.replaceCurrentItem(with: AVPlayerItem(url: streamURL))
-            player.play()
-            isPlaying = true
-            setupTimeObserver()
+            engine.launch(launch)
+            engine.play()
         }
         .onDisappear {
-            player.pause()
+            engine.stop()
+        }
+    }
+
+    private var feedbackText: String {
+        switch gestureState.mode {
+        case .brightness: return "\(Int(gestureState.value * 100))%"
+        case .volume: return "\(Int(gestureState.value * 100))%"
+        case .horizontalSeek:
+            let h = Int(gestureState.value) / 3600
+            let m = (Int(gestureState.value) % 3600) / 60
+            let s = Int(gestureState.value) % 60
+            return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
+        case .none: return ""
         }
     }
 
     private var timeRemaining: String {
-        let remaining = max(duration - currentTime, 0)
+        let remaining = max(engine.duration - engine.currentPosition, 0)
         let hours = Int(remaining) / 3600
         let minutes = (Int(remaining) % 3600) / 60
         let seconds = Int(remaining) % 60
@@ -213,24 +186,6 @@ struct PlayerScreen: View {
             return "\(hours):\(String(format: "%02d", minutes)):\(String(format: "%02d", seconds)) remaining"
         }
         return "\(minutes):\(String(format: "%02d", seconds)) remaining"
-    }
-
-    private func togglePlayPause() {
-        if isPlaying {
-            player.pause()
-        } else {
-            player.play()
-        }
-        isPlaying.toggle()
-    }
-
-    private func seek(to time: TimeInterval) {
-        player.seek(to: CMTime(seconds: time, preferredTimescale: 600))
-    }
-
-    private func seek(by seconds: Double) {
-        let newTime = max(0, min(currentTime + seconds, duration))
-        seek(to: newTime)
     }
 
     private func formatTime(_ time: TimeInterval) -> String {
@@ -242,22 +197,11 @@ struct PlayerScreen: View {
         }
         return "\(minutes):\(String(format: "%02d", seconds))"
     }
-
-    private func setupTimeObserver() {
-        let interval = CMTime(seconds: 0.5, preferredTimescale: 600)
-        player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
-            currentTime = time.seconds
-            if let item = player.currentItem {
-                duration = item.duration.seconds.isFinite ? item.duration.seconds : 0
-            }
-            isPlaying = player.rate > 0
-        }
-    }
 }
 
 // MARK: - AVPlayer UIKit Wrapper
 
-struct CustomPlayerView: UIViewControllerRepresentable {
+struct EnginePlayerView: UIViewControllerRepresentable {
     let player: AVPlayer
 
     func makeUIViewController(context: Context) -> AVPlayerViewController {
