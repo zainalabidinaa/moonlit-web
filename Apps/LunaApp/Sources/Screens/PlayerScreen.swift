@@ -220,19 +220,6 @@ struct PlayerScreen: View {
         ksEngine.$isMuted.assign(to: &engine.$isMuted)
     }
 
-    private var feedbackText: String {
-        switch gestureState.mode {
-        case .brightness: return "\(Int(gestureState.value * 100))%"
-        case .volume: return "\(Int(gestureState.value * 100))%"
-        case .horizontalSeek:
-            let h = Int(gestureState.value) / 3600
-            let m = (Int(gestureState.value) % 3600) / 60
-            let s = Int(gestureState.value) % 60
-            return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
-        case .none: return ""
-        }
-    }
-
     private var timeRemaining: String {
         let remaining = max(engine.duration - engine.currentPosition, 0)
         let hours = Int(remaining) / 3600

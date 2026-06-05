@@ -31,9 +31,6 @@ settings:
 packages:
   LunaCore:
     path: ../../Packages/LunaCore
-  KSPlayer:
-    url: https://github.com/kingslay/KSPlayer.git
-    branch: main
 
 targets:
   LunaApp:
@@ -44,7 +41,6 @@ targets:
       - path: Resources
     dependencies:
       - package: LunaCore
-      - package: KSPlayer
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "com.luna.app"
