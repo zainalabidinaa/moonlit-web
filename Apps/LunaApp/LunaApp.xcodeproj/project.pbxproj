@@ -31,7 +31,6 @@
 		841BF9362FC8E57647EAA2D5 /* KSPlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEA63A80299BEF7BA301579F /* KSPlayerEngine.swift */; };
 		866E29F0C4009F2B144CBD05 /* PlayerFeedbackPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE887B11896ABE26FA685609 /* PlayerFeedbackPill.swift */; };
 		8B3451223C0AA260BAF56D11 /* JetBrainsSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 218BD3CEEF60EEDDCDF94BC4 /* JetBrainsSans-Regular.ttf */; };
-		8F21DE4E6386E5B26CEFB126 /* AppearanceSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 479508B2D739EC5A11B5756B /* AppearanceSettingsScreen.swift */; };
 		956E92882C3235F7AEAED699 /* ThemeChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6339D71F786B13FFD083E6C /* ThemeChip.swift */; };
 		9D4E0D93663B1850ADCBF81B /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2F6FD24D68DBBAB57E9D8FC0 /* SettingsScreen.swift */; };
 		A0FC643E8B35AB45F739D883 /* ProfileAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC771F481CFCF03773341785 /* ProfileAvatarView.swift */; };
@@ -68,7 +67,6 @@
 		38D997F95CAF97AFFC4D4489 /* LunaCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = LunaCore; path = ../../Packages/LunaCore; sourceTree = SOURCE_ROOT; };
 		39506C8070CEC61F66337ADE /* PlayerBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerBottomBar.swift; sourceTree = "<group>"; };
 		45445AE0DA5D45DA2BCB8FF7 /* ksplayer-clone */ = {isa = PBXFileReference; lastKnownFileType = folder; name = "ksplayer-clone"; path = "../../../../../../tmp/ksplayer-clone"; sourceTree = SOURCE_ROOT; };
-		479508B2D739EC5A11B5756B /* AppearanceSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppearanceSettingsScreen.swift; sourceTree = "<group>"; };
 		BB9876543210FEDCBA987654 /* VideoPlayerSettingsScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerSettingsScreen.swift; sourceTree = "<group>"; };
 		EE0011223344556677889900 /* SubtitleAppearanceScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleAppearanceScreen.swift; sourceTree = "<group>"; };
 		4F3DCED0ECEB605FB9B1FFDA /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
@@ -178,7 +176,6 @@
 		625B6A24F30F4BFE905AF00B /* Screens */ = {
 			isa = PBXGroup;
 			children = (
-				479508B2D739EC5A11B5756B /* AppearanceSettingsScreen.swift */,
 				AC9E52B6F1F02AA0DEB87EFC /* AuthScreen.swift */,
 				5531073B5639881F588923FD /* DetailScreen.swift */,
 				E4E34EEADD9A5EF5DDF1A16D /* FolderScreen.swift */,
@@ -341,7 +338,6 @@
 				14392764C3C3CA687F10AADB /* AdminDashboard.swift in Sources */,
 				A7368670B4BEF865ED7A0E0C /* AnimatedRemoteImage.swift in Sources */,
 				05EC772D7FE64E632B3E6874 /* AppDelegate.swift in Sources */,
-				8F21DE4E6386E5B26CEFB126 /* AppearanceSettingsScreen.swift in Sources */,
 				ACDFE6ED8744833E4816959F /* AudioTrackModal.swift in Sources */,
 				686742C906F6505703092384 /* AuthScreen.swift in Sources */,
 				E3EB83C25D7C4CC76CFA7A32 /* CachedAsyncImage.swift in Sources */,
