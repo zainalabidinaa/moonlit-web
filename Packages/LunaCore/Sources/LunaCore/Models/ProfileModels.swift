@@ -48,6 +48,35 @@ public struct LunaProfile: Codable, Sendable, Identifiable, Equatable {
     }
 
     public var isAdmin: Bool { role == "admin" }
+
+    public var profileRole: ProfileRole {
+        ProfileRole(rawValue: role) ?? .user
+    }
+}
+
+public enum ProfileRole: String, Codable, Sendable, CaseIterable {
+    case admin            = "admin"
+    case friendsAndFamily = "friends_family"
+    case premiumFull      = "premium_full"
+    case premiumSelfManage = "premium_self_manage"
+    case user             = "user"
+
+    public var canManageOwnAddons: Bool {
+        self == .admin || self == .premiumSelfManage
+    }
+
+    public var canManageCatalogs: Bool { self == .admin }
+    public var showsAdminTab: Bool     { self == .admin }
+
+    public var displayName: String {
+        switch self {
+        case .admin:             return "Admin"
+        case .friendsAndFamily:  return "Friends & Family"
+        case .premiumFull:       return "Premium"
+        case .premiumSelfManage: return "Premium"
+        case .user:              return "User"
+        }
+    }
 }
 
 public struct UserSession: Codable, Sendable {
