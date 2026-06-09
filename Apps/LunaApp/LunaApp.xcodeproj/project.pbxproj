@@ -21,6 +21,7 @@
 		3B339EE5FDFBCDB880593E55 /* SubtitleModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17BDF7BDC8C78D8875849C0D /* SubtitleModal.swift */; };
 		464711895FE40F3059C744F8 /* LunaCore in Frameworks */ = {isa = PBXBuildFile; productRef = 4A5D463B7FB6D39EA41A7774 /* LunaCore */; };
 		4F839D638BC31FAC259A5C3C /* DetailScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5531073B5639881F588923FD /* DetailScreen.swift */; };
+		CC1234567890ABCDEF012345 /* ActorBioScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB9876543210ABCDEF012345 /* ActorBioScreen.swift */; };
 		51F954F851A3A4639C70B2DC /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB1D306A69DBADAA0F197720 /* HomeScreen.swift */; };
 		55DF7B0D91D5656CF3758D88 /* JetBrainsSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = EE6305607A21DB5FB94092ED /* JetBrainsSans-Bold.ttf */; };
 		5D46158A76F52BE1C09AF19E /* ContentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00168395CD29DECF58929337 /* ContentCard.swift */; };
@@ -72,6 +73,7 @@
 		4F3DCED0ECEB605FB9B1FFDA /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
 		50B90299650F95A6E85658A8 /* JetBrainsSans-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsSans-SemiBold.ttf"; sourceTree = "<group>"; };
 		5531073B5639881F588923FD /* DetailScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailScreen.swift; sourceTree = "<group>"; };
+		BB9876543210ABCDEF012345 /* ActorBioScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActorBioScreen.swift; sourceTree = "<group>"; };
 		55968AE93644270FC62BDB1F /* LunaApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = LunaApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		602AEA64A4AEEB986BCCF030 /* ProfileSelectionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSelectionScreen.swift; sourceTree = "<group>"; };
 		68E00BE18255F4D9413A264A /* AdminDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminDashboard.swift; sourceTree = "<group>"; };
@@ -178,6 +180,7 @@
 			children = (
 				AC9E52B6F1F02AA0DEB87EFC /* AuthScreen.swift */,
 				5531073B5639881F588923FD /* DetailScreen.swift */,
+				BB9876543210ABCDEF012345 /* ActorBioScreen.swift */,
 				E4E34EEADD9A5EF5DDF1A16D /* FolderScreen.swift */,
 				B293E446788F7299A213CB02 /* HeroManagementScreen.swift */,
 				BB1D306A69DBADAA0F197720 /* HomeScreen.swift */,
@@ -344,6 +347,7 @@
 				5D46158A76F52BE1C09AF19E /* ContentCard.swift in Sources */,
 				A41D3574B0860B92B8B5AEDB /* ContentView.swift in Sources */,
 				4F839D638BC31FAC259A5C3C /* DetailScreen.swift in Sources */,
+				CC1234567890ABCDEF012345 /* ActorBioScreen.swift in Sources */,
 				BD0C2DADF8842E2302C0CBFC /* EpisodesPanel.swift in Sources */,
 				F66A4C64BB762AEE5764C7E5 /* FolderScreen.swift in Sources */,
 				676A5B46DB76B09D17842A41 /* HeroManagementScreen.swift in Sources */,
