@@ -15,7 +15,7 @@ public final class TMDBPersonService {
     public func personDetails(id: Int) async throws -> PersonDetails {
         if let cached = detailCache[id] { return cached }
         guard let key = apiKey, !key.isEmpty else { throw TMDBPersonError.noAPIKey }
-        let urlString = "\(base)/person/\(id)?api_key=\(key)&append_to_response=combined_credits"
+        let urlString = "\(base)/person/\(id)?api_key=\(key)&append_to_response=combined_credits,images"
         guard let url = URL(string: urlString) else { throw TMDBPersonError.badURL }
         let (data, _) = try await URLSession.shared.data(from: url)
         let raw = try JSONDecoder().decode(TMDBPersonResponse.self, from: data)
@@ -59,9 +59,13 @@ public final class TMDBPersonService {
     private func mapToPerson(_ raw: TMDBPersonResponse) -> PersonDetails {
         let cast = (raw.combinedCredits?.cast ?? []).map { mapCredit($0, mediaType: $0.mediaType ?? "movie") }
         let crew = (raw.combinedCredits?.crew ?? []).map { mapCredit($0, mediaType: $0.mediaType ?? "movie") }
+        var profiles = (raw.images?.profiles ?? []).map(\.filePath)
+        if profiles.isEmpty, let main = raw.profilePath { profiles = [main] }
         return PersonDetails(id: raw.id, name: raw.name, biography: raw.biography ?? "",
                              birthday: raw.birthday, placeOfBirth: raw.placeOfBirth,
                              alsoKnownAs: raw.alsoKnownAs ?? [], profilePath: raw.profilePath,
+                             profileImages: profiles,
+                             knownForDepartment: raw.knownForDepartment,
                              imdbId: raw.imdbId, credits: PersonCredits(cast: cast, crew: crew))
     }
 
@@ -89,16 +93,28 @@ private struct TMDBPersonResponse: Decodable {
     let placeOfBirth: String?
     let alsoKnownAs: [String]?
     let profilePath: String?
+    let knownForDepartment: String?
     let imdbId: String?
     let combinedCredits: TMDBCombinedCredits?
+    let images: TMDBPersonImages?
     enum CodingKeys: String, CodingKey {
-        case id, name, biography, birthday
+        case id, name, biography, birthday, images
         case placeOfBirth = "place_of_birth"
         case alsoKnownAs = "also_known_as"
         case profilePath = "profile_path"
+        case knownForDepartment = "known_for_department"
         case imdbId = "imdb_id"
         case combinedCredits = "combined_credits"
     }
+}
+
+private struct TMDBPersonImages: Decodable {
+    let profiles: [TMDBProfileImage]?
+}
+
+private struct TMDBProfileImage: Decodable {
+    let filePath: String
+    enum CodingKeys: String, CodingKey { case filePath = "file_path" }
 }
 
 private struct TMDBCombinedCredits: Decodable {

@@ -8,6 +8,8 @@ public struct PersonDetails: Sendable {
     public let placeOfBirth: String?
     public let alsoKnownAs: [String]
     public let profilePath: String?
+    public let profileImages: [String]
+    public let knownForDepartment: String?
     public let imdbId: String?
     public let credits: PersonCredits
 }

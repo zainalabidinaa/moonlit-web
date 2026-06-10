@@ -9,6 +9,7 @@ struct ActorBioScreen: View {
 
     @StateObject private var viewModel = ActorBioViewModel()
     @State private var creditsFilter: CreditFilter = .all
+    @State private var bioExpanded = false
 
     enum CreditFilter: String, CaseIterable {
         case all = "All"
@@ -24,10 +25,14 @@ struct ActorBioScreen: View {
                         .frame(maxWidth: .infinity, minHeight: 200)
                         .tint(.white)
                 } else if let person = viewModel.person {
+                    photoStrip(person)
+
                     bioHeader(person)
 
-                    if person.birthday != nil || person.placeOfBirth != nil || !person.alsoKnownAs.isEmpty {
-                        infoTable(person).padding(.top, 16)
+                    if person.birthday != nil || person.placeOfBirth != nil
+                        || !person.alsoKnownAs.isEmpty || person.knownForDepartment != nil {
+                        sectionHeader("Personal Info")
+                        infoTable(person)
                     }
 
                     if !viewModel.knownForItems.isEmpty {
@@ -60,46 +65,65 @@ struct ActorBioScreen: View {
         }
     }
 
+    // MARK: - Photo Strip
+
+    private func photoStrip(_ person: PersonDetails) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 10) {
+                ForEach(person.profileImages.prefix(6), id: \.self) { path in
+                    Group {
+                        if let url = TMDBPersonService.shared.imageURL(path: path, size: "w300") {
+                            CachedAsyncImage(url: url) { phase in
+                                if case .success(let img) = phase {
+                                    img.resizable().scaledToFill()
+                                } else {
+                                    Color.white.opacity(0.05)
+                                        .overlay(Image(systemName: "person.fill").foregroundColor(.white.opacity(0.2)))
+                                }
+                            }
+                        } else {
+                            Color.white.opacity(0.05)
+                        }
+                    }
+                    .frame(width: 110, height: 150)
+                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+        }
+    }
+
     // MARK: - Bio Header
 
     private func bioHeader(_ person: PersonDetails) -> some View {
-        HStack(alignment: .top, spacing: 14) {
-            Group {
-                if let url = TMDBPersonService.shared.imageURL(path: person.profilePath, size: "w185") {
-                    CachedAsyncImage(url: url) { phase in
-                        if case .success(let img) = phase {
-                            img.resizable().scaledToFill()
-                        } else {
-                            Color.white.opacity(0.05)
-                                .overlay(Image(systemName: "person.fill").foregroundColor(.white.opacity(0.2)))
-                        }
-                    }
-                } else {
-                    Color.white.opacity(0.05)
-                        .overlay(Image(systemName: "person.fill").foregroundColor(.white.opacity(0.2)))
-                }
+        VStack(alignment: .leading, spacing: 6) {
+            Text(person.name)
+                .font(.title3.weight(.bold))
+                .foregroundColor(.white)
+            if let character = characterName {
+                Text("as \(character)")
+                    .font(.subheadline)
+                    .foregroundColor(LunaTheme.textSecondary)
             }
-            .frame(width: 90, height: 120)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            if !person.biography.isEmpty {
+                Text(person.biography)
+                    .font(.caption)
+                    .foregroundColor(LunaTheme.textSecondary)
+                    .lineLimit(bioExpanded ? nil : 4)
+                    .animation(.easeInOut(duration: 0.2), value: bioExpanded)
+                    .padding(.top, 4)
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(person.name)
-                    .font(.title3.weight(.bold))
-                    .foregroundColor(.white)
-                if let character = characterName {
-                    Text("as \(character)")
-                        .font(.subheadline)
-                        .foregroundColor(LunaTheme.textSecondary)
-                }
-                Spacer().frame(height: 4)
-                if !person.biography.isEmpty {
-                    Text(person.biography)
-                        .font(.caption)
-                        .foregroundColor(LunaTheme.textSecondary)
-                        .lineLimit(6)
+                if person.biography.count > 200 {
+                    Button { bioExpanded.toggle() } label: {
+                        Text(bioExpanded ? "Show Less" : "Show More")
+                            .font(.caption.bold())
+                            .foregroundColor(.white)
+                    }
                 }
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(16)
     }
 
@@ -107,16 +131,21 @@ struct ActorBioScreen: View {
 
     private func infoTable(_ person: PersonDetails) -> some View {
         VStack(spacing: 0) {
-            if let birthday = person.birthday { infoRow(label: "Born", value: formatDate(birthday)) }
-            if let place = person.placeOfBirth { infoRow(label: "Birthplace", value: place) }
+            if let department = person.knownForDepartment {
+                infoRow(label: "Area of Work", value: department)
+            }
+            if let birthday = person.birthday {
+                let ageSuffix = age(from: birthday).map { " (age \($0))" } ?? ""
+                infoRow(label: "Born", value: formatDate(birthday) + ageSuffix)
+            }
+            if let place = person.placeOfBirth { infoRow(label: "Place of Birth", value: place) }
             if let first = person.alsoKnownAs.first { infoRow(label: "Also Known As", value: first) }
-            if let imdbId = person.imdbId { infoRow(label: "IMDb", value: "imdb.com/name/\(imdbId)", isLink: true) }
         }
         .glassCard(cornerRadius: 12)
         .padding(.horizontal, 16)
     }
 
-    private func infoRow(label: String, value: String, isLink: Bool = false) -> some View {
+    private func infoRow(label: String, value: String) -> some View {
         HStack(alignment: .top, spacing: 12) {
             Text(label)
                 .font(.caption.weight(.semibold))
@@ -124,11 +153,18 @@ struct ActorBioScreen: View {
                 .frame(width: 90, alignment: .leading)
             Text(value)
                 .font(.caption)
-                .foregroundColor(isLink ? LunaTheme.accent : .white)
+                .foregroundColor(.white)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
+    }
+
+    private func age(from dateString: String) -> Int? {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy-MM-dd"
+        guard let dob = df.date(from: dateString) else { return nil }
+        return Calendar.current.dateComponents([.year], from: dob, to: Date()).year
     }
 
     // MARK: - Known For
@@ -137,9 +173,9 @@ struct ActorBioScreen: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 10) {
                 ForEach(viewModel.knownForItems, id: \.id) { credit in
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 6) {
                         let imgURL = TMDBPersonService.shared.imageURL(
-                            path: credit.backdropPath ?? credit.posterPath, size: "w300"
+                            path: credit.posterPath ?? credit.backdropPath, size: "w300"
                         )
                         Group {
                             if let url = imgURL {
@@ -154,14 +190,14 @@ struct ActorBioScreen: View {
                                 Color.white.opacity(0.05)
                             }
                         }
-                        .frame(width: 180, height: 100)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                        .frame(width: 110, height: 165)
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
 
                         Text(credit.title)
                             .font(.caption.weight(.semibold))
                             .foregroundColor(.white)
-                            .lineLimit(1)
-                            .frame(width: 180, alignment: .leading)
+                            .lineLimit(2)
+                            .frame(width: 110, alignment: .leading)
                     }
                 }
             }
@@ -182,7 +218,7 @@ struct ActorBioScreen: View {
                             .foregroundColor(creditsFilter == filter ? .white : LunaTheme.textSecondary)
                             .padding(.horizontal, 12)
                             .padding(.vertical, 6)
-                            .background(creditsFilter == filter ? LunaTheme.accent : Color.white.opacity(0.08))
+                            .background(creditsFilter == filter ? Color.white.opacity(0.22) : Color.white.opacity(0.08))
                             .cornerRadius(20)
                     }
                 }
@@ -257,7 +293,13 @@ struct ActorBioScreen: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(.white)
                     .lineLimit(1)
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
+                    Text(credit.mediaType == "tv" ? "TV" : "Film")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.white.opacity(0.7))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.white.opacity(0.12)))
                     Text(credit.creditType)
                         .font(.caption)
                         .foregroundColor(LunaTheme.textTertiary)
