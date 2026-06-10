@@ -328,9 +328,9 @@ struct PlayerScreen: View {
                 onDismiss()
             } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 19, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(width: 40, height: 40)
+                    .frame(width: 50, height: 50)
             }
             .glassCircle(clear: true)
 
@@ -408,7 +408,7 @@ struct PlayerScreen: View {
             .foregroundColor(.white.opacity(0.5))
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 36)
+        .padding(.bottom, 10)
     }
 
     @ViewBuilder private var ccMenu: some View {
@@ -1036,11 +1036,44 @@ private struct VolumeViewRepresentable: UIViewRepresentable {
     func makeUIView(context: Context) -> MPVolumeView {
         let view = MPVolumeView()
         view.isHidden = false
+        view.alpha = 0.0001
+        view.clipsToBounds = true
+        DispatchQueue.main.async {
+            context.coordinator.attach(to: view)
+        }
         return view
     }
 
     func updateUIView(_ uiView: MPVolumeView, context: Context) {
-        // MPVolumeView syncs system volume automatically
+        context.coordinator.attach(to: uiView)
+        guard let slider = context.coordinator.slider else { return }
+        // Push UI changes to the system volume; skip tiny deltas to avoid loops.
+        if abs(slider.value - volume) > 0.01 {
+            DispatchQueue.main.async { slider.value = volume }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(volume: $volume) }
+
+    final class Coordinator: NSObject {
+        let volume: Binding<Float>
+        weak var slider: UISlider?
+
+        init(volume: Binding<Float>) { self.volume = volume }
+
+        func attach(to view: MPVolumeView) {
+            guard slider == nil,
+                  let s = view.subviews.compactMap({ $0 as? UISlider }).first else { return }
+            slider = s
+            s.addTarget(self, action: #selector(valueChanged(_:)), for: .valueChanged)
+        }
+
+        @objc private func valueChanged(_ sender: UISlider) {
+            // Hardware buttons / system changes flow back into the glass slider.
+            if abs(volume.wrappedValue - sender.value) > 0.01 {
+                volume.wrappedValue = sender.value
+            }
+        }
     }
 }
 
