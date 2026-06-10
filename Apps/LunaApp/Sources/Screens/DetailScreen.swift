@@ -190,28 +190,6 @@ struct DetailScreen: View {
                         .onAppear { isLiked = likedRepo.isLiked(detail.id) }
                         .sensoryFeedback(.impact(weight: .light), trigger: isLiked)
 
-                        Button {
-                            Task {
-                                guard let profile = profileManager.currentProfile else { return }
-                                if watched {
-                                    await watchedRepo.markUnwatched(mediaId: detail.id)
-                                } else {
-                                    await watchedRepo.markWatched(
-                                        profileId: profile.id,
-                                        mediaId: detail.id,
-                                        mediaType: type,
-                                        name: detail.name,
-                                        poster: detail.poster
-                                    )
-                                }
-                            }
-                        } label: {
-                            Image(systemName: watched ? "checkmark.circle.fill" : "checkmark.circle")
-                                .font(.title3)
-                                .foregroundColor(watched ? .green : .white)
-                                .frame(width: 50, height: 50)
-                        }
-                        .glassCard(cornerRadius: 25)
                     }
                     .padding(.horizontal, 16)
                     .padding(.top, 16)
