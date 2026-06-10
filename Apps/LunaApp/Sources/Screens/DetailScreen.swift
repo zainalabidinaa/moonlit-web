@@ -237,7 +237,7 @@ struct DetailScreen: View {
 
                     // ── EPISODES ──────────────────────────────────────────
                     if let seasons = detail.seasons, !seasons.isEmpty {
-                        let sorted = seasons.sorted { $0.number < $1.number }
+                        let sorted = seasons.filter { $0.number != 0 }.sorted { $0.number < $1.number }
                         let activeId = selectedSeasonId ?? sorted.first?.id
 
                         VStack(alignment: .leading, spacing: 12) {
