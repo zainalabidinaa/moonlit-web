@@ -54,7 +54,7 @@ struct HomeScreen: View {
         }
         return candidates
             .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
-            .prefix(5)
+            .prefix(10)
             .map { $0 }
     }
 

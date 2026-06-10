@@ -9,21 +9,32 @@ struct ParallaxHero: View {
     let onToggleLibrary: (MetaPreview) -> Void
 
     @State private var autoTimer: Timer?
+    @StateObject private var libraryRepo = LibraryRepository.shared
     private let autoAdvanceSeconds: TimeInterval = 6
+    private static let heroHeight: CGFloat = 500
+
+    private var isCurrentInLibrary: Bool {
+        guard let item = items[safe: currentIndex] else { return false }
+        return libraryRepo.libraryItems.contains { $0.mediaId == item.id }
+    }
 
     var body: some View {
         GeometryReader { geometry in
-            let height = 420 + geometry.safeAreaInsets.top
+            let height = Self.heroHeight + geometry.safeAreaInsets.top
             ZStack(alignment: .bottomLeading) {
                 TabView(selection: $currentIndex) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        AsyncImage(url: URL(string: item.banner ?? item.poster ?? "")) { phase in
-                            switch phase {
-                            case .success(let image):
-                                image
-                                    .resizable()
-                                    .aspectRatio(contentMode: .fill)
-                            default:
+                        Group {
+                            if let url = URL(string: item.banner ?? item.poster ?? "") {
+                                CachedAsyncImage(url: url) { phase in
+                                    switch phase {
+                                    case .success(let image):
+                                        image.resizable().aspectRatio(contentMode: .fill)
+                                    default:
+                                        LunaTheme.surfaceContainer
+                                    }
+                                }
+                            } else {
                                 LunaTheme.surfaceContainer
                             }
                         }
@@ -32,6 +43,7 @@ struct ParallaxHero: View {
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
+                .id(items.map(\.id).joined())
                 .frame(height: height)
 
                 VStack(spacing: 0) {
@@ -57,38 +69,58 @@ struct ParallaxHero: View {
                             .foregroundColor(LunaTheme.accent)
                     }
 
-                    Text(items[safe: currentIndex]?.name ?? "")
-                        .font(.system(size: 40, weight: .black))
-                        .foregroundColor(.white)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.7)
+                    // Show title logo image when available, fall back to text title
+                    if let logoURL = items[safe: currentIndex]?.logo.flatMap(URL.init) {
+                        CachedAsyncImage(url: logoURL) { phase in
+                            switch phase {
+                            case .success(let image):
+                                image
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(maxWidth: 260, maxHeight: 100, alignment: .leading)
+                                    .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 2)
+                            default:
+                                Text(items[safe: currentIndex]?.name ?? "")
+                                    .font(.system(size: 40, weight: .black))
+                                    .foregroundColor(.white)
+                                    .lineLimit(2)
+                                    .minimumScaleFactor(0.7)
+                            }
+                        }
+                    } else {
+                        Text(items[safe: currentIndex]?.name ?? "")
+                            .font(.system(size: 40, weight: .black))
+                            .foregroundColor(.white)
+                            .lineLimit(2)
+                            .minimumScaleFactor(0.7)
+                    }
 
                     metaRow
 
                     buttonRow
+
+                    // Page indicator dots — centered below content
+                    HStack(spacing: 5) {
+                        ForEach(0..<items.count, id: \.self) { index in
+                            Capsule()
+                                .fill(index == currentIndex ? Color.white : Color.white.opacity(0.3))
+                                .frame(
+                                    width: index == currentIndex ? 20 : 6,
+                                    height: 3
+                                )
+                                .animation(.easeInOut(duration: 0.25), value: currentIndex)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.top, 14)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, metrics.horizontalPadding)
-                .padding(.bottom, 24)
-
-                HStack(spacing: 5) {
-                    ForEach(0..<items.count, id: \.self) { index in
-                        Capsule()
-                            .fill(index == currentIndex ? Color.white : Color.white.opacity(0.3))
-                            .frame(
-                                width: index == currentIndex ? 20 : 6,
-                                height: 3
-                            )
-                            .animation(.easeInOut(duration: 0.25), value: currentIndex)
-                    }
-                }
-                .frame(maxWidth: .infinity, maxHeight: height, alignment: .topTrailing)
-                .padding(.trailing, 16)
-                .padding(.top, geometry.safeAreaInsets.top + 16)
+                .padding(.bottom, 20)
             }
             .clipped()
         }
-        .frame(height: 420)
+        .frame(height: Self.heroHeight)
         .onAppear { startAutoAdvance() }
         .onDisappear { stopAutoAdvance() }
     }
@@ -140,8 +172,8 @@ struct ParallaxHero: View {
                 }
             } label: {
                 HStack(spacing: 4) {
-                    Image(systemName: "bookmark")
-                    Text("My List")
+                    Image(systemName: isCurrentInLibrary ? "bookmark.fill" : "bookmark")
+                    Text(isCurrentInLibrary ? "In My List" : "My List")
                 }
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.white)
