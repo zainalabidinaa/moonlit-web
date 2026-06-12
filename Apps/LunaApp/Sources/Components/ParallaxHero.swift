@@ -11,7 +11,7 @@ struct ParallaxHero: View {
     @State private var autoTimer: Timer?
     @StateObject private var libraryRepo = LibraryRepository.shared
     private let autoAdvanceSeconds: TimeInterval = 6
-    private static let heroHeight: CGFloat = 500
+    private static let heroHeight: CGFloat = 620
 
     private var isCurrentInLibrary: Bool {
         guard let item = items[safe: currentIndex] else { return false }
@@ -51,8 +51,8 @@ struct ParallaxHero: View {
                     LinearGradient(
                         stops: [
                             .init(color: .clear, location: 0.0),
-                            .init(color: .clear, location: 0.40),
-                            .init(color: LunaTheme.background.opacity(0.5), location: 0.65),
+                            .init(color: .clear, location: 0.48),
+                            .init(color: LunaTheme.background.opacity(0.24), location: 0.62),
                             .init(color: LunaTheme.background, location: 1.0),
                         ],
                         startPoint: .top,
@@ -116,7 +116,7 @@ struct ParallaxHero: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, metrics.horizontalPadding)
-                .padding(.bottom, 20)
+                .padding(.bottom, 44)
             }
             .clipped()
         }
