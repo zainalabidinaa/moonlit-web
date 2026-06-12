@@ -49,18 +49,24 @@ struct HomeScreen: View {
             // Fall back to default rows when all hero-configured rows are disabled
             heroRows = computed.isEmpty ? allRows.filter { mainRowNames.contains($0.title) } : computed
         }
+        // Respect hero management row priority: earlier rows contribute first.
+        // Cap per row so a single row can't fill the whole carousel.
+        let perRowCap = 3
+        let totalCap = 10
         var seen = Set<String>()
         var candidates: [MetaPreview] = []
         for row in heroRows {
-            for item in row.items where !seen.contains(item.id) {
+            let rowItems = row.items
+                .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+            var taken = 0
+            for item in rowItems where !seen.contains(item.id) {
+                guard taken < perRowCap, candidates.count < totalCap else { break }
                 seen.insert(item.id)
                 candidates.append(item)
+                taken += 1
             }
         }
         return candidates
-            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
-            .prefix(10)
-            .map { $0 }
     }
 
     @State private var heroIndex = 0
@@ -80,6 +86,7 @@ struct HomeScreen: View {
                         ambientColor: ambientColor,
                         heroBackdropURL: currentHeroBackdropURL,
                         isEnabled: cinematicModeEnabled,
+                        screenWidth: geo.size.width,
                         screenHeight: geo.size.height
                     )
                     .animation(.easeInOut(duration: 0.9), value: ambientColor)
@@ -393,6 +400,7 @@ private struct FusionAmbientBackground: View {
     let ambientColor: Color
     let heroBackdropURL: URL?
     let isEnabled: Bool
+    let screenWidth: CGFloat
     let screenHeight: CGFloat
 
     var body: some View {
@@ -400,6 +408,8 @@ private struct FusionAmbientBackground: View {
             LunaTheme.background
 
             if isEnabled, let url = heroBackdropURL {
+                // Width must be pinned: an unbounded scaledToFill image reports its
+                // natural width and inflates the whole screen's layout proposal.
                 CachedAsyncImage(url: url) { phase in
                     if case .success(let image) = phase {
                         image
@@ -409,14 +419,14 @@ private struct FusionAmbientBackground: View {
                         Color.clear
                     }
                 }
-                .frame(height: screenHeight * 0.58)
+                .frame(width: screenWidth, height: screenHeight * 0.58)
+                .clipped()
                 .scaleEffect(1.08)
                 .blur(radius: 32)
                 .saturation(0.85)
                 .brightness(-0.12)
                 .opacity(0.72)
-                .frame(maxWidth: .infinity)
-                .frame(height: screenHeight * 0.58, alignment: .top)
+                .frame(width: screenWidth, height: screenHeight * 0.58, alignment: .top)
                 .clipped()
                 .id(url)
                 .transition(.opacity)

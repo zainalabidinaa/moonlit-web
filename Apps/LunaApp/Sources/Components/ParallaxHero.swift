@@ -10,7 +10,8 @@ struct ParallaxHero: View {
 
     @State private var autoTimer: Timer?
     @StateObject private var libraryRepo = LibraryRepository.shared
-    private let autoAdvanceSeconds: TimeInterval = 6
+    @StateObject private var artwork = HeroArtworkProvider.shared
+    private let autoAdvanceSeconds: TimeInterval = 30
     private static let heroHeight: CGFloat = 620
 
     private var isCurrentInLibrary: Bool {
@@ -20,46 +21,30 @@ struct ParallaxHero: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let height = Self.heroHeight + geometry.safeAreaInsets.top
             ZStack(alignment: .bottomLeading) {
                 TabView(selection: $currentIndex) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                        Group {
-                            if let url = URL(string: item.banner ?? item.poster ?? "") {
-                                CachedAsyncImage(url: url) { phase in
-                                    switch phase {
-                                    case .success(let image):
-                                        image.resizable().aspectRatio(contentMode: .fill)
-                                    default:
-                                        LunaTheme.surfaceContainer
-                                    }
-                                }
-                            } else {
-                                LunaTheme.surfaceContainer
-                            }
-                        }
-                        .scaleEffect(1.14)
-                        .tag(index)
+                        heroImage(for: item, width: geometry.size.width)
+                            .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .id(items.map(\.id).joined())
-                .frame(height: height)
-
-                VStack(spacing: 0) {
-                    Spacer()
+                .frame(width: geometry.size.width, height: Self.heroHeight)
+                // Alpha dissolve: the image fades to transparent so the ambient
+                // background shows through — no opaque terminal color to clash with.
+                .mask(
                     LinearGradient(
                         stops: [
-                            .init(color: .clear, location: 0.0),
-                            .init(color: .clear, location: 0.48),
-                            .init(color: LunaTheme.background.opacity(0.24), location: 0.62),
-                            .init(color: LunaTheme.background, location: 1.0),
+                            .init(color: .black, location: 0.0),
+                            .init(color: .black, location: 0.52),
+                            .init(color: .black.opacity(0.42), location: 0.80),
+                            .init(color: .clear, location: 1.0),
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: height * 0.6)
-                }
+                )
 
                 VStack(alignment: .leading, spacing: 6) {
                     if let category = items[safe: currentIndex]?.genres?.first {
@@ -98,31 +83,72 @@ struct ParallaxHero: View {
                     metaRow
 
                     buttonRow
-
-                    // Page indicator dots — centered below content
-                    HStack(spacing: 5) {
-                        ForEach(0..<items.count, id: \.self) { index in
-                            Capsule()
-                                .fill(index == currentIndex ? Color.white : Color.white.opacity(0.3))
-                                .frame(
-                                    width: index == currentIndex ? 20 : 6,
-                                    height: 3
-                                )
-                                .animation(.easeInOut(duration: 0.25), value: currentIndex)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .center)
-                    .padding(.top, 14)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, metrics.horizontalPadding)
                 .padding(.bottom, 44)
             }
-            .clipped()
+            .overlay(alignment: .bottom) {
+                pageIndicator
+                    .padding(.bottom, 18)
+            }
         }
         .frame(height: Self.heroHeight)
-        .onAppear { startAutoAdvance() }
+        .onAppear {
+            artwork.prefetch(items: items)
+            startAutoAdvance()
+        }
+        .onChange(of: items.map(\.id)) { _, _ in
+            artwork.prefetch(items: items)
+        }
         .onDisappear { stopAutoAdvance() }
+    }
+
+    /// Centered indicator with a sliding window so large carousels stay compact.
+    private var pageIndicator: some View {
+        let maxVisible = 7
+        let count = items.count
+        let start: Int
+        if count <= maxVisible {
+            start = 0
+        } else {
+            start = min(max(currentIndex - maxVisible / 2, 0), count - maxVisible)
+        }
+        let end = min(start + maxVisible, count)
+
+        return HStack(spacing: 6) {
+            ForEach(start..<end, id: \.self) { index in
+                Capsule()
+                    .fill(index == currentIndex ? Color.white : Color.white.opacity(0.45))
+                    .frame(
+                        width: index == currentIndex ? 24 : 8,
+                        height: 5
+                    )
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: currentIndex)
+    }
+
+    /// Fixed-size, center-cropped hero art. Textless TMDB poster when resolved
+    /// (the title logo is overlaid separately), addon poster as fallback; the
+    /// explicit frame keeps layout stable while images load.
+    private func heroImage(for item: MetaPreview, width: CGFloat) -> some View {
+        Group {
+            if let url = artwork.heroArtURL(for: item) {
+                CachedAsyncImage(url: url) { phase in
+                    switch phase {
+                    case .success(let image):
+                        image.resizable().scaledToFill()
+                    default:
+                        LunaTheme.surfaceContainer
+                    }
+                }
+            } else {
+                LunaTheme.surfaceContainer
+            }
+        }
+        .frame(width: width, height: Self.heroHeight)
+        .clipped()
     }
 
     private var metaRow: some View {
