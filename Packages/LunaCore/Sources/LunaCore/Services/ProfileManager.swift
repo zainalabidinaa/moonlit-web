@@ -9,16 +9,78 @@ public class ProfileManager: ObservableObject {
     @Published public var currentSession: UserSession?
     @Published public var isLoading = false
     @Published public var isAuthenticated = false
+    @Published public var hasRestoredSession = false
 
     private let auth = SupabaseAuth.shared
     private let syncService = SyncService.shared
     private let client = SupabaseClient.shared
 
-    private init() {}
+    private init() {
+        Task { await restoreSession() }
+    }
+
+    private func restoreSession() async {
+        isLoading = true
+        let startTime = Date()
+        defer {
+            Task { @MainActor in
+                let elapsed = Date().timeIntervalSince(startTime)
+                let remaining = 1.5 - elapsed
+                if remaining > 0 {
+                    try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+                }
+                self.isLoading = false
+                self.hasRestoredSession = true
+            }
+        }
+
+        guard let stored = SessionStore.load() else {
+            self.isAuthenticated = false
+            return
+        }
+        self.currentSession = stored
+        await client.setAccessToken(stored.accessToken)
+
+        // Restore from local cache immediately so the router never lands on
+        // CreateFirstProfileScreen due to a transient network failure.
+        restoreProfilesFromCache(userId: stored.userId)
+
+        if stored.isExpired {
+            guard let refreshed = try? await auth.refreshSession(refreshToken: stored.refreshToken) else {
+                SessionStore.clear()
+                self.currentSession = nil
+                self.isAuthenticated = false
+                return
+            }
+            self.currentSession = refreshed
+            SessionStore.save(refreshed)
+            try? await loadProfiles(userId: refreshed.userId)
+        } else {
+            try? await loadProfiles(userId: stored.userId)
+        }
+        self.isAuthenticated = true
+    }
+
+    private func profilesCacheKey(userId: String) -> String { "luna.cachedProfiles.\(userId)" }
+
+    private func restoreProfilesFromCache(userId: String) {
+        guard profiles.isEmpty,
+              let data = UserDefaults.standard.data(forKey: profilesCacheKey(userId: userId)),
+              let cached = try? JSONDecoder().decode([LunaProfile].self, from: data),
+              !cached.isEmpty else { return }
+        self.profiles = cached
+        let savedId = UserDefaults.standard.string(forKey: "luna.currentProfileId")
+        if let savedId, let match = cached.first(where: { $0.id == savedId }) {
+            self.currentProfile = match
+        } else {
+            self.currentProfile = cached.first
+        }
+    }
 
     public func signIn(email: String, password: String) async throws {
         let session = try await auth.signIn(email: email, password: password)
         self.currentSession = session
+        SessionStore.save(session)
         try await loadProfiles(userId: session.userId)
         self.isAuthenticated = true
     }
@@ -26,6 +88,7 @@ public class ProfileManager: ObservableObject {
     public func signUp(email: String, password: String, inviteCode: String) async throws {
         let session = try await auth.signUp(email: email, password: password, inviteCode: inviteCode)
         self.currentSession = session
+        SessionStore.save(session)
 
         let profile = LunaProfile(
             id: UUID().uuidString,
@@ -42,6 +105,7 @@ public class ProfileManager: ObservableObject {
 
     public func signOut() async {
         try? await auth.signOut()
+        SessionStore.clear()
         currentSession = nil
         currentProfile = nil
         profiles = []
@@ -55,13 +119,22 @@ public class ProfileManager: ObservableObject {
         let fetched: [LunaProfile] = try await syncService.pullProfiles(userId: userId)
         self.profiles = fetched
 
-        if currentProfile == nil || !fetched.contains(where: { $0.id == currentProfile?.id }) {
+        // Persist fresh profiles so cache is always warm for next launch.
+        if let data = try? JSONEncoder().encode(fetched) {
+            UserDefaults.standard.set(data, forKey: profilesCacheKey(userId: userId))
+        }
+
+        let savedProfileId = UserDefaults.standard.string(forKey: "luna.currentProfileId")
+        if let savedId = savedProfileId, let match = fetched.first(where: { $0.id == savedId }) {
+            self.currentProfile = match
+        } else if currentProfile == nil || !fetched.contains(where: { $0.id == currentProfile?.id }) {
             self.currentProfile = fetched.first
         }
     }
 
     public func selectProfile(_ profile: LunaProfile) {
         currentProfile = profile
+        UserDefaults.standard.set(profile.id, forKey: "luna.currentProfileId")
     }
 
     public func createProfile(name: String) async throws {
