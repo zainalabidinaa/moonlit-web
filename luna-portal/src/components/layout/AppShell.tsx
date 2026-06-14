@@ -1,14 +1,10 @@
 import { Navbar } from './Navbar';
-import { Sidebar } from './Sidebar';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen bg-bg flex flex-col">
+    <div className="flex min-h-screen flex-col bg-bg">
       <Navbar />
-      <div className="flex flex-1">
-        <Sidebar />
-        <main className="flex-1 p-8 overflow-y-auto">{children}</main>
-      </div>
+      <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-10">{children}</main>
     </div>
   );
 }

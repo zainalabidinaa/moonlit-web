@@ -2,8 +2,83 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --accent-glow: rgba(250, 130, 77, 0.55);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: #09090b;
-  color: #f4f4f5;
+  font-family: 'Funnel Display', sans-serif;
+  background-color: #0d0604;
+  color: #f7ede6;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ambient glow + grain — fixed behind all content */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(900px 600px at 78% -8%, rgba(250, 130, 77, 0.12), transparent 60%),
+    radial-gradient(700px 500px at 10% 5%, rgba(52, 230, 200, 0.05), transparent 60%),
+    radial-gradient(1000px 800px at 50% 120%, rgba(250, 130, 77, 0.05), transparent 60%);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.04;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+#root {
+  position: relative;
+  z-index: 1;
+}
+
+h1, h2, h3 {
+  font-family: 'Bricolage Grotesque', sans-serif;
+  letter-spacing: -0.02em;
+}
+
+::selection {
+  background: #fa824d;
+  color: #2a1206;
+}
+
+/* marquee strip used on the landing page */
+@keyframes luna-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+.animate-marquee {
+  animation: luna-marquee 28s linear infinite;
+}
+
+/* outlined "ghost" wordmark */
+.text-stroke {
+  color: transparent;
+  -webkit-text-stroke: 1px #3a2c23;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: #221710;
+  border-radius: 20px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
 }

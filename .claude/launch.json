@@ -14,6 +14,14 @@
       "cwd": "/Users/zain/projects/Luna/LunaWebV2",
       "port": 5173,
       "autoPort": false
+    },
+    {
+      "name": "luna-portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--", "--port", "5180", "--strictPort"],
+      "cwd": "/Users/zain/projects/Luna/luna-portal",
+      "port": 5180,
+      "autoPort": false
     }
   ]
 }

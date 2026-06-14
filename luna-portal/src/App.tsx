@@ -1,6 +1,7 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { PublicRoute, UserRoute, AdminRoute } from './components/layout/RouteGuards';
+import LandingPage from './routes/public/LandingPage';
 import PricingPage from './routes/public/PricingPage';
 import LoginPage from './routes/public/LoginPage';
 import SignupPage from './routes/public/SignupPage';
@@ -17,7 +18,7 @@ export default function App() {
       <AuthProvider>
         <Routes>
           {/* Public */}
-          <Route path="/" element={<Navigate to="/pricing" replace />} />
+          <Route path="/" element={<LandingPage />} />
           <Route path="/pricing" element={<PublicRoute><PricingPage /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
           <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
