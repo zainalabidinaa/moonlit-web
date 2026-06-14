@@ -36,7 +36,7 @@ export function Navbar() {
             className="h-5 w-5 rounded-full shadow-glow"
             style={{ background: 'radial-gradient(circle at 32% 30%, #fa824d, #ff6a2b 60%, #8a3500)' }}
           />
-          LUNA
+          NIGHTARC
         </Link>
 
         <nav className="mx-auto flex items-center gap-0.5 overflow-x-auto [scrollbar-width:none]">

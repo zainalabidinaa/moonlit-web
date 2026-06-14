@@ -195,7 +195,7 @@ export default function LandingPage() {
 
       {/* FOOTER */}
       <footer className="border-t border-border py-14 text-center">
-        <div className="font-display text-4xl font-extrabold tracking-tight">LUNA</div>
+        <div className="font-display text-4xl font-extrabold tracking-tight">NIGHTARC</div>
         <div className="mt-4 flex flex-wrap justify-center gap-6 text-sm text-muted">
           <a href="#">About</a><a href="#">Catalog</a>
           <a href="#" onClick={(e) => { e.preventDefault(); navigate('/pricing'); }}>Pricing</a>
