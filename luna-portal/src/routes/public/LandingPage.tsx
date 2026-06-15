@@ -133,7 +133,7 @@ export default function LandingPage() {
 
       <div className="px-5 pb-8 text-center">
         <div className="text-stroke font-display text-[clamp(60px,12vw,150px)] font-extrabold uppercase leading-[.9] opacity-60">
-          L U N A
+          NIGHTARC
         </div>
       </div>
 
