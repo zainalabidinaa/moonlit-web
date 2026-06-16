@@ -259,7 +259,6 @@ export default function CatalogPage() {
             catalog_id: catalogId,
             media_type: mediaType,
             genre,
-            extras: null,
           });
           if (!error) totalSources++;
         }
@@ -285,7 +284,7 @@ export default function CatalogPage() {
         'series:popular series': 'tmdb.discover.series.popular-series.20af3ad9',
         'series:top all time series': 'tmdb.discover.series.top-all-time-series.53046f30',
       };
-      return known[`${mt}:${title}`] ?? (mt === 'series' ? 'tmdb.discover.series.series.mo7biroh' : 'tmdb.discover.movie.movies.mo7bd2ar');
+      return known[`${mt}:${title}`] ?? null;
     }
     return null;
   }

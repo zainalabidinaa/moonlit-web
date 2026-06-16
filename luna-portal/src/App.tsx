@@ -10,6 +10,7 @@ import ProfilesPage from './routes/user/ProfilesPage';
 import AddonsPage from './routes/user/AddonsPage';
 import BillingPage from './routes/user/BillingPage';
 import CatalogPage from './routes/admin/CatalogPage';
+import TemplatesPage from './routes/admin/TemplatesPage';
 import UsersPage from './routes/admin/UsersPage';
 import InvitesPage from './routes/admin/InvitesPage';
 
@@ -32,6 +33,7 @@ export default function App() {
 
           {/* Admin */}
           <Route path="/admin/catalog" element={<AdminRoute><CatalogPage /></AdminRoute>} />
+          <Route path="/admin/templates" element={<AdminRoute><TemplatesPage /></AdminRoute>} />
           <Route path="/admin/users" element={<AdminRoute><UsersPage /></AdminRoute>} />
           <Route path="/admin/invites" element={<AdminRoute><InvitesPage /></AdminRoute>} />
 

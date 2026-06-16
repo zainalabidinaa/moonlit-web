@@ -70,6 +70,9 @@ export function Navbar() {
               <NavLink to="/admin/catalog" className={navClass}>
                 {({ isActive }) => (<>Collections<ActiveBar show={isActive} /></>)}
               </NavLink>
+              <NavLink to="/admin/templates" className={navClass}>
+                {({ isActive }) => (<>Templates<ActiveBar show={isActive} /></>)}
+              </NavLink>
               <NavLink to="/admin/users" className={navClass}>
                 {({ isActive }) => (<>Users<ActiveBar show={isActive} /></>)}
               </NavLink>
