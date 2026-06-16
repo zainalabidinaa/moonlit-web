@@ -921,7 +921,7 @@ struct CatalogManagementScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .task {
                 if collectionRepo.collections.isEmpty {
-                    await collectionRepo.load()
+                    await collectionRepo.refreshForCatalogRows()
                 }
             }
         }
