@@ -83,7 +83,7 @@ export function PlayerOverlay() {
           : 'transform 0.3s ease-out, opacity 0.3s ease-out',
       }}
       onTransitionEnd={() => {
-        if (phase === 'exit') close();
+        if (phase === 'exit' && isOpen) close();
       }}
     >
       {/* Branded loading card — shown while video initializes */}

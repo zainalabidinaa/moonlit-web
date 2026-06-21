@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { StreamItem } from '@/lib/types';
 import { SubtitleItem } from '@/lib/stremio';
 
@@ -76,13 +76,13 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
   }, [onStreamSwitch]);
 
   // Listen for browser back button to dismiss player
-  useState(() => {
+  useEffect(() => {
     const handler = () => {
       if (isOpen) close();
     };
     window.addEventListener('popstate', handler);
     return () => window.removeEventListener('popstate', handler);
-  });
+  }, [isOpen, close]);
 
   return (
     <PlayerContext.Provider value={{
