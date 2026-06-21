@@ -3,6 +3,7 @@
   "buildCommand": "npm run build",
   "outputDirectory": "dist",
   "installCommand": "npm install",
+  "rootDirectory": "moonlit-web",
   "rewrites": [
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
