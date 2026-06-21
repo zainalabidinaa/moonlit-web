@@ -7,6 +7,8 @@ import {
 } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/app/AuthProvider';
+import { PlayerProvider } from '@/app/PlayerProvider';
+import { PlayerOverlay } from '@/components/PlayerOverlay';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -20,7 +22,7 @@ export const queryClient = new QueryClient({
 function Spinner() {
   return (
     <div className="flex items-center justify-center min-h-screen">
-      <div className="animate-spin rounded-full h-6 w-6 border-2 border-nightarc-accent border-t-transparent" />
+      <div className="animate-spin rounded-full h-6 w-6 border-2 border-moonlit-accent border-t-transparent" />
     </div>
   );
 }
@@ -38,9 +40,10 @@ function lazily(importFn: () => Promise<{ default: React.ComponentType }>) {
 
 // Auth guard layout — wraps all protected routes
 function AuthGuard() {
-  const { user, currentProfile, isLoading } = useAuth();
+  const { user, guestMode, currentProfile, isLoading } = useAuth();
 
   if (isLoading) return <Spinner />;
+  if (guestMode) return <Outlet />;
   if (!user) { window.location.replace('/auth'); return null; }
   if (!currentProfile) { window.location.replace('/profiles'); return null; }
 
@@ -53,7 +56,10 @@ const rootRoute = createRootRoute({
   component: () => (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <Outlet />
+        <PlayerProvider>
+          <Outlet />
+          <PlayerOverlay />
+        </PlayerProvider>
       </AuthProvider>
     </QueryClientProvider>
   ),

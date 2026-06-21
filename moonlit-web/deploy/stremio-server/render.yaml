@@ -1,0 +1,17 @@
+# Render Blueprint — deploy the Stremio remux server.
+# In Render: New + → Blueprint → point at this repo → it reads this file.
+# Render gives an HTTPS URL like https://moonlit-stremio-server.onrender.com
+services:
+  - type: web
+    name: moonlit-stremio-server
+    runtime: image
+    image:
+      url: stremio/server:latest
+    region: oregon            # pick the region nearest your users
+    plan: starter             # free tier cold-starts; starter ($7/mo) stays warm
+    envVars:
+      - key: NO_CORS
+        value: "1"
+    # Stremio server listens on 11470 — tell Render to route to it.
+    # (Render → service → Settings → Docker → "Port" = 11470 if not picked up.)
+    dockerCommand: ""
