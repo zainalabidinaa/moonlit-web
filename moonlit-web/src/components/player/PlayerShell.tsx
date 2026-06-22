@@ -39,8 +39,8 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError, profileId }
   const [errorMsg, setErrorMsg] = useState('');
   const [resumePosition, setResumePosition] = useState(launch.startPosition || 0);
   const [playerType, setPlayerType] = useState<PlayerType>(
-    launch.streamUrl
-      ? determinePlayerTypeFromUrl(launch.streamUrl)
+    launch.streamUrl && launch.streamUrl.toLowerCase().includes('.mkv')
+      ? 'mediabunny'
       : 'vidstack'
   );
 
@@ -50,18 +50,6 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError, profileId }
   const { type, id, metadata } = launch;
   const cacheKey = `${type}:${id}`;
 
-  function determinePlayerTypeFromUrl(url: string): PlayerType {
-    if (url.toLowerCase().includes('.mkv')) return 'mediabunny';
-    return 'vidstack';
-  }
-
-  function determinePlayerType(stream: StreamItem): PlayerType {
-    if (!isStreamMKV(stream)) return 'vidstack';
-    // MKV with incompatible codecs → WebCodecsPlayer
-    if (getStreamCompatibility(stream) === 'transcode') return 'webcodecs';
-    // MKV with compatible codecs → MediabunnyPlayer (transmux)
-    return 'mediabunny';
-  }
 
   function resolveUrlForStream(stream: StreamItem): { url: string; stream: StreamItem } {
     const rawUrl = getPlayableStreamUrl(stream)!;
