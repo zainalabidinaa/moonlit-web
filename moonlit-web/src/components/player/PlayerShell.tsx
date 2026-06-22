@@ -28,7 +28,7 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError, profileId }
 
   const [phase, setPhase] = useState<ShellPhase>(launch.streamUrl ? 'preflighting' : 'resolving');
   const [activeUrl, setActiveUrl] = useState(launch.streamUrl || '');
-  const [activeStream, setActiveStreamLocal] = useState<StreamItem | null>(
+  const [activeStreamLocal, setActiveStreamLocal] = useState<StreamItem | null>(
     launch.streamUrl ? { url: launch.streamUrl, addonName: 'Direct' } : null
   );
   const [allStreamsLocal, setAllStreamsLocal] = useState<StreamItem[]>(launch.streams ?? []);
@@ -186,8 +186,8 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError, profileId }
   // Sync to PlayerProvider
   useEffect(() => {
     setAllStreams(allStreamsLocal);
-    setActiveStream(activeStream!);
-  }, [allStreamsLocal, activeStream, setAllStreams, setActiveStream]);
+    setActiveStream(activeStreamLocal!);
+  }, [allStreamsLocal, activeStreamLocal, setAllStreams, setActiveStream]);
 
   // Video ready
   useEffect(() => {

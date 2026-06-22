@@ -167,7 +167,7 @@ function deduplicateItems(items: MetaPreview[]): MetaPreview[] {
   const seen = new Set<string>();
   const result: MetaPreview[] = [];
   for (const item of items) {
-    const key = item.imdbId || item.id;
+    const key = item.id;
     if (!seen.has(key)) {
       seen.add(key);
       result.push(item);

@@ -69,11 +69,12 @@ export async function fetchCatalog(query: StremioCatalogQuery): Promise<MetaPrev
       type: m.type || query.type,
       name: m.name || 'Unknown',
       poster: m.poster || undefined,
+      banner: m.banner || undefined,
       description: m.description || undefined,
       releaseInfo: m.releaseInfo || m.year ? String(m.releaseInfo || m.year) : undefined,
-      imdbId: m.imdb_id || undefined,
       imdbRating: m.imdbRating || undefined,
       genres: m.genres || undefined,
+      popularity: typeof m.popularity === 'number' ? m.popularity : undefined,
     }));
     setCache(query, items);
     return items;
@@ -110,7 +111,6 @@ export async function fetchTMDBCollection(tmdbId: string, apiKey: string): Promi
         name: part.title || part.original_title || 'Unknown',
         poster: part.poster_path ? `https://image.tmdb.org/t/p/w342${part.poster_path}` : undefined,
         releaseInfo: part.release_date?.slice(0, 4),
-        imdbId,
       });
     }
 

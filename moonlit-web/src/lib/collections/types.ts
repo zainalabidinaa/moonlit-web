@@ -147,6 +147,10 @@ export interface BESTFolderCatalog {
   genre?: string;
 }
 
+import type { MetaPreview as OriginalMetaPreview } from '@/lib/types';
+
+export type MetaPreview = OriginalMetaPreview;
+
 // ── Display model ──────────────────────────────────────────────────────
 
 export interface CatalogRow {
@@ -171,18 +175,6 @@ export interface CatalogRow {
   isGroupTile?: boolean;
   folderId?: string;
   collectionId?: string;
-}
-
-export interface MetaPreview {
-  id: string;
-  type: string;
-  name: string;
-  poster?: string;
-  description?: string;
-  releaseInfo?: string;
-  imdbId?: string;
-  imdbRating?: string;
-  genres?: string[];
 }
 
 // ── User preferences ──────────────────────────────────────────────────

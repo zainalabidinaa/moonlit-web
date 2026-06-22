@@ -11,7 +11,7 @@ export function FolderTile({ folder, showGlow = false }: FolderTileProps) {
   const [imgSrc, setImgSrc] = useState(folder.cover_image || '');
   const [glowing, setGlowing] = useState(false);
 
-  const isLandscape = folder.tile_shape === 'LANDSCAPE';
+  const isLandscape = (folder.tile_shape || '').toUpperCase() === 'LANDSCAPE';
   const width = isLandscape ? 220 : 140;
   const aspectRatio = isLandscape ? '16/9' : '2/3';
 

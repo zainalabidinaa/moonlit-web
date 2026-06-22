@@ -11,7 +11,8 @@ import { getWatchProgress, getSystemAddon } from '@/lib/services/api';
 import { fetchManifest, fetchMeta } from '@/lib/stremio';
 import { TMDB_API_KEY } from '@/lib/supabase';
 import { formatContinueWatchingTitle } from '@/lib/player-utils';
-import { loadCollections } from '@/lib/collections/repository';
+import { loadCollections, CatalogRow } from '@/lib/collections/repository';
+import { pickFeaturedItems } from './home-data';
 
 function formatTimeRemaining(positionSec: number, durationSec: number): string {
   if (durationSec > 0) {
@@ -88,18 +89,19 @@ export default function HomePage() {
   const mainRows = collectionRows.filter(r => !r.isGroupTile);
   const groupRows = collectionRows.filter(r => r.isGroupTile);
 
-  // ── Featured items: derive from main content rows ─────────────────────
+  // ── Featured items: use original pickFeaturedItems from home-data ─────
   useEffect(() => {
-    const allItems = mainRows.flatMap(r => r.items.map(item => ({ row: r, item })));
-    const featured = allItems.slice(0, 15);
-    // Randomly pick up to 7
-    const shuffled = [...featured].sort(() => Math.random() - 0.5).slice(0, 7);
-    const next: FeaturedHomeItem[] = shuffled.map(({ row, item }) => ({
-      id: `${row.id}-${item.id}`,
-      rowTitle: row.title,
-      rowId: row.id,
-      item,
+    const homeCatalogRows = mainRows.map(r => ({
+      id: r.id,
+      title: r.title,
+      type: r.items[0]?.type || 'movie',
+      catalogId: r.id,
+      items: r.items,
+      isMainRow: r.title ? ['Popular Movies','Popular TV Shows','Trending Movies','Trending TV Shows'].some(
+        n => n.toLowerCase() === r.title.toLowerCase()
+      ) : false,
     }));
+    const next = pickFeaturedItems(homeCatalogRows);
     if (next.length > 0) {
       setFeaturedItems(next);
       setFeaturedIndex(0);
@@ -371,12 +373,18 @@ export default function HomePage() {
               id: row.id,
               name: row.title,
               sort_order: 0,
-              folders: row.items.map(item => ({
+              focus_glow_enabled: row.focusGlowEnabled,
+              created_at: '',
+              folders: row.items.map((item, i) => ({
                 id: item.id,
                 name: item.name,
                 collection_id: row.id,
-                sort_order: 0,
+                sort_order: i,
                 cover_image: item.poster || '',
+                focus_gif: null,
+                focus_gif_enabled: row.focusGifEnabled,
+                tile_shape: (row.tileShape?.toUpperCase() as 'LANDSCAPE' | 'PORTRAIT' | null) || null,
+                created_at: '',
               })),
             }}
           />
