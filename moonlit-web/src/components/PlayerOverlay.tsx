@@ -11,13 +11,29 @@ export function PlayerOverlay() {
 
   const [phase, setPhase] = useState<'enter' | 'visible' | 'exit'>('enter');
   const [showLoading, setShowLoading] = useState(true);
+  const [timedOut, setTimedOut] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Safety timeout — if loading card is still visible after 30s, force dismiss
+  useEffect(() => {
+    if (!showLoading) {
+      if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
+      return;
+    }
+    loadTimerRef.current = setTimeout(() => {
+      setShowLoading(false);
+      setTimedOut(true);
+    }, 30000);
+    return () => { if (loadTimerRef.current) clearTimeout(loadTimerRef.current); };
+  }, [showLoading]);
 
   // Handle open/close animations
   useEffect(() => {
     if (isOpen) {
       setPhase('enter');
       setShowLoading(true);
+      setTimedOut(false);
       requestAnimationFrame(() => {
         requestAnimationFrame(() => setPhase('visible'));
       });
@@ -96,6 +112,22 @@ export function PlayerOverlay() {
           minVisibleMs={800}
           onMinElapsed={handleLoadCardMinElapsed}
         />
+      )}
+
+      {/* Fallback when loading times out — gives the user an escape */}
+      {timedOut && !showLoading && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black">
+          <p className="text-white text-lg font-semibold">Taking too long</p>
+          <p className="text-white/50 text-sm text-center max-w-xs px-4">
+            Stream resolution is stuck. This can happen if addons are unresponsive.
+          </p>
+          <button
+            onClick={handleBack}
+            className="mt-2 px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-full text-sm cursor-pointer"
+          >
+            Back
+          </button>
+        </div>
       )}
 
       {/* Player shell — stream resolution + Vidstack */}
