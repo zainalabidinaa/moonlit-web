@@ -20,16 +20,10 @@ struct ContentCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(MoonlitTheme.surfaceElevated)
-                    .frame(width: cardWidth, height: cardHeight)
-
-                // Use primary URL first; if it fails switch to the fallback URL (e.g.
-                // heroBackdrop stored in item.banner for folder tiles when coverImage 404s).
                 let displayURL = primaryFailed ? fallbackImageURL : primaryImageURL
                 if let url = displayURL {
                     if url.pathExtension.lowercased() == "gif" {
-                        AnimatedRemoteImage(url: url, contentMode: usesFittedArtwork ? .scaleAspectFit : .scaleAspectFill)
+                        AnimatedRemoteImage(url: url, contentMode: .scaleAspectFill)
                             .frame(width: cardWidth, height: cardHeight)
                             .scaleEffect(groupArtworkScale)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -39,7 +33,7 @@ struct ContentCard: View {
                             case .success(let image):
                                 image
                                     .resizable()
-                                    .aspectRatio(contentMode: usesFittedArtwork ? .fit : .fill)
+                                    .aspectRatio(contentMode: .fill)
                                     .frame(width: cardWidth, height: cardHeight)
                                     .scaleEffect(groupArtworkScale)
                                     .clipped()

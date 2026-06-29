@@ -2,6 +2,7 @@ import SwiftUI
 import UIKit
 import CoreImage
 import MoonlitCore
+import OSLog
 
 struct HomeScreen: View {
     @EnvironmentObject var profileManager: ProfileManager
@@ -515,7 +516,11 @@ struct HomeScreen: View {
         Task {
             guard let refreshed = await CollectionOrganizerStore.shared.refresh(
                 remoteURL: MoonlitConfig.homeOrganizerRemoteURL.flatMap(URL.init)
-            ) else { return }
+            ) else {
+                Logger(subsystem: "ai.moonlit", category: "HomeScreen")
+                    .warning("home-organizer background refresh failed")
+                return
+            }
             collectionRepo.apply(refreshed)
             guard !collectionRepo.collections.isEmpty else { return }
             await catalogRepo.loadFromCollections(

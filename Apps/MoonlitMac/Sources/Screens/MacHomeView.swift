@@ -1,6 +1,7 @@
 import SwiftUI
 import MoonlitCore
 import AppKit
+import OSLog
 
 struct MacHomeView: View {
     let onSelectMedia: (MetaPreview) -> Void
@@ -314,7 +315,11 @@ struct MacHomeView: View {
         Task {
             guard let refreshed = await CollectionOrganizerStore.shared.refresh(
                 remoteURL: MoonlitConfig.homeOrganizerRemoteURL.flatMap(URL.init)
-            ) else { return }
+            ) else {
+                Logger(subsystem: "ai.moonlit", category: "MacHomeView")
+                    .warning("home-organizer background refresh failed")
+                return
+            }
             collectionRepo.apply(refreshed)
             guard !collectionRepo.collections.isEmpty else { return }
             await catalogRepo.loadFromCollections(
