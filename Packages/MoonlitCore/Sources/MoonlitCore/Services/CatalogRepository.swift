@@ -176,7 +176,8 @@ public class CatalogRepository: ObservableObject {
     /// on retry/tap. Mirrors the skeleton rows used for multi-folder group tiles.
     nonisolated public static func skeletonRow(
         for folder: DBFolder,
-        in collection: DBCollection
+        in collection: DBCollection,
+        sourceCount: Int? = nil
     ) -> CatalogRow {
         CatalogRow(
             id: "folder_\(folder.id)",
@@ -197,8 +198,24 @@ public class CatalogRepository: ObservableObject {
             viewMode: collection.viewMode,
             showAllTab: collection.showAllTab,
             pinToTop: collection.pinToTop,
-            backdropImage: collection.backdropImage
+            backdropImage: collection.backdropImage,
+            sourceCount: sourceCount
         )
+    }
+
+    /// Count + label kind for a folder group tile. Fully-loaded leaf folders show
+    /// their real film/show count; unloaded franchise bundles (>1 source) fall back
+    /// to a "N COLLECTIONS" badge so the tile isn't blank before its contents load.
+    nonisolated public static func folderTileCount(for row: CatalogRow) -> (Int?, CountKind?) {
+        if !row.items.isEmpty {
+            let shows = row.items.filter { $0.type == .series || $0.type == .tv }.count
+            let kind: CountKind = shows > row.items.count / 2 ? .shows : .films
+            return (row.items.count, kind)
+        }
+        if let sources = row.sourceCount, sources > 1 {
+            return (sources, .collections)
+        }
+        return (nil, nil)
     }
 
     nonisolated public static func displayRows(
@@ -235,6 +252,7 @@ public class CatalogRepository: ObservableObject {
                 ?? folder.heroBackdrop?.nonEmpty
                 ?? first?.banner
                 ?? first?.poster
+            let (count, kind) = Self.folderTileCount(for: row)
             return MetaPreview(
                 id: "folder_\(folder.id)",
                 type: first?.type ?? .movie,
@@ -243,7 +261,13 @@ public class CatalogRepository: ObservableObject {
                 banner: banner,
                 logo: folder.titleLogo,
                 posterShape: PosterShape(rawValue: folder.tileShape ?? "") ?? .landscape,
-                description: first?.description
+                // Clean backdrop art for Harbor-style tiles that draw their own title.
+                backdrop: folder.heroBackdrop?.nonEmpty,
+                itemCount: count,
+                countKind: kind,
+                description: first?.description,
+                focusGif: folder.focusGif,
+                focusGifEnabled: folder.focusGifEnabled
             )
         }
 
@@ -461,10 +485,13 @@ public class CatalogRepository: ObservableObject {
                 if willShowAsGroup {
                     // Skeleton row — cover image from folder metadata, no HTTP fetch needed.
                     // Content is loaded on-demand when the user opens this folder.
+                    // Carry the source count so a franchise bundle can show "N COLLECTIONS".
+                    let sourceCount = collectionRepo.catalogs(for: folder).count
+                        + collectionRepo.sources(for: folder).count
                     skeletonResults.append(FolderResult(
                         collectionIdx: ci,
                         folderIdx: fi,
-                        row: Self.skeletonRow(for: folder, in: collection)
+                        row: Self.skeletonRow(for: folder, in: collection, sourceCount: sourceCount)
                     ))
                 } else {
                     let norm = collectionRepo.catalogs(for: folder)
@@ -529,7 +556,8 @@ public class CatalogRepository: ObservableObject {
                             viewMode: work.collection.viewMode,
                             showAllTab: work.collection.showAllTab,
                             pinToTop: work.collection.pinToTop,
-                            backdropImage: work.collection.backdropImage
+                            backdropImage: work.collection.backdropImage,
+                            sourceCount: work.normalizedSources.count + work.rawSources.count
                         )
                     )
                 }
@@ -556,10 +584,12 @@ public class CatalogRepository: ObservableObject {
                 // If nothing is cached either, fall back to a metadata-only skeleton so a
                 // JSON-configured collection never silently vanishes from the home screen.
                 let folderId = "folder_\(folder.id)"
+                let sourceCount = collectionRepo.catalogs(for: folder).count
+                    + collectionRepo.sources(for: folder).count
                 return existingFolderRows[folderId]
                     ?? existingCollectionRows.first(where: { $0.id == folderId })
                     ?? existingRows.first(where: { $0.id == folderId })
-                    ?? Self.skeletonRow(for: folder, in: collection)
+                    ?? Self.skeletonRow(for: folder, in: collection, sourceCount: sourceCount)
             }
             for row in collectionFolderRows { newFolderRows[row.id] = row }
             rows.append(contentsOf: Self.displayRows(
@@ -910,6 +940,74 @@ public class CatalogRepository: ObservableObject {
         if let idx = catalogRows.firstIndex(where: { $0.id == normalizedFolderId }) {
             catalogRows[idx] = updated
         }
+    }
+
+    /// Loads a genre hub: `GenreCatalog` sections (folder tiles, no fetch) plus the
+    /// bundled browse rails (New / Popular / Top …) with their merged items fetched.
+    public func loadGenreHub(
+        genre: String,
+        collectionRepo: CollectionRepository,
+        addons: [AddonManifest]
+    ) async -> GenreCatalog.HubContent {
+        let org = collectionRepo.organized
+        let sections = GenreCatalog.sections(for: genre, in: org)
+        let rails = GenreCatalog.browseRails(for: genre, in: org)
+
+        guard let fallbackURL = addons.first(where: {
+            $0.transportUrl?.contains("aiometadata") == true || $0.id.contains("aio")
+        })?.transportUrl ?? addons.first?.transportUrl else {
+            return GenreCatalog.HubContent(sections: sections, browse: [])
+        }
+
+        var loaded: [GenreCatalog.LoadedBrowseRail] = []
+        for rail in rails {
+            let items = await fetchFolderItems(
+                normalizedSources: rail.catalogs,
+                rawSources: rail.sources,
+                fallbackURL: fallbackURL,
+                addons: addons,
+                skip: 0
+            )
+            let deduped = Self.deduplicated(items)
+            if !deduped.isEmpty {
+                loaded.append(GenreCatalog.LoadedBrowseRail(id: rail.id, title: rail.title, items: deduped))
+            }
+        }
+        return GenreCatalog.HubContent(sections: sections, browse: loaded)
+    }
+
+    /// Resolves award-winner title ids → bundled award-body asset name, by fetching the
+    /// Awards collection's winner lists. Bounded to a couple of sources per body to keep
+    /// the background pass cheap.
+    public func fetchAwardWinners(
+        collectionRepo: CollectionRepository,
+        addons: [AddonManifest]
+    ) async -> [String: String] {
+        guard let fallbackURL = addons.first(where: {
+            $0.transportUrl?.contains("aiometadata") == true || $0.id.contains("aio")
+        })?.transportUrl ?? addons.first?.transportUrl else { return [:] }
+
+        var result: [String: String] = [:]
+        for collection in collectionRepo.collections
+        where GenreCatalog.normalize(collection.name) == "awards" {
+            for folder in collectionRepo.folders(for: collection) {
+                guard let asset = AwardIndex.assetName(forBody: folder.name) else { continue }
+                let catalogs = Array(collectionRepo.catalogs(for: folder).prefix(2))
+                let sources = Array(collectionRepo.sources(for: folder).prefix(2))
+                guard !catalogs.isEmpty || !sources.isEmpty else { continue }
+                let items = await fetchFolderItems(
+                    normalizedSources: catalogs,
+                    rawSources: sources,
+                    fallbackURL: fallbackURL,
+                    addons: addons,
+                    skip: 0
+                )
+                for item in items where result[item.id] == nil {
+                    result[item.id] = asset
+                }
+            }
+        }
+        return result
     }
 
     private func fetchFolderItems(

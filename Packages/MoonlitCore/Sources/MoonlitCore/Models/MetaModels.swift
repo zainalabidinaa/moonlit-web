@@ -7,6 +7,15 @@ public enum MediaType: String, Codable, Sendable, CaseIterable {
     case tv = "tv"
 }
 
+/// What a folder-tile count badge is counting, so the label can read
+/// "FILMS" / "SHOWS" (loaded leaf folders) or "COLLECTIONS" (franchise bundles
+/// whose contents haven't been fetched yet).
+public enum CountKind: String, Codable, Sendable {
+    case films
+    case shows
+    case collections
+}
+
 public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
     public let id: String
     public let type: MediaType
@@ -15,6 +24,13 @@ public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
     public let banner: String?
     public let logo: String?
     public let posterShape: PosterShape?
+    /// Clean backdrop art (e.g. a folder's heroBackdrop) for tiles that render their
+    /// own title/badge overlay instead of baked-in cover typography.
+    public let backdrop: String?
+    /// Number of items behind a folder tile, when the folder is fully loaded.
+    public let itemCount: Int?
+    /// What `itemCount` represents on a folder tile (films / shows / collections).
+    public let countKind: CountKind?
     public let description: String?
     public let releaseInfo: String?
     public let rawReleaseDate: String?
@@ -28,6 +44,8 @@ public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
     public let behaviorHints: BehaviorHints?
     public let rankHint: Int?
     public let trailerStreams: [StreamItem]?
+    public let focusGif: String?
+    public let focusGifEnabled: Bool?
 
     public init(
         id: String,
@@ -37,6 +55,9 @@ public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
         banner: String? = nil,
         logo: String? = nil,
         posterShape: PosterShape? = nil,
+        backdrop: String? = nil,
+        itemCount: Int? = nil,
+        countKind: CountKind? = nil,
         description: String? = nil,
         releaseInfo: String? = nil,
         rawReleaseDate: String? = nil,
@@ -49,7 +70,9 @@ public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
         status: String? = nil,
         behaviorHints: BehaviorHints? = nil,
         rankHint: Int? = nil,
-        trailerStreams: [StreamItem]? = nil
+        trailerStreams: [StreamItem]? = nil,
+        focusGif: String? = nil,
+        focusGifEnabled: Bool? = nil
     ) {
         self.id = id
         self.type = type
@@ -58,6 +81,9 @@ public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
         self.banner = banner
         self.logo = logo
         self.posterShape = posterShape
+        self.backdrop = backdrop
+        self.itemCount = itemCount
+        self.countKind = countKind
         self.description = description
         self.releaseInfo = releaseInfo
         self.rawReleaseDate = rawReleaseDate
@@ -71,6 +97,8 @@ public struct MetaPreview: Codable, Sendable, Identifiable, Hashable {
         self.behaviorHints = behaviorHints
         self.rankHint = rankHint
         self.trailerStreams = trailerStreams
+        self.focusGif = focusGif
+        self.focusGifEnabled = focusGifEnabled
     }
 }
 
@@ -296,6 +324,10 @@ public struct CatalogRow: Codable, Sendable, Identifiable {
     public let showAllTab: Bool?
     public let pinToTop: Bool?
     public let backdropImage: String?
+    /// How many sources/sub-collections a folder has, known from its metadata
+    /// before any items are fetched. Lets a group tile show a "N COLLECTIONS"
+    /// badge for franchise bundles without loading their contents.
+    public let sourceCount: Int?
 
     public init(
         id: String,
@@ -317,7 +349,8 @@ public struct CatalogRow: Codable, Sendable, Identifiable {
         viewMode: String? = nil,
         showAllTab: Bool? = nil,
         pinToTop: Bool? = nil,
-        backdropImage: String? = nil
+        backdropImage: String? = nil,
+        sourceCount: Int? = nil
     ) {
         self.id = id
         self.title = title
@@ -339,5 +372,6 @@ public struct CatalogRow: Codable, Sendable, Identifiable {
         self.showAllTab = showAllTab
         self.pinToTop = pinToTop
         self.backdropImage = backdropImage
+        self.sourceCount = sourceCount
     }
 }
