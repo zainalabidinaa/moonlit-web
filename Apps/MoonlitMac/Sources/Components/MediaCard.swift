@@ -85,10 +85,10 @@ struct MediaCard: View {
 
     @ViewBuilder
     private var folderBackground: some View {
-        let focusGif = item.focusGif ?? row?.focusGif
-        let gifEnabled = (item.focusGifEnabled ?? row?.focusGifEnabled) == true
-        if let gif = focusGif, gifEnabled, let gifURL = URL(string: gif) {
-            let _ = print("[FocusGIF] \(isHovering ? "HOVER" : "static") \(item.name): enabled=\(gifEnabled) url=\(gif.prefix(60))")
+        if isHovering,
+           let gif = item.focusGif ?? row?.focusGif,
+           (item.focusGifEnabled ?? row?.focusGifEnabled) == true,
+           let gifURL = URL(string: gif) {
             AnimatedRemoteImage(url: gifURL, contentMode: .resizeAspectFill)
                 .frame(width: cardWidth, height: cardHeight)
                 .clipped()

@@ -35,10 +35,10 @@ struct AnimatedRemoteImage: NSViewRepresentable {
     }
 
     private static func decodeFrames(from data: Data) -> [AnimatedGIFFrame] {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil),
-              CGImageSourceGetCount(source) > 1 else { return [] }
+        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return [] }
         var frames: [AnimatedGIFFrame] = []
-        for index in 0..<CGImageSourceGetCount(source) {
+        let count = CGImageSourceGetCount(source)
+        for index in 0..<count {
             guard let cgImage = CGImageSourceCreateImageAtIndex(source, index, nil) else { continue }
             let duration = frameDuration(source: source, index: index)
             frames.append(AnimatedGIFFrame(image: cgImage, duration: duration))
