@@ -21,6 +21,9 @@ struct HomeScreen: View {
     @State private var showCWDetail = false
     @State private var selectedFolder: CatalogRow? = nil
     @State private var showFolder = false
+    @State private var selectedGenre: String? = nil
+    @State private var showGenre = false
+    @State private var showAwards = false
     @State private var playerLaunch: PlayerLaunch?
     @State private var streamSelectionLaunch: PlayerLaunch?
     @State private var showFreeUpgradeAlert = false
@@ -84,12 +87,20 @@ struct HomeScreen: View {
 
     @State private var heroIndex = 0
 
+    /// Free accounts never receive Moonlit's curated default catalogs or the
+    /// cinematic hero. They only see catalogs from addons they installed
+    /// themselves; with none installed they get a "No content found" empty state.
+    private var isFreeAccount: Bool {
+        profileManager.currentProfile?.role == "free"
+    }
+
     private var catalogMetadataAddons: [AddonManifest] {
         addonRepo.enabledAddons.filter { !$0.hasResource("stream") }
     }
 
     private var catalogAddonsForCurrentMode: [AddonManifest] {
-        profileManager.currentProfile == nil && guestMode ? catalogMetadataAddons : addonRepo.enabledAddons
+        if isFreeAccount { return freeUserCatalogAddons }
+        return profileManager.currentProfile == nil && guestMode ? catalogMetadataAddons : addonRepo.enabledAddons
     }
 
     private var currentHeroBackdropURL: URL? {
@@ -119,7 +130,7 @@ struct HomeScreen: View {
 
                     ScrollView {
                         VStack(spacing: 0) {
-                            if !featuredItems.isEmpty {
+                            if !featuredItems.isEmpty && !isFreeAccount {
                                 ParallaxHero(
                                     items: featuredItems,
                                     currentIndex: $heroIndex,
@@ -196,7 +207,14 @@ struct HomeScreen: View {
                         LazyVStack(spacing: 28) {
                             ForEach(catalogRepo.catalogRows) { row in
                                 CollectionRowContainer(row: row, style: rowStyleStore.style(forRowTitle: row.title), onTap: { item in
-                                    if item.id.hasPrefix("folder_") {
+                                    if item.id.hasPrefix("folder_"),
+                                       let genre = collectionRepo.genreName(forFolderRowId: item.id) {
+                                        selectedGenre = genre
+                                        showGenre = true
+                                    } else if item.id.hasPrefix("folder_"),
+                                              collectionRepo.isAwardsFolder(forFolderRowId: item.id) {
+                                        showAwards = true
+                                    } else if item.id.hasPrefix("folder_") {
                                         selectedFolder = catalogRepo.allFolderRows[item.id] ?? CatalogRow(
                                             id: item.id,
                                             title: item.name,
@@ -247,6 +265,10 @@ struct HomeScreen: View {
                             .padding(.horizontal)
                             Spacer()
                         }
+                    } else if isFreeAccount {
+                        FreeNoContentState()
+                            .padding(.top, 140)
+                            .padding(.horizontal, 32)
                     } else {
                         HomeEmptyState()
                             .padding(.top, featuredItems.isEmpty ? 140 : 48)
@@ -293,13 +315,21 @@ struct HomeScreen: View {
                     FolderScreen(row: folder)
                 }
             }
+            .navigationDestination(isPresented: $showGenre) {
+                if let genre = selectedGenre {
+                    GenreHubScreen(genre: genre)
+                }
+            }
+            .navigationDestination(isPresented: $showAwards) {
+                AwardsHubScreen()
+            }
             .fullScreenCover(item: $playerLaunch) { launch in
                 PlayerScreen(launch: launch, onDismiss: { playerLaunch = nil })
             }
             .alert("Streaming unavailable", isPresented: $showFreeUpgradeAlert) {
                 Button("OK", role: .cancel) {}
             } message: {
-                Text("Your account is set to Free. Visit the Moonlit website to upgrade your account and unlock streaming.")
+                Text("Streaming isn't available on this account.")
             }
             .fullScreenCover(item: $streamSelectionLaunch) { launch in
                 StreamSelectionScreen(
@@ -328,6 +358,10 @@ struct HomeScreen: View {
                     return
                 }
                 await addonRepo.loadAddons(profileId: profile.id)
+                if profile.role == "free" {
+                    await loadFreeUserCatalogs()
+                    return
+                }
                 async let continueWatching: Void = homeRepo.loadContinueWatching(profileId: profile.id)
                 _ = await loadGlobalOrganizer()
                 await libraryRepo.loadLibrary(profileId: profile.id)
@@ -347,6 +381,13 @@ struct HomeScreen: View {
                 }
                 await continueWatching
                 warmupContinueWatching()
+                Task {
+                    await AwardIndex.shared.buildIfNeeded(
+                        catalogRepo: catalogRepo,
+                        collectionRepo: collectionRepo,
+                        addons: addonRepo.enabledAddons
+                    )
+                }
             }
             .onChange(of: preferenceStore.revision) { _, _ in
                 Task { await reloadCatalogRows() }
@@ -410,7 +451,29 @@ struct HomeScreen: View {
         }
     }
 
+    /// Enabled addons the free user installed themselves — never the curated
+    /// `MoonlitConfig.defaultAddons`. This is the only content a free account sees.
+    private var freeUserCatalogAddons: [AddonManifest] {
+        addonRepo.userAddons.filter { $0.enabled }.map { $0.manifest }
+    }
+
+    /// Loads catalogs for a free account from its own addons only. Clears any
+    /// warm/curated rows first so nothing leaks in from a prior premium session.
+    private func loadFreeUserCatalogs() async {
+        let ownAddons = freeUserCatalogAddons
+        catalogRepo.catalogRows = []
+        if ownAddons.isEmpty {
+            catalogRepo.isLoading = false
+        } else {
+            await catalogRepo.loadAllCatalogs(addons: ownAddons)
+        }
+    }
+
     private func reloadCatalogRows() async {
+        if isFreeAccount {
+            await loadFreeUserCatalogs()
+            return
+        }
         _ = await loadGlobalOrganizer()
         if collectionRepo.collections.isEmpty {
             await catalogRepo.loadAllCatalogs(addons: catalogAddonsForCurrentMode)
@@ -448,15 +511,12 @@ struct HomeScreen: View {
         }
         let before = collectionRepo.collections.count
         collectionRepo.apply(organized)
-        // Background-refresh from Supabase without blocking catalog row loading.
-        // The remote layout is MERGED on top of the bundled one (joined by collection
-        // name) so a partially-populated Supabase DB can't drop bundle-only collections
-        // like Trending Shows or Asian Dramas; portal edits still win on name match.
+        // Background-refresh from Supabase — remote layout is authoritative.
         Task {
             guard let refreshed = await CollectionOrganizerStore.shared.refresh(
                 remoteURL: MoonlitConfig.homeOrganizerRemoteURL.flatMap(URL.init)
             ) else { return }
-            collectionRepo.apply(CollectionRepository.mergeByName(base: organized, overlay: refreshed))
+            collectionRepo.apply(refreshed)
             guard !collectionRepo.collections.isEmpty else { return }
             await catalogRepo.loadFromCollections(
                 collectionRepo: collectionRepo,
@@ -508,6 +568,24 @@ private struct HomeEmptyState: View {
             Text("Add catalog or metadata addons in Settings.")
                 .font(.system(size: 14, weight: .regular, design: .default))
                 .foregroundColor(MoonlitTheme.textTertiary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// Empty state shown to Free accounts in place of catalog rows.
+private struct FreeNoContentState: View {
+    var body: some View {
+        VStack(spacing: 16) {
+            Image("NoContentFree")
+                .resizable()
+                .scaledToFit()
+                .frame(maxWidth: 240)
+
+            Text("No content found")
+                .font(.system(size: 16, weight: .semibold, design: .default))
+                .foregroundColor(MoonlitTheme.textSecondary)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)

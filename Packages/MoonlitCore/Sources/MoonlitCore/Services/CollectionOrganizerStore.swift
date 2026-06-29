@@ -23,15 +23,12 @@ public final class CollectionOrganizerStore: @unchecked Sendable {
     }
 
     public func cachedOrBundledLayout(bundledData: Data) throws -> OrganizedCollections {
-        // The bundle is the authoritative full set. A cached layout (a previous, possibly
-        // partial, Supabase response) is merged ON TOP as an overlay — it must never
-        // replace the bundle outright, or bundle-only collections silently disappear.
-        let bundled = try CollectionOrganizerParser.parse(jsonData: bundledData)
         if let cachedData = try? Data(contentsOf: cacheURL),
-           let cached = try? CollectionOrganizerParser.parse(jsonData: cachedData) {
-            return OrganizedCollections.merged(base: bundled, overlay: cached)
+           let cached = try? CollectionOrganizerParser.parse(jsonData: cachedData),
+           !cached.collections.isEmpty {
+            return cached
         }
-        return bundled
+        return try CollectionOrganizerParser.parse(jsonData: bundledData)
     }
 
     public func refresh(remoteURL: URL?) async -> OrganizedCollections? {

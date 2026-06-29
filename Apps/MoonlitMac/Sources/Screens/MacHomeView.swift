@@ -155,6 +155,13 @@ struct MacHomeView: View {
             await reloadCatalogRows(mode: .replaceCache)
             await continueWatching
             warmupContinueWatching()
+            Task {
+                await AwardIndex.shared.buildIfNeeded(
+                    catalogRepo: catalogRepo,
+                    collectionRepo: CollectionRepository.shared,
+                    addons: addonRepo.enabledAddons
+                )
+            }
         }
         .onChange(of: preferenceStore.revision) { _, _ in
             Task { await reloadCatalogRows(mode: .replaceCache) }
@@ -308,7 +315,7 @@ struct MacHomeView: View {
             guard let refreshed = await CollectionOrganizerStore.shared.refresh(
                 remoteURL: MoonlitConfig.homeOrganizerRemoteURL.flatMap(URL.init)
             ) else { return }
-            collectionRepo.apply(CollectionRepository.mergeByName(base: organized, overlay: refreshed))
+            collectionRepo.apply(refreshed)
             guard !collectionRepo.collections.isEmpty else { return }
             await catalogRepo.loadFromCollections(
                 collectionRepo: collectionRepo,
