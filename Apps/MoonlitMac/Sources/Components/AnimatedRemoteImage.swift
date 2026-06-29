@@ -7,8 +7,7 @@ struct AnimatedRemoteImage: NSViewRepresentable {
     let contentMode: CALayerContentsGravity
 
     func makeNSView(context: Context) -> GIFImageView {
-        let view = GIFImageView()
-        return view
+        GIFImageView()
     }
 
     func updateNSView(_ view: GIFImageView, context: Context) {
@@ -53,7 +52,7 @@ struct AnimatedGIFFrame {
     let duration: TimeInterval
 }
 
-final class GIFImageView: NSImageView {
+final class GIFImageView: NSView {
     private var frameTimer: Timer?
     private var frames: [AnimatedGIFFrame] = []
     private var currentFrameIndex: Int = 0
@@ -62,14 +61,17 @@ final class GIFImageView: NSImageView {
         super.init(frame: frame)
         wantsLayer = true
         layer?.contentsGravity = .resizeAspectFill
-        animates = false
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
         layer?.contentsGravity = .resizeAspectFill
-        animates = false
+    }
+
+    override func layout() {
+        super.layout()
+        layer?.frame = bounds
     }
 
     func setFrames(_ frames: [AnimatedGIFFrame]) {
@@ -79,7 +81,7 @@ final class GIFImageView: NSImageView {
 
         guard !frames.isEmpty else { return }
 
-        image = NSImage(cgImage: frames[0].image, size: .zero)
+        layer?.contents = frames[0].image
         if frames.count > 1 {
             startAnimating()
         }
@@ -92,7 +94,7 @@ final class GIFImageView: NSImageView {
             guard let self, !self.frames.isEmpty else { return }
             self.currentFrameIndex = (self.currentFrameIndex + 1) % self.frames.count
             DispatchQueue.main.async {
-                self.image = NSImage(cgImage: self.frames[self.currentFrameIndex].image, size: .zero)
+                self.layer?.contents = self.frames[self.currentFrameIndex].image
             }
         }
     }
