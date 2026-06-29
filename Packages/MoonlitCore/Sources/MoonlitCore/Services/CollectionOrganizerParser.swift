@@ -253,7 +253,8 @@ public enum CollectionOrganizerParser {
         let effectiveCatalogId: String
         let normalizedMediaType = normalizeMediaType(source.type ?? source.mediaType)
         let isDiscoverSource = source.tmdbSourceType?.uppercased() == "DISCOVER"
-        let hasConcreteTMDBId = (source.tmdbId ?? 0) > 0
+        let tmdbInt = source.tmdbId.flatMap(Int.init)
+        let hasConcreteTMDBId = (tmdbInt ?? 0) > 0
 
         if let cid = source.catalogId {
             effectiveCatalogId = cid
@@ -474,13 +475,37 @@ private struct NuvioSource: Decodable {
     let type: String?
     let genre: String?
     let provider: String?
-    let catalogId: String?      // standard addon format
-    let mediaType: String?      // non-standard format uses uppercase mediaType (MOVIE, TV)
-    let traktListId: Int?       // non-standard trakt format
-    let tmdbId: Int?            // non-standard tmdb format
-    let tmdbSourceType: String? // non-standard tmdb: COLLECTION | DISCOVER
+    let catalogId: String?
+    let mediaType: String?
+    let traktListId: Int?
+    let tmdbId: String?           // non-standard tmdb format (may be Int or String)
+    let tmdbSourceType: String?
     let sortBy: String?
     let filters: NuvioDiscoverFilters?
+
+    enum CodingKeys: String, CodingKey {
+        case title, type, genre, provider, catalogId, mediaType
+        case traktListId, tmdbId, tmdbSourceType, sortBy, filters
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        title = try c.decodeIfPresent(String.self, forKey: .title)
+        type = try c.decodeIfPresent(String.self, forKey: .type)
+        genre = try c.decodeIfPresent(String.self, forKey: .genre)
+        provider = try c.decodeIfPresent(String.self, forKey: .provider)
+        catalogId = try c.decodeIfPresent(String.self, forKey: .catalogId)
+        mediaType = try c.decodeIfPresent(String.self, forKey: .mediaType)
+        traktListId = try c.decodeIfPresent(Int.self, forKey: .traktListId)
+        if let intVal = try? c.decode(Int.self, forKey: .tmdbId) {
+            tmdbId = "\(intVal)"
+        } else {
+            tmdbId = try c.decodeIfPresent(String.self, forKey: .tmdbId)
+        }
+        tmdbSourceType = try c.decodeIfPresent(String.self, forKey: .tmdbSourceType)
+        sortBy = try c.decodeIfPresent(String.self, forKey: .sortBy)
+        filters = try c.decodeIfPresent(NuvioDiscoverFilters.self, forKey: .filters)
+    }
 }
 
 private struct NuvioDiscoverFilters: Decodable {

@@ -43,20 +43,24 @@ public final class CollectionOrganizerStore: @unchecked Sendable {
         do {
             let (data, response) = try await session.data(from: remoteURL)
             guard let httpResponse = response as? HTTPURLResponse else {
+                print("[Moonlit] home-organizer fetch: not an HTTP response")
                 logger.error("home-organizer fetch: not an HTTP response")
                 return nil
             }
             guard httpResponse.statusCode == 200 else {
-                logger.error("home-organizer fetch: HTTP \(httpResponse.statusCode)")
+                print("[Moonlit] home-organizer fetch: HTTP \(httpResponse.statusCode)")
+                logger.error("home-organizer fetch: HTTP \(httpResponse.statusCode, privacy: .public)")
                 try? FileManager.default.removeItem(at: cacheURL)
                 return nil
             }
             let parsed = try CollectionOrganizerParser.parse(jsonData: data)
             try? data.write(to: cacheURL, options: .atomic)
-            logger.info("home-organizer refreshed successfully (\(parsed.collections.count) collections)")
+            print("[Moonlit] home-organizer refreshed: \(parsed.collections.count) collections")
+            logger.info("home-organizer refreshed successfully (\(parsed.collections.count, privacy: .public) collections)")
             return parsed
         } catch {
-            logger.error("home-organizer fetch failed: \(error.localizedDescription)")
+            print("[Moonlit] home-organizer fetch FAILED: \(error)")
+            logger.error("home-organizer fetch failed: \(error.localizedDescription, privacy: .public)")
             try? FileManager.default.removeItem(at: cacheURL)
             return nil
         }
