@@ -8,13 +8,7 @@ struct AnimatedRemoteImage: NSViewRepresentable {
 
     func makeNSView(context: Context) -> GIFImageView {
         let view = GIFImageView()
-        view.imageScaling = {
-            switch contentMode {
-            case .resizeAspectFill: return .scaleAxesIndependently
-            case .resizeAspect: return .scaleProportionallyUpOrDown
-            default: return .scaleAxesIndependently
-            }
-        }()
+        view.imageScaling = .scaleProportionallyUpOrDown
         return view
     }
 
