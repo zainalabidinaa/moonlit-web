@@ -36,7 +36,7 @@ public final class RecommendationsService: ObservableObject {
     @Published public var isLoading = false
     @Published public var generatedAt: String?
 
-    private let apiBase = "https://nightarc-web.vercel.app/api/recommendations"
+    private let apiBase = "https://moonlit-web-zainalabidinaas-projects.vercel.app/api/recommendations"
 
     private init() {}
 
