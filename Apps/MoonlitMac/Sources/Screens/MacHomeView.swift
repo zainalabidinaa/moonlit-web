@@ -17,6 +17,7 @@ struct MacHomeView: View {
     @StateObject private var rowStyleStore = CollectionRowDisplayStyleStore.shared
     @StateObject private var heroStore = HeroPreferenceStore.shared
     @StateObject private var libraryRepo = LibraryRepository.shared
+    @StateObject private var recsService = RecommendationsService.shared
 
     @State private var heroIndex = 0
     @State private var isResumingItemId: String?
@@ -119,6 +120,61 @@ struct MacHomeView: View {
                             .padding(.bottom, 28)
                     }
 
+                    // For You — Personalized Recommendations
+                    if !recsService.rows.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("For You")
+                                .font(.system(size: 21, weight: .bold))
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 28)
+
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                LazyHStack(spacing: 12) {
+                                    ForEach(recsService.rows) { row in
+                                        Button {
+                                            let catalogRow = CatalogRow(
+                                                id: row.id,
+                                                title: row.rowTitle,
+                                                items: row.items,
+                                                tileShape: "poster",
+                                                coverImage: row.coverImage
+                                            )
+                                            onSelectFolder?(catalogRow)
+                                        } label: {
+                                            VStack(alignment: .center, spacing: 8) {
+                                                ZStack {
+                                                    RoundedRectangle(cornerRadius: 12)
+                                                        .fill(MoonlitTheme.surfaceElevated)
+                                                        .frame(width: 140, height: 210)
+
+                                                    if let url = row.coverImage.flatMap(URL.init) {
+                                                        CachedAsyncImage(url: url) { image in
+                                                            image.resizable().scaledToFill()
+                                                        } placeholder: {
+                                                            Color.clear
+                                                        }
+                                                        .frame(width: 140, height: 210)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                    }
+                                                }
+
+                                                Text(row.rowTitle)
+                                                    .font(.system(size: 12, weight: .semibold))
+                                                    .foregroundColor(.white.opacity(0.85))
+                                                    .lineLimit(2)
+                                                    .multilineTextAlignment(.center)
+                                                    .frame(width: 140)
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                                .padding(.horizontal, 28)
+                            }
+                        }
+                        .padding(.bottom, 20)
+                    }
+
                     if !catalogRepo.catalogRows.isEmpty {
                         LazyVStack(spacing: 30) {
                             ForEach(catalogRepo.catalogRows) { row in
@@ -153,6 +209,7 @@ struct MacHomeView: View {
             catalogRepo.isLoading = true
             await addonRepo.loadAddons(profileId: profile.id)
             async let continueWatching: Void = homeRepo.loadContinueWatching(profileId: profile.id)
+            Task { await recsService.load(profileId: profile.id) }
             await libraryRepo.loadLibrary(profileId: profile.id)
             await reloadCatalogRows(mode: .replaceCache)
             await continueWatching
