@@ -36,7 +36,8 @@ public final class RecommendationsService: ObservableObject {
     @Published public var isLoading = false
     @Published public var generatedAt: String?
 
-    private let apiBase = "https://moonlit-web-zainalabidinaas-projects.vercel.app/api/recommendations"
+    private let client = SupabaseClient.shared
+    private let generateURL = "https://moonlit-web-zainalabidinaas-projects.vercel.app/api/recommendations/generate"
 
     private init() {}
 
@@ -44,24 +45,42 @@ public final class RecommendationsService: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
-        guard var components = URLComponents(string: apiBase) else { return }
-        components.queryItems = [URLQueryItem(name: "profile_id", value: profileId)]
-
-        guard let url = components.url else { return }
-
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
-            let response = try JSONDecoder().decode(RecommendationsResponse.self, from: data)
-            rows = response.rows
-            generatedAt = response.generatedAt
+            let dbRows: [DBRecommendationRow] = try await client.select(
+                from: "profile_recommendations",
+                where: ["profile_id": profileId],
+                order: "sort_order"
+            )
+
+            if dbRows.isEmpty {
+                rows = []
+                generatedAt = nil
+                return
+            }
+
+            generatedAt = dbRows.first?.generatedAt
+
+            let isoFormatter = ISO8601DateFormatter()
+            isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+
+            rows = dbRows.compactMap { db in
+                guard let itemsData = db.items.data(using: .utf8) else { return nil }
+                guard let items = try? JSONDecoder().decode([MetaPreview].self, from: itemsData) else { return nil }
+                return RecommendationRow(
+                    rowType: db.rowType,
+                    rowTitle: db.rowTitle,
+                    coverImage: db.coverImage,
+                    sortOrder: db.sortOrder,
+                    items: items
+                )
+            }
         } catch {
             print("[RecommendationsService] load failed: \(error)")
         }
     }
 
     public func triggerRegeneration(profileId: String) async -> Bool {
-        guard let components = URLComponents(string: "\(apiBase)/generate") else { return false }
-        guard let url = components.url else { return false }
+        guard let url = URL(string: generateURL) else { return false }
 
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -81,5 +100,27 @@ public final class RecommendationsService: ObservableObject {
     public func clear() {
         rows = []
         generatedAt = nil
+    }
+}
+
+private struct DBRecommendationRow: Codable, Sendable {
+    let id: String
+    let profileId: String
+    let rowType: String
+    let rowTitle: String
+    let coverImage: String?
+    let items: String
+    let sortOrder: Int
+    let generatedAt: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case profileId = "profile_id"
+        case rowType = "row_type"
+        case rowTitle = "row_title"
+        case coverImage = "cover_image"
+        case items
+        case sortOrder = "sort_order"
+        case generatedAt = "generated_at"
     }
 }
