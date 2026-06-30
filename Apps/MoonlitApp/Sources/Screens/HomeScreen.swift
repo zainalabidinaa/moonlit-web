@@ -223,7 +223,7 @@ struct HomeScreen: View {
                                                 id: row.id,
                                                 title: row.rowTitle,
                                                 items: row.items,
-                                                tileShape: "poster",
+                                                tileShape: "landscape",
                                                 coverImage: row.coverImage
                                             )
                                             selectedRecRow = catalogRow
@@ -233,7 +233,7 @@ struct HomeScreen: View {
                                                 id: row.id,
                                                 title: row.rowTitle,
                                                 items: row.items,
-                                                tileShape: "poster",
+                                                tileShape: "landscape",
                                                 coverImage: row.coverImage
                                             ), onTap: { _ in })
                                         }

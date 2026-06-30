@@ -136,7 +136,7 @@ struct MacHomeView: View {
                                                 id: row.id,
                                                 title: row.rowTitle,
                                                 items: row.items,
-                                                tileShape: "poster",
+                                                tileShape: "landscape",
                                                 coverImage: row.coverImage
                                             )
                                             onSelectFolder?(catalogRow)
@@ -145,7 +145,7 @@ struct MacHomeView: View {
                                                 ZStack {
                                                     RoundedRectangle(cornerRadius: 12)
                                                         .fill(MoonlitTheme.surfaceElevated)
-                                                        .frame(width: 140, height: 210)
+                                                        .frame(width: 220, height: 124)
 
                                                     if let url = row.coverImage.flatMap(URL.init) {
                                                         CachedAsyncImage(url: url) { image in
@@ -153,7 +153,7 @@ struct MacHomeView: View {
                                                         } placeholder: {
                                                             Color.clear
                                                         }
-                                                        .frame(width: 140, height: 210)
+                                                        .frame(width: 220, height: 124)
                                                         .clipShape(RoundedRectangle(cornerRadius: 12))
                                                     }
                                                 }
@@ -163,7 +163,7 @@ struct MacHomeView: View {
                                                     .foregroundColor(.white.opacity(0.85))
                                                     .lineLimit(2)
                                                     .multilineTextAlignment(.center)
-                                                    .frame(width: 140)
+                                                    .frame(width: 220)
                                             }
                                         }
                                         .buttonStyle(.plain)
