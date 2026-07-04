@@ -211,7 +211,7 @@ public class CollectionRepository: ObservableObject {
 
     public func folders(for collection: DBCollection) -> [DBFolder] {
         folders
-            .filter { $0.collectionId == collection.id }
+            .filter { $0.collectionId == collection.id && ($0.enabled ?? true) }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 

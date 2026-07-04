@@ -9,6 +9,7 @@ public struct DBCollection: Codable, Identifiable, Sendable {
     public let showAllTab: Bool?
     public let focusGlowEnabled: Bool?
     public let pinToTop: Bool?
+    public let showOnHome: Bool?
     public let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -19,6 +20,7 @@ public struct DBCollection: Codable, Identifiable, Sendable {
         case showAllTab = "show_all_tab"
         case focusGlowEnabled = "focus_glow_enabled"
         case pinToTop = "pin_to_top"
+        case showOnHome = "show_on_home"
         case createdAt = "created_at"
     }
 
@@ -31,6 +33,7 @@ public struct DBCollection: Codable, Identifiable, Sendable {
         showAllTab: Bool? = nil,
         focusGlowEnabled: Bool? = nil,
         pinToTop: Bool? = nil,
+        showOnHome: Bool? = nil,
         createdAt: Date? = nil
     ) {
         self.id = id
@@ -41,6 +44,7 @@ public struct DBCollection: Codable, Identifiable, Sendable {
         self.showAllTab = showAllTab
         self.focusGlowEnabled = focusGlowEnabled
         self.pinToTop = pinToTop
+        self.showOnHome = showOnHome
         self.createdAt = createdAt
     }
 }
@@ -58,6 +62,8 @@ public struct DBFolder: Codable, Identifiable, Sendable {
     public let hideTitle: Bool?
     public let tileShape: String?
     public let focusGifEnabled: Bool?
+    public let enabled: Bool?
+    public let genre: String?
     public let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -72,6 +78,8 @@ public struct DBFolder: Codable, Identifiable, Sendable {
         case hideTitle = "hide_title"
         case tileShape = "tile_shape"
         case focusGifEnabled = "focus_gif_enabled"
+        case enabled
+        case genre
         case createdAt = "created_at"
     }
 
@@ -88,6 +96,8 @@ public struct DBFolder: Codable, Identifiable, Sendable {
         hideTitle: Bool? = nil,
         tileShape: String? = nil,
         focusGifEnabled: Bool? = nil,
+        enabled: Bool? = nil,
+        genre: String? = nil,
         createdAt: Date? = nil
     ) {
         self.id = id
@@ -102,6 +112,8 @@ public struct DBFolder: Codable, Identifiable, Sendable {
         self.hideTitle = hideTitle
         self.tileShape = tileShape
         self.focusGifEnabled = focusGifEnabled
+        self.enabled = enabled
+        self.genre = genre
         self.createdAt = createdAt
     }
 }

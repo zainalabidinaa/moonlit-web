@@ -157,7 +157,8 @@ public enum CollectionOrganizerParser {
                     heroVideoUrl: folder.heroVideoUrl,
                     hideTitle: folder.hideTitle,
                     tileShape: normalizeShape(folder.tileShape),
-                    focusGifEnabled: folder.focusGifEnabled
+                    focusGifEnabled: folder.focusGifEnabled,
+                    enabled: folder.enabled
                 ))
 
                 mappedFolderCatalogs.append(contentsOf: folderCatalogsForFolder)
@@ -174,7 +175,8 @@ public enum CollectionOrganizerParser {
                 viewMode: collection.viewMode,
                 showAllTab: collection.showAllTab,
                 focusGlowEnabled: false,
-                pinToTop: collection.pinToTop
+                pinToTop: collection.pinToTop,
+                showOnHome: collection.showOnHome
             ))
             sortOrder += 1
             folders.append(contentsOf: mappedFolders)
@@ -200,7 +202,8 @@ public enum CollectionOrganizerParser {
                 viewMode: $0.viewMode,
                 showAllTab: $0.showAllTab,
                 focusGlowEnabled: false,
-                pinToTop: $0.pinToTop
+                pinToTop: $0.pinToTop,
+                showOnHome: $0.showOnHome
             )
         }
         let folders = input.folders.map {
@@ -216,7 +219,8 @@ public enum CollectionOrganizerParser {
                 heroVideoUrl: $0.heroVideoUrl,
                 hideTitle: $0.hideTitle,
                 tileShape: normalizeShape($0.tileShape),
-                focusGifEnabled: $0.focusGifEnabled
+                focusGifEnabled: $0.focusGifEnabled,
+                enabled: $0.enabled
             )
         }
         let folderCatalogs = input.folderCatalogs.map {
@@ -454,6 +458,7 @@ private struct NuvioCollection: Decodable {
     let showAllTab: Bool?
     let backdropImageUrl: String?
     let focusGlowEnabled: Bool?
+    let showOnHome: Bool?
 }
 
 private struct NuvioFolder: Decodable {
@@ -468,6 +473,7 @@ private struct NuvioFolder: Decodable {
     let coverImageUrl: String?
     let focusGifEnabled: Bool?
     let heroBackdropUrl: String?
+    let enabled: Bool?
 }
 
 private struct NuvioSource: Decodable {
@@ -539,6 +545,7 @@ private struct BESTCollection: Decodable {
     let focusGlowEnabled: Bool?
     let pinToTop: Bool?
     let backdropImage: String?
+    let showOnHome: Bool?
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -549,6 +556,7 @@ private struct BESTCollection: Decodable {
         case focusGlowEnabled = "focus_glow_enabled"
         case pinToTop = "pin_to_top"
         case backdropImage = "backdrop_image"
+        case showOnHome = "show_on_home"
     }
 }
 
@@ -565,6 +573,7 @@ private struct BESTFolder: Decodable {
     let hideTitle: Bool?
     let tileShape: String?
     let focusGifEnabled: Bool?
+    let enabled: Bool?
 
     enum CodingKeys: String, CodingKey {
         case name
@@ -579,6 +588,7 @@ private struct BESTFolder: Decodable {
         case hideTitle = "hide_title"
         case tileShape = "tile_shape"
         case focusGifEnabled = "focus_gif_enabled"
+        case enabled
     }
 }
 
