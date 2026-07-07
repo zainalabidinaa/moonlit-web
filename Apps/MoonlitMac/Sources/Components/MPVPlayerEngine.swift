@@ -328,7 +328,9 @@ public class MPVPlayerEngine: ObservableObject {
 
         checkError("network-timeout", mpv_set_option_string(mpv, "network-timeout", "15"))
 
-        checkError("cache-secs", mpv_set_option_string(mpv, "cache-secs", "30"))
+        checkError("cache", mpv_set_option_string(mpv, "cache", "yes"))
+        checkError("cache-initial", mpv_set_option_string(mpv, "cache-initial", "no"))
+        checkError("cache-secs", mpv_set_option_string(mpv, "cache-secs", "5"))
         checkError("cache-pause", mpv_set_option_string(mpv, "cache-pause", "yes"))
 
         checkError("cache", mpv_set_option_string(mpv, "cache", "yes"))
