@@ -377,6 +377,7 @@ struct MacHomeView: View {
             catalogRepo.allFolderRows = await StartupCoordinator.shared.allFolderRows
             catalogRepo.isLoading = false
 
+            prefetchHeroLogos()
             warmupContinueWatching()
             await updateAmbientColorIfNeeded()
 
