@@ -121,7 +121,16 @@ public final class CatalogService: @unchecked Sendable {
             }
         }
 
-        if let cached = CatalogResponseCache.shared.get(key: url),
+        // Use URL path suffix as a stable cache key so entries survive proxy/base changes
+        let cacheKey: String = {
+            let direct = query.buildURL()
+            if let baseEnd = direct.range(of: "/catalog/") {
+                return "catalog:" + direct[baseEnd.lowerBound...]
+            }
+            return url
+        }()
+
+        if let cached = CatalogResponseCache.shared.get(key: cacheKey),
            let response = try? JSONDecoder().decode(CatalogResponse.self, from: cached) {
             return mapResponse(response)
         }
@@ -129,7 +138,7 @@ public final class CatalogService: @unchecked Sendable {
         do {
             let text = try await client.getText(url: url)
             if let data = text.data(using: .utf8) {
-                CatalogResponseCache.shared.set(key: url, data: data)
+                CatalogResponseCache.shared.set(key: cacheKey, data: data)
                 let response = try JSONDecoder().decode(CatalogResponse.self, from: data)
                 return mapResponse(response)
             }

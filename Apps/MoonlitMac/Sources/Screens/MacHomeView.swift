@@ -372,12 +372,13 @@ struct MacHomeView: View {
 
             await StartupCoordinator.shared.waitForPhase(.phase2)
 
+            prefetchHeroLogos(from: await StartupCoordinator.shared.catalogRows)
+
             catalogRepo.catalogRows = await StartupCoordinator.shared.catalogRows
             catalogRepo.collectionRows = await StartupCoordinator.shared.collectionRows
             catalogRepo.allFolderRows = await StartupCoordinator.shared.allFolderRows
             catalogRepo.isLoading = false
 
-            prefetchHeroLogos()
             warmupContinueWatching()
             await updateAmbientColorIfNeeded()
 
@@ -573,8 +574,9 @@ struct MacHomeView: View {
         }
     }
 
-    private func prefetchHeroLogos() {
-        let topItems = catalogRepo.catalogRows.prefix(3).flatMap(\.items)
+    private func prefetchHeroLogos(from rows: [CatalogRow]? = nil) {
+        let source = rows ?? catalogRepo.catalogRows
+        let topItems = source.prefix(3).flatMap(\.items)
         for item in topItems {
             guard let logoURL = item.logo.flatMap(URL.init) else { continue }
             Task.detached(priority: .background) {
