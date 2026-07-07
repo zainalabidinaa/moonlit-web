@@ -464,6 +464,14 @@ struct MacPlayerView: View {
                 .foregroundStyle(.white)
                 .accessibilityLabel("Pick another source")
 
+                Mac4KButton(
+                    streamRepo: StreamRepository.shared,
+                    currentSourceUrl: launch.sourceUrl,
+                    onSwitchTo4K: { persist in
+                        Task { await switchTo4KSource(persist: persist) }
+                    }
+                )
+
                 windowChromeButton("minus") { playerWindow?.miniaturize(nil) }
                 windowChromeButton("square") { playerWindow?.zoom(nil) }
                 windowChromeButton("xmark") { playerWindow?.close() }
@@ -659,6 +667,26 @@ struct MacPlayerView: View {
         isTryingNextSource = false
         showStartupLoading = true
         engine.loadURL(newLaunch.sourceUrl, headers: newLaunch.sourceHeaders ?? [:])
+        waitForFirstFrameThenHideOverlay {
+            if resumeAt > 5 { engine.seek(to: resumeAt) }
+        }
+        Task { await fetchAutoPlayCandidates() }
+    }
+
+    private func switchTo4KSource(persist: Bool) async {
+        let streams = StreamRepository.shared.streams
+        guard let stream = StreamSourceSelector.best4KStream(from: streams, excluding: nil),
+              let url = stream.url else { return }
+        if persist, let profile = profileManager.currentProfile {
+            PlaybackQualityPreferenceStore.shared.setPrefers4K(true, profileId: profile.id)
+        }
+        let resumeAt = engine.currentPosition
+        let headers = stream.behaviorHints?.proxyHeaders?.request ?? [:]
+        triedUrls = []
+        autoPlayCandidates = []
+        isTryingNextSource = false
+        showStartupLoading = true
+        engine.loadURL(url, headers: headers)
         waitForFirstFrameThenHideOverlay {
             if resumeAt > 5 { engine.seek(to: resumeAt) }
         }

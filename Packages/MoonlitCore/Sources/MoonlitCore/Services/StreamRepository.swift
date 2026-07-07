@@ -30,7 +30,7 @@ public class StreamRepository: ObservableObject {
 
         let eligible = addons.filter {
             $0.hasResource("stream") &&
-            ($0.types?.contains(type) ?? false) &&
+            $0.canHandleStream(type: type) &&
             $0.transportUrl != nil
         }
 

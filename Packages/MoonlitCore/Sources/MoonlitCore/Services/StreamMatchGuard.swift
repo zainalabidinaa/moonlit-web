@@ -24,25 +24,17 @@ public enum StreamMatchGuard {
         // providers and descriptions often reference other IMDB IDs legitimately.
         // Harbor has no equivalent filter.
 
-        // ── Series: episode + season validation ─────────────────────────────
-        if type == "series", let ep = expectedSeriesEpisode(from: id) {
-            // 1. Filename is authoritative when present: it encodes the real
-            //    episode/season more reliably than freeform description text.
-            if let filename = stream.behaviorHints?.filename {
-                let fn = filename.lowercased()
-                // Wrong episode inside a named file
-                if containsDifferentEpisode(in: fn, expected: ep) { return false }
-                // Season pack for the wrong season (e.g. "S02.Complete")
-                if containsDifferentSeasonPack(in: fn, expected: ep.season) { return false }
-            }
-            // 2. Fallback: combined description text
-            if containsDifferentEpisode(in: text, expected: ep) { return false }
-
-            // 3. Show title cross-check from filename (conservative: only reject
-            //    if the filename clearly belongs to a different show)
-            if let filename = stream.behaviorHints?.filename, let title {
-                if !filenameShowMatches(filename, showTitle: title, season: ep.season) { return false }
-            }
+        // ── Series: show title cross-check from filename ──────────────────────
+        // Only rejects when title is passed and filename clearly belongs to
+        // another show (conservative 40% token overlap threshold).
+        // Episode-number matching removed — meta-aggregator addons like
+        // AIOStreams surface filenames from many providers that reference
+        // different episodes legitimately. Harbor has no equivalent filter.
+        if type == "series",
+           let ep = expectedSeriesEpisode(from: id),
+           let filename = stream.behaviorHints?.filename,
+           let title {
+            if !filenameShowMatches(filename, showTitle: title, season: ep.season) { return false }
         }
 
         // ── Movies: title + year validation from filename ───────────────────
