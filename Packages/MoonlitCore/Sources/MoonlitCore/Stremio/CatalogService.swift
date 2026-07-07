@@ -1,6 +1,7 @@
 import Foundation
 
 public final class CatalogService: @unchecked Sendable {
+    private static let catalogProxyBase = "https://moonlit-web-zainalabidinaas-projects.vercel.app/api/stremio"
     public static let shared = CatalogService()
     private let client = StremioHTTPClient.shared
 
@@ -32,7 +33,11 @@ public final class CatalogService: @unchecked Sendable {
     }
 
     public func fetchCatalog(query: StremioCatalogQuery) async throws -> [MetaPreview] {
-        let url = query.buildURL()
+        let url: String = {
+            let direct = query.buildURL()
+            guard let baseEnd = direct.range(of: "/catalog/") else { return direct }
+            return CatalogService.catalogProxyBase + direct[baseEnd.lowerBound...]
+        }()
         let addonBase = query.baseURL
 
         struct RawMeta: Codable {
@@ -96,7 +101,7 @@ public final class CatalogService: @unchecked Sendable {
                     posterShape: raw.posterShape.flatMap { PosterShape(rawValue: $0) },
                     description: raw.description,
                     releaseInfo: raw.releaseInfo,
-                    rawReleaseDate: raw.releaseDate,
+                    rawReleaseDate: raw.releaseDate ?? raw.released,
                     released: raw.released,
                     runtime: raw.runtime,
                     popularity: raw.popularity,
@@ -128,10 +133,11 @@ public final class CatalogService: @unchecked Sendable {
                 let response = try JSONDecoder().decode(CatalogResponse.self, from: data)
                 return mapResponse(response)
             }
-            throw StremioError.invalidResponse
         } catch {
+            print("[CatalogService] ERROR: \(url.prefix(60))... → \(error.localizedDescription)")
             throw error
         }
+        return []
     }
 
     private func resolveURL(_ path: String?, base: String) -> String? {
