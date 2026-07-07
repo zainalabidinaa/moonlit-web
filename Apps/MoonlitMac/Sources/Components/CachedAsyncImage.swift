@@ -3,10 +3,23 @@ import MoonlitCore
 
 struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     let url: URL?
+    /// Longest-edge pixel cap for downsampling. Small tiles keep the default;
+    /// hero/detail surfaces can pass a larger value for full-resolution artwork.
+    var maxDimension: CGFloat = MoonlitImageCache.defaultMaxDimension
     @ViewBuilder let content: (Image) -> Content
     @ViewBuilder let placeholder: () -> Placeholder
 
     @State private var nsImage: MoonlitImage?
+
+    init(url: URL?, maxDimension: CGFloat = MoonlitImageCache.defaultMaxDimension,
+         @ViewBuilder content: @escaping (Image) -> Content,
+         @ViewBuilder placeholder: @escaping () -> Placeholder) {
+        self.url = url
+        self.maxDimension = maxDimension
+        self.content = content
+        self.placeholder = placeholder
+        self._nsImage = State(wrappedValue: url.flatMap { MoonlitImageCache.syncImage(for: $0, maxDimension: maxDimension) })
+    }
 
     var body: some View {
         if let img = nsImage {
@@ -20,8 +33,8 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     private func load() async {
         guard let url, nsImage == nil else { return }
 
-        if let data = MoonlitImageCache.cachedData(for: url),
-           let img = MoonlitImage(data: data) {
+        // Memory → disk lookup; disk read + decode + downsample run off the main thread.
+        if let img = await MoonlitImageCache.image(for: url, maxDimension: maxDimension) {
             nsImage = img
             return
         }
@@ -33,9 +46,11 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
             if Task.isCancelled { return }
             if let (data, response) = try? await URLSession.shared.data(from: url) {
                 let code = (response as? HTTPURLResponse)?.statusCode ?? 200
-                if (200..<400).contains(code), let img = MoonlitImage(data: data) {
-                    MoonlitImageCache.store(data: data, for: url)
-                    nsImage = img
+                if (200..<400).contains(code) {
+                    // Persist bytes + decode a downsampled image off the main thread.
+                    if let img = await MoonlitImageCache.ingest(data: data, url: url, maxDimension: maxDimension) {
+                        nsImage = img
+                    }
                     return
                 }
                 if !(200..<400).contains(code) { return } // real HTTP error — don't retry
