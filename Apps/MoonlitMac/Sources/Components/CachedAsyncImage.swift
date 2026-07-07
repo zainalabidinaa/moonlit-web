@@ -3,23 +3,11 @@ import MoonlitCore
 
 struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     let url: URL?
-    /// Longest-edge pixel cap for downsampling. Small tiles keep the default;
-    /// hero/detail surfaces can pass a larger value for full-resolution artwork.
     var maxDimension: CGFloat = MoonlitImageCache.defaultMaxDimension
     @ViewBuilder let content: (Image) -> Content
     @ViewBuilder let placeholder: () -> Placeholder
 
-    @State private var nsImage: MoonlitImage?
-
-    init(url: URL?, maxDimension: CGFloat = MoonlitImageCache.defaultMaxDimension,
-         @ViewBuilder content: @escaping (Image) -> Content,
-         @ViewBuilder placeholder: @escaping () -> Placeholder) {
-        self.url = url
-        self.maxDimension = maxDimension
-        self.content = content
-        self.placeholder = placeholder
-        self._nsImage = State(wrappedValue: url.flatMap { MoonlitImageCache.syncImage(for: $0, maxDimension: maxDimension) })
-    }
+    @State private var nsImage: MoonlitImage? = nil
 
     var body: some View {
         if let img = nsImage {
