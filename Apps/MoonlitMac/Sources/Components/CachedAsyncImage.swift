@@ -7,7 +7,17 @@ struct CachedAsyncImage<Content: View, Placeholder: View>: View {
     @ViewBuilder let content: (Image) -> Content
     @ViewBuilder let placeholder: () -> Placeholder
 
-    @State private var nsImage: MoonlitImage? = nil
+    @State private var nsImage: MoonlitImage?
+
+    init(url: URL?, maxDimension: CGFloat = MoonlitImageCache.defaultMaxDimension,
+         @ViewBuilder content: @escaping (Image) -> Content,
+         @ViewBuilder placeholder: @escaping () -> Placeholder) {
+        self.url = url
+        self.maxDimension = maxDimension
+        self.content = content
+        self.placeholder = placeholder
+        self._nsImage = State(wrappedValue: url.flatMap { MoonlitImageCache.syncImage(for: $0, maxDimension: maxDimension) })
+    }
 
     var body: some View {
         if let img = nsImage {
