@@ -743,7 +743,7 @@ struct MacPlayerView: View {
             addons: addonRepo.managedAddons.map(\.manifest),
             title: launch.title
         )
-        let prefer4K = false
+        let prefer4K = PlaybackQualityPreferenceStore.shared.prefers4K(profileId: profileManager.currentProfile?.id ?? "")
         let installOrder = addonRepo.managedAddons.map(\.displayName)
         let allSources = StreamRepository.shared.streams
         let currentUrl = launch.sourceUrl

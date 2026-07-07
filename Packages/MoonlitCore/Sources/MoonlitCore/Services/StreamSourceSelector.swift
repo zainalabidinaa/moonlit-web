@@ -12,7 +12,7 @@ public enum StreamQuality: Int, Sendable, Comparable {
 
 public enum StreamSourceSelector {
     public static func playbackCandidates(from streams: [StreamItem]) -> [StreamItem] {
-        streams.filter(isPlaybackCandidate)
+        deduplicated(streams.filter(isPlaybackCandidate))
     }
 
     /// All playback candidates ranked by quality/cache score. Cached/debrid streams
@@ -24,11 +24,11 @@ public enum StreamSourceSelector {
 
     /// Returns only cached/debrid streams + the currently playing stream.
     /// Falls back to all candidates when no cached streams exist.
-    public static func cachedCandidates(currentUrl: String?, from streams: [StreamItem]) -> [StreamItem] {
+    public static func cachedCandidates(currentUrl: String?, from streams: [StreamItem], prefer4K: Bool = false) -> [StreamItem] {
         let all = playbackCandidates(from: streams)
         let cached = all.filter { isCachedStream($0) }
-        if cached.isEmpty { return rankedStreams(all, prefer4K: false) }
-        var ranked = rankedStreams(cached, prefer4K: false)
+        if cached.isEmpty { return rankedStreams(all, prefer4K: prefer4K) }
+        var ranked = rankedStreams(cached, prefer4K: prefer4K)
         if let url = currentUrl,
            !ranked.contains(where: { $0.url == url }),
            let current = all.first(where: { $0.url == url }) {
@@ -156,8 +156,12 @@ public enum StreamSourceSelector {
     }
 
     public static func isPlaybackCandidate(_ stream: StreamItem) -> Bool {
+        guard let url = stream.url, !url.isEmpty else { return false }
         let text = searchableText(for: stream)
         if stream.sourceType == .youtube || stream.sourceType == .external || stream.sourceType == .playerFrame {
+            return false
+        }
+        if stream.behaviorHints?.notWebReady == true {
             return false
         }
         if stream.behaviorHints?.bingeGroup?.lowercased() == "trailer" {
@@ -327,5 +331,35 @@ public enum StreamSourceSelector {
     private static func sameSourceUrl(_ stream: StreamItem, _ sourceUrl: String?) -> Bool {
         guard let sourceUrl else { return false }
         return stream.url == sourceUrl
+    }
+
+    public static func deduplicated(_ streams: [StreamItem]) -> [StreamItem] {
+        var seenVideoHash = Set<String>()
+        var seenInfoHash = Set<String>()
+        var seenUrl = Set<String>()
+        var result: [StreamItem] = []
+        for stream in streams {
+            if let hash = stream.behaviorHints?.videoHash, !hash.isEmpty {
+                if seenVideoHash.insert(hash).inserted {
+                    result.append(stream)
+                    continue
+                }
+                continue
+            }
+            if let hash = stream.infoHash, !hash.isEmpty {
+                if seenInfoHash.insert(hash).inserted {
+                    result.append(stream)
+                    continue
+                }
+                continue
+            }
+            if let url = stream.url, !url.isEmpty {
+                let normalized = url.split(separator: "?")[0].lowercased()
+                if seenUrl.insert(normalized).inserted {
+                    result.append(stream)
+                }
+            }
+        }
+        return result
     }
 }

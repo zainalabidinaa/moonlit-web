@@ -49,7 +49,7 @@ struct MacSourcePickerView: View {
                 isEnabled: true
             )
             Group {
-                if streamRepo.isLoading && autoplayMode == .auto {
+                if streamRepo.isLoading {
                     loadingView
                 } else if !forceManual && autoplayMode == .auto && (isAutoPlaying || !streamRepo.streams.isEmpty) {
                     autoPlayView

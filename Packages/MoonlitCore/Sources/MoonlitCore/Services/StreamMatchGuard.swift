@@ -20,11 +20,9 @@ public enum StreamMatchGuard {
         let text = searchableText(for: stream)
         let expectedImdbId = id.components(separatedBy: ":").first ?? id
 
-        // ── IMDB cross-check ────────────────────────────────────────────────
-        // Reject streams that explicitly mention a DIFFERENT IMDB ID in any field.
-        if containsDifferentImdbId(in: text, expected: expectedImdbId) {
-            return false
-        }
+        // IMDB cross-check removed — addons like AIOStreams aggregate from multiple
+        // providers and descriptions often reference other IMDB IDs legitimately.
+        // Harbor has no equivalent filter.
 
         // ── Series: episode + season validation ─────────────────────────────
         if type == "series", let ep = expectedSeriesEpisode(from: id) {

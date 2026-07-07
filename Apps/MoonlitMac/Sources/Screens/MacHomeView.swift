@@ -546,9 +546,11 @@ struct MacHomeView: View {
                 return
             }
 
+            let prefer4K = PlaybackQualityPreferenceStore.shared.prefers4K(profileId: profile.id)
             guard let stream = await StreamRepository.shared.bestStream(
                 for: item.mediaType, id: item.mediaId,
-                from: addonRepo.enabledAddons
+                from: addonRepo.enabledAddons,
+                prefer4K: prefer4K
             ), let url = stream.url else { return }
 
             openWindow(id: "player", value: PlayerLaunch(

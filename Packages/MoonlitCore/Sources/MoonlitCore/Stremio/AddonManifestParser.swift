@@ -129,17 +129,19 @@ public enum AddonManifestParser {
     }
 
     private static func resolveBaseURL(manifestUrl: String, transportUrl: String?) -> String {
-        if let transportUrl = transportUrl, !transportUrl.isEmpty {
-            return transportUrl.hasSuffix("/") ? String(transportUrl.dropLast()) : transportUrl
-        }
         let url = manifestUrl
-        if url.hasSuffix("/manifest.json") {
-            return String(url.dropLast("/manifest.json".count))
-        }
-        if let lastSlash = url.lastIndex(of: "/") {
-            return String(url[..<lastSlash])
-        }
-        return url
+        let derived: String = {
+            if url.hasSuffix("/manifest.json") {
+                return String(url.dropLast("/manifest.json".count))
+            }
+            if let lastSlash = url.lastIndex(of: "/") {
+                return String(url[..<lastSlash])
+            }
+            return url
+        }()
+        // Prefer URL-derived base — it preserves credentials encoded in the path
+        // (e.g. AIOStreams). The manifest's transportUrl is often the bare domain.
+        return derived.hasSuffix("/") ? String(derived.dropLast()) : derived
     }
 
     private static func resolveURL(_ path: String, base: String) -> String {
