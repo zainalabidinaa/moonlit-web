@@ -44,11 +44,11 @@ public final class CatalogResponseCache: @unchecked Sendable {
     }
 
     private func saveToDisk() {
+        lock.lock()
         let snapshot = memory
-        DispatchQueue.global(qos: .utility).async { [lock, diskURL] in
-            lock.lock()
-            guard let data = try? JSONEncoder().encode(snapshot) else { lock.unlock(); return }
-            lock.unlock()
+        lock.unlock()
+        DispatchQueue.global(qos: .utility).async { [diskURL] in
+            guard let data = try? JSONEncoder().encode(snapshot) else { return }
             try? data.write(to: diskURL, options: .atomic)
         }
     }
