@@ -3,7 +3,10 @@ import Foundation
 public final class CatalogResponseCache: @unchecked Sendable {
     public static let shared = CatalogResponseCache()
 
-    private let ttl: TimeInterval = 30 * 60
+    private static let defaultTTL: TimeInterval = 30 * 60
+    private static let trendingTTL: TimeInterval = 2 * 3600
+    private static let staticTTL: TimeInterval = 6 * 3600
+
     private let lock = NSLock()
     private var memory: [String: Entry] = [:]
     private let diskURL: URL = {
@@ -17,6 +20,15 @@ public final class CatalogResponseCache: @unchecked Sendable {
     private struct Entry: Codable {
         var data: Data
         var timestamp: Date
+    }
+
+    private static func ttlFor(key: String) -> TimeInterval {
+        let lower = key.lowercased()
+        let staticPatterns = ["genre=", "language=", "/genre/", "/language/", "with_genres", "with_original_language"]
+        let trendingPatterns = ["/top", "/popular", "/trending", "/featured"]
+        for pattern in staticPatterns where lower.contains(pattern) { return staticTTL }
+        for pattern in trendingPatterns where lower.contains(pattern) { return trendingTTL }
+        return defaultTTL
     }
 
     private init() {
@@ -45,7 +57,7 @@ public final class CatalogResponseCache: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         guard let entry = memory[key] else { return nil }
-        guard Date().timeIntervalSince(entry.timestamp) < ttl else {
+        guard Date().timeIntervalSince(entry.timestamp) < Self.ttlFor(key: key) else {
             memory[key] = nil
             return nil
         }
@@ -56,7 +68,7 @@ public final class CatalogResponseCache: @unchecked Sendable {
         lock.lock()
         memory[key] = Entry(data: data, timestamp: Date())
         let now = Date()
-        memory = memory.filter { now.timeIntervalSince($0.value.timestamp) < ttl }
+        memory = memory.filter { now.timeIntervalSince($0.value.timestamp) < Self.ttlFor(key: $0.key) }
         lock.unlock()
         saveToDisk()
     }
