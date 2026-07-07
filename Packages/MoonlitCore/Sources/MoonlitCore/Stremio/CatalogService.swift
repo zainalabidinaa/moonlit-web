@@ -33,10 +33,24 @@ public final class CatalogService: @unchecked Sendable {
     }
 
     public func fetchCatalog(query: StremioCatalogQuery) async throws -> [MetaPreview] {
+        // Proxy URL via Vercel edge function (expects query params: url, type, id, extras)
         let url: String = {
             let direct = query.buildURL()
-            guard let baseEnd = direct.range(of: "/catalog/") else { return direct }
-            return CatalogService.catalogProxyBase + direct[baseEnd.lowerBound...]
+            guard direct.contains("/catalog/") else { return direct }
+            var components = URLComponents(string: CatalogService.catalogProxyBase + "/catalog")
+            var params: [URLQueryItem] = [
+                URLQueryItem(name: "url", value: query.baseURL),
+                URLQueryItem(name: "type", value: query.type),
+                URLQueryItem(name: "id", value: query.id)
+            ]
+            if !query.extras.isEmpty {
+                if let jsonData = try? JSONEncoder().encode(query.extras),
+                   let jsonStr = String(data: jsonData, encoding: .utf8) {
+                    params.append(URLQueryItem(name: "extras", value: jsonStr))
+                }
+            }
+            components?.queryItems = params
+            return components?.string ?? direct
         }()
         let addonBase = query.baseURL
 
