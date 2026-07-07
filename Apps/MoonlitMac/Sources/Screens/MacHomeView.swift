@@ -376,7 +376,14 @@ struct MacHomeView: View {
 
             catalogRepo.catalogRows = await StartupCoordinator.shared.catalogRows
             catalogRepo.collectionRows = await StartupCoordinator.shared.collectionRows
-            catalogRepo.allFolderRows = await StartupCoordinator.shared.allFolderRows
+            let coordRows = await StartupCoordinator.shared.allFolderRows
+            var merged = catalogRepo.allFolderRows
+            for (key, row) in coordRows {
+                if merged[key]?.items.isEmpty ?? true {
+                    merged[key] = row
+                }
+            }
+            catalogRepo.allFolderRows = merged
             catalogRepo.isLoading = false
 
             warmupContinueWatching()

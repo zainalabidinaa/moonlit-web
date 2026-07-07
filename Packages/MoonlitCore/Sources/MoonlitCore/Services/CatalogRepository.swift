@@ -612,7 +612,14 @@ public class CatalogRepository: ObservableObject {
             ))
         }
 
-        self.allFolderRows = newFolderRows.isEmpty && mode == .preserveCacheOnEmpty ? existingFolderRows : newFolderRows
+        var merged = existingFolderRows
+        for (key, row) in newFolderRows {
+            if let existing = merged[key], !existing.items.isEmpty {
+                continue
+            }
+            merged[key] = row
+        }
+        self.allFolderRows = merged
         self.collectionRows = Self.resolvedRowsAfterReload(
             existingRows: existingCollectionRows,
             newRows: rows,

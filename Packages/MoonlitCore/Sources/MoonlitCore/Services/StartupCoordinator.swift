@@ -107,6 +107,7 @@ import Foundation
                     )
                 }
             }
+            allFolderRows = await catalogRepo.allFolderRows
             completedPhases.insert(.phase3)
             resumeContinuations(for: .phase3)
         }
