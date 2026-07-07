@@ -5,6 +5,15 @@ import Combine
 import MoonlitCore
 import Libmpv
 
+public struct AudioTrackInfo: Identifiable, Hashable, Sendable {
+    public let id: Int64
+    public let label: String
+    public let lang: String
+    public let codec: String
+    public let channels: String
+    public let isDefault: Bool
+}
+
 @MainActor
 public class MPVPlayerEngine: ObservableObject {
     @Published private var playerView: NSView?
@@ -20,8 +29,6 @@ public class MPVPlayerEngine: ObservableObject {
     private var launchStartedAt = CACurrentMediaTime()
     private var didReachReadyToPlay = false
     private var lifecycleObservers: [NSObjectProtocol] = []
-    private var lastStallPosition: Double = 0
-    private var lastStallPositionTime: TimeInterval = 0
     private var wasUserPaused = false
 
     @Published public var isPlaying = false
@@ -34,9 +41,12 @@ public class MPVPlayerEngine: ObservableObject {
     @Published public var playbackSpeed: Float = 1.0
     @Published public var availableSubtitles: [SubtitleItem] = []
     @Published public var selectedSubtitle: SubtitleItem?
-    @Published public var availableAudioTracks: [String] = []
-    @Published public var selectedAudioTrack: String?
+    @Published public var availableAudioTracks: [AudioTrackInfo] = []
+    @Published public var selectedAudioTrackId: Int64?
     @Published public var isMuted = false
+    @Published public var volume: Float = 1.0
+    @Published public var subDelaySec: Double = 0
+    @Published public var audioDelaySec: Double = 0
     @Published public var loadedCues: [SubtitleCue] = []
     @Published public var isFillingVideo = false
     @Published public var didEncounterError = false
@@ -49,7 +59,6 @@ public class MPVPlayerEngine: ObservableObject {
     private var displayLink: CVDisplayLink?
     private var eventQueue = DispatchQueue(label: "mpv", qos: .userInitiated)
 
-    private var audioTrackIds: [Int64] = []
     private var subtitleTrackIds: [String: Int64] = [:]
     private var embeddedSubtitles: [SubtitleItem] = []
     private var externalSubtitles: [SubtitleItem] = []
@@ -74,12 +83,15 @@ public class MPVPlayerEngine: ObservableObject {
             : launch.initialPositionMs.map { $0 / 1000 }.flatMap { $0 > 0 ? $0 : nil }
         didApplyInitialSeek = false
         isLoading = true; isPlaying = false; isEnded = false
+        wasUserPaused = false
         launchStartedAt = CACurrentMediaTime()
         didReachReadyToPlay = false
 
         if !isLikelyHLS(launch) {
-            let headers = launch.sourceHeaders ?? [:]
-            Task.detached { await self.preflightPing(url: url, headers: headers) }
+            Task.detached {
+                let headers = launch.sourceHeaders ?? [:]
+                let _ = await StreamPreflight.isReachable(url: url.absoluteString, headers: headers)
+            }
         }
 
         setupPlayer(with: url)
@@ -89,7 +101,8 @@ public class MPVPlayerEngine: ObservableObject {
         print("[Moonlit][MPV] launch.done host=\(url.host ?? "nil") format=\(fmt)")
         NSLog("[Moonlit][MPV] url=%@", url.absoluteString)
         NSLog("[Moonlit][MPV] headerKeys=%@", (launch.sourceHeaders ?? [:]).keys.sorted().joined(separator: ","))
-        scheduleOpenTimeout(for: launchToken, launch: launch, isHLS: isLikelyHLS(launch))
+        // Open timeout removed — mpv handles its own buffering and will report
+        // actual errors via the event loop (MPV_EVENT_END_FILE).
     }
 
     public func loadURL(_ urlString: String, headers: [String: String] = [:]) {
@@ -101,11 +114,13 @@ public class MPVPlayerEngine: ObservableObject {
         hasRenderedFrame = false
         didReachReadyToPlay = false
         didScheduleFirstFrameReveal = false
-        lastStallPosition = 0
-        lastStallPositionTime = 0
+        wasUserPaused = false
+        launchToken += 1
+        setFlag("pause", true)
         applyRequestHeaders(headers)
         let rawUrl = urlString
         command("loadfile", args: [rawUrl, "replace"])
+        // Open timeout removed — mpv handles its own buffering.
         print("[Moonlit][MPV] reload.done url=\(rawUrl)")
     }
 
@@ -128,6 +143,7 @@ public class MPVPlayerEngine: ObservableObject {
     }
 
     public func play() {
+        setStringProperty("vid", "auto")
         setFlag("pause", false)
         isPlaying = true; isEnded = false; wasUserPaused = false
         print("[Moonlit][MPV] play")
@@ -137,6 +153,12 @@ public class MPVPlayerEngine: ObservableObject {
         setFlag("pause", true)
         isPlaying = false; wasUserPaused = true
         print("[Moonlit][MPV] pause")
+    }
+
+    private func pauseForLifecycle() {
+        setFlag("pause", true)
+        isPlaying = false
+        print("[Moonlit][MPV] lifecycle.pause")
     }
 
     public func togglePlayPause() {
@@ -158,6 +180,12 @@ public class MPVPlayerEngine: ObservableObject {
         mpv_set_property(mpv, "speed", MPV_FORMAT_DOUBLE, &s)
     }
 
+    /// Writes a screenshot of the current frame (video + rendered subtitles, no
+    /// player OSD) to `fileURL` via libmpv's `screenshot-to-file`.
+    public func takeScreenshot(to fileURL: URL) {
+        command("screenshot-to-file", args: [fileURL.path, "subtitles"])
+    }
+
     public func skipForward() { seekBy(30) }
     public func skipBack() { seekBy(-15) }
     public func skipForward15() { seekBy(15) }
@@ -168,16 +196,33 @@ public class MPVPlayerEngine: ObservableObject {
         setFlag("mute", isMuted)
     }
 
+    public func setVolume(_ v: Float) {
+        volume = max(0, min(1, v))
+        var data = Double(volume) * 100
+        mpv_set_property(mpv, "volume", MPV_FORMAT_DOUBLE, &data)
+    }
+
+    public func setSubtitleDelay(_ sec: Double) {
+        subDelaySec = sec
+        var data = sec
+        mpv_set_property(mpv, "sub-delay", MPV_FORMAT_DOUBLE, &data)
+    }
+
+    public func setAudioDelay(_ sec: Double) {
+        audioDelaySec = sec
+        var data = sec
+        mpv_set_property(mpv, "audio-delay", MPV_FORMAT_DOUBLE, &data)
+    }
+
     public func setVideoFill(_ fill: Bool) {
         isFillingVideo = fill
         setFlag("keepaspect", !fill)
     }
 
-    public func selectAudioTrack(named trackName: String) {
-        guard let idx = availableAudioTracks.firstIndex(of: trackName), idx < audioTrackIds.count else { return }
-        var aid = audioTrackIds[idx]
+    public func selectAudioTrack(id: Int64) {
+        var aid = id
         mpv_set_property(mpv, "aid", MPV_FORMAT_INT64, &aid)
-        selectedAudioTrack = trackName
+        selectedAudioTrackId = id
     }
 
     public func loadSubtitles(from subtitles: [SubtitleItem]) {
@@ -239,6 +284,15 @@ public class MPVPlayerEngine: ObservableObject {
         refreshTracks()
     }
 
+    public func setShader(_ path: String?) {
+        guard let mpv else { return }
+        if let path {
+            checkError(mpv_set_option_string(mpv, "glsl-shaders", path))
+        } else {
+            checkError(mpv_set_option_string(mpv, "glsl-shaders", ""))
+        }
+    }
+
     // MARK: - mpv Setup
 
     private func setupPlayer(with url: URL) {
@@ -262,6 +316,11 @@ public class MPVPlayerEngine: ObservableObject {
         checkError("audio-fallback-to-null", mpv_set_option_string(mpv, "audio-fallback-to-null", "yes"))
         checkError("audio-channels", mpv_set_option_string(mpv, "audio-channels", "auto"))
         checkError("keep-open", mpv_set_option_string(mpv, "keep-open", "yes"))
+        // Start paused so audio can't begin before the first video frame is
+        // decoded. We flip pause off in `markVideoReady()` once mpv signals the
+        // frame is ready (playback-restart / vo-configured), so audio+video
+        // start together instead of audio running over a black screen.
+        checkError("pause", mpv_set_option_string(mpv, "pause", "yes"))
         checkError("video-rotate", mpv_set_option_string(mpv, "video-rotate", "no"))
         checkError("subs-match-os", mpv_set_option_string(mpv, "subs-match-os-language", "yes"))
         checkError("subs-fallback", mpv_set_option_string(mpv, "subs-fallback", "yes"))
@@ -302,6 +361,13 @@ public class MPVPlayerEngine: ObservableObject {
         self.metalLayer = layer
         self.playerView = container
 
+        // Force layout on the container so metalLayer inherits real bounds
+        // before mpv_initialize. MoltenVK (gpu-context=moltenvk) reads the
+        // CAMetalLayer's bounds on init to size its Vulkan swapchain — if the
+        // layer is still at .zero, the swapchain is created at zero-size and
+        // garbled frames (or black) show until the first on-screen resize.
+        container.layout()
+
         var metalLayerPtr = Unmanaged.passUnretained(layer).toOpaque()
         checkError(mpv_set_option(mpv, "wid", MPV_FORMAT_INT64, &metalLayerPtr))
 
@@ -313,6 +379,7 @@ public class MPVPlayerEngine: ObservableObject {
         mpv_observe_property(mpv, 0, "paused-for-cache", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "eof-reached", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "track-list/count", MPV_FORMAT_INT64)
+        mpv_observe_property(mpv, 0, "vo-configured", MPV_FORMAT_FLAG)
 
         mpv_set_wakeup_callback(mpv, { ctx in
             let client = Unmanaged<MPVPlayerEngine>.fromOpaque(ctx!).takeUnretainedValue()
@@ -365,18 +432,8 @@ public class MPVPlayerEngine: ObservableObject {
                 if currentDur > 0, currentDur != self.duration {
                     self.duration = currentDur
                 }
-                if self.isPlaying, currentPos > 0 {
-                    if abs(currentPos - self.lastStallPosition) > 0.1 {
-                        self.lastStallPosition = currentPos
-                        self.lastStallPositionTime = CACurrentMediaTime()
-                    } else if self.lastStallPositionTime > 0,
-                              CACurrentMediaTime() - self.lastStallPositionTime > 10 {
-                        NSLog("[Moonlit][MPV] stall.detected position=%.2f", currentPos)
-                        self.isLoading = false
-                        self.isPlaying = false
-                        self.didEncounterError = true
-                    }
-                }
+                // Stall detector removed — mpv handles its own buffering.
+                // mpv will report actual errors via the event loop (MPV_EVENT_END_FILE).
             }
         }
         timer.resume()
@@ -407,6 +464,9 @@ public class MPVPlayerEngine: ObservableObject {
                 case "pause", "paused-for-cache", "eof-reached":
                     let flag = (prop.data?.load(as: Int32.self) ?? 0) != 0
                     DispatchQueue.main.async { [weak self] in self?.applyFlag(name, flag) }
+                case "vo-configured":
+                    let flag = (prop.data?.load(as: Int32.self) ?? 0) != 0
+                    if flag { DispatchQueue.main.async { [weak self] in self?.markVideoReady() } }
                 case "track-list/count":
                     DispatchQueue.main.async { [weak self] in self?.refreshTracks() }
                 default:
@@ -419,16 +479,24 @@ public class MPVPlayerEngine: ObservableObject {
                 self.didReachReadyToPlay = true
                 self.isLoading = false
                 self.refreshTracks()
+                // Fallback only: if mpv never emits playback-restart / vo-configured
+                // for this stream (some codecs/containers), reveal + unpause after a
+                // short grace so we never get stuck on the loading overlay.
                 if !self.hasRenderedFrame, !self.didScheduleFirstFrameReveal {
                     self.didScheduleFirstFrameReveal = true
                     let token = self.launchToken
                     Task { @MainActor [weak self] in
-                        try? await Task.sleep(for: .milliseconds(350))
-                        guard let self, self.launchToken == token, !self.hasRenderedFrame else { return }
-                        self.hasRenderedFrame = true
+                        try? await Task.sleep(for: .seconds(2))
+                        guard let self, self.launchToken == token else { return }
+                        self.markVideoReady()
                     }
                 }
             }
+        case MPV_EVENT_PLAYBACK_RESTART:
+            // Fires once the first frame is decoded and ready to display — the
+            // real "video is up" signal. Reveal the video and unpause here so
+            // audio and video begin together.
+            DispatchQueue.main.async { [weak self] in self?.markVideoReady() }
         case MPV_EVENT_END_FILE:
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
@@ -466,6 +534,15 @@ public class MPVPlayerEngine: ObservableObject {
         default:
             break
         }
+    }
+
+    /// Called when mpv confirms the first video frame is decoded and ready.
+    /// Reveals the video (hides the loading overlay via `hasRenderedFrame`) and
+    /// unpauses so audio+video start together — unless the user paused during load.
+    private func markVideoReady() {
+        guard !hasRenderedFrame else { return }
+        hasRenderedFrame = true
+        if !wasUserPaused { play() }
     }
 
     private func applyFlag(_ name: String, _ value: Bool) {
@@ -539,14 +616,24 @@ public class MPVPlayerEngine: ObservableObject {
         return "\(kind) \(index + 1)"
     }
 
+    private func channelsLabel(_ count: Int) -> String {
+        switch count {
+        case 0: return ""
+        case 1: return "Mono"
+        case 2: return "Stereo"
+        case 6: return "5.1"
+        case 8: return "7.1"
+        default: return "\(count)ch"
+        }
+    }
+
     public func refreshTracks() {
         eventQueue.async { [weak self] in
             guard let self, self.mpv != nil else { return }
             let count = self.getInt("track-list/count")
 
-            var audioLabels: [String] = []
-            var audioIds: [Int64] = []
-            var selectedAudioLabel: String?
+            var audioTracks: [AudioTrackInfo] = []
+            var selectedAudioId: Int64?
             var subs: [SubtitleItem] = []
             var subIds: [String: Int64] = [:]
             var selectedEmbeddedSub: SubtitleItem?
@@ -559,10 +646,21 @@ public class MPVPlayerEngine: ObservableObject {
                 let selected = self.getFlag("track-list/\(i)/selected")
 
                 if type == "audio" {
-                    let label = self.trackLabel(title: title, lang: lang, index: audioLabels.count, kind: "Audio")
-                    audioLabels.append(label)
-                    audioIds.append(id)
-                    if selected { selectedAudioLabel = label }
+                    let label = self.trackLabel(title: title, lang: lang, index: audioTracks.count, kind: "Audio")
+                    let codec = (self.getString("track-list/\(i)/codec") ?? "").uppercased()
+                    let channelCount = self.getInt("track-list/\(i)/demux-channel-count")
+                    let isDefault = self.getFlag("track-list/\(i)/default")
+                    audioTracks.append(
+                        AudioTrackInfo(
+                            id: id,
+                            label: label,
+                            lang: lang,
+                            codec: codec,
+                            channels: self.channelsLabel(channelCount),
+                            isDefault: isDefault
+                        )
+                    )
+                    if selected { selectedAudioId = id }
                 } else if type == "sub" {
                     let item = SubtitleItem(
                         id: "mpv-embedded-\(id)",
@@ -578,12 +676,11 @@ public class MPVPlayerEngine: ObservableObject {
 
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
-                self.audioTrackIds = audioIds
-                self.availableAudioTracks = audioLabels
-                if let selectedAudioLabel {
-                    self.selectedAudioTrack = selectedAudioLabel
-                } else if self.selectedAudioTrack == nil {
-                    self.selectedAudioTrack = audioLabels.first
+                self.availableAudioTracks = audioTracks
+                if let selectedAudioId {
+                    self.selectedAudioTrackId = selectedAudioId
+                } else if self.selectedAudioTrackId == nil {
+                    self.selectedAudioTrackId = audioTracks.first?.id
                 }
                 self.embeddedSubtitles = subs
                 self.subtitleTrackIds = subIds
@@ -630,30 +727,6 @@ public class MPVPlayerEngine: ObservableObject {
         return "unknown"
     }
 
-    private func preflightPing(url: URL, headers: [String: String]) async {
-        var request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 2)
-        request.httpMethod = "GET"
-        request.setValue("bytes=0-1", forHTTPHeaderField: "Range")
-        headers.forEach { request.setValue($1, forHTTPHeaderField: $0) }
-        _ = try? await URLSession.shared.data(for: request)
-    }
-
-    private func scheduleOpenTimeout(for token: Int, launch: PlayerLaunch, isHLS: Bool) {
-        guard !isHLS else { return }
-        Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(10))
-            guard let self, self.launchToken == token,
-                  !self.didReachReadyToPlay,
-                  self.currentLaunch?.sourceUrl == launch.sourceUrl else { return }
-            let cacheState = self.getDouble("cache-buffering-state")
-            let demuxTime = self.getDouble("demuxer-cache-time")
-            NSLog("[Moonlit][MPV] open.timeout cacheBufferingState=%.0f demuxerCacheTime=%.2f", cacheState, demuxTime)
-            self.isLoading = false
-            self.isPlaying = false
-            self.didEncounterError = true
-        }
-    }
-
     private func startProgressTimer() {
         progressTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -689,13 +762,15 @@ public class MPVPlayerEngine: ObservableObject {
         launchToken += 1
         isPlaying = false; isLoading = true; isEnded = false; hasRenderedFrame = false
         didEncounterError = false
-        lastStallPosition = 0; lastStallPositionTime = 0; wasUserPaused = false
+        wasUserPaused = false
         currentPosition = 0; duration = 0; lastPlaybackSpeed = 1.0
         bufferedPosition = 0
         availableSubtitles = []
         selectedSubtitle = nil
         availableAudioTracks = []
-        selectedAudioTrack = nil
+        selectedAudioTrackId = nil
+        subDelaySec = 0
+        audioDelaySec = 0
         loadedCues = []
     }
 
@@ -709,8 +784,7 @@ public class MPVPlayerEngine: ObservableObject {
                 queue: .main
             ) { [weak self] _ in
                 guard let self, self.mpv != nil else { return }
-                self.pause()
-                self.setStringProperty("vid", "no")
+                self.pauseForLifecycle()
             }
         )
         observers.append(
