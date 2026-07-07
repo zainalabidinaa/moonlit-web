@@ -357,15 +357,37 @@ struct MacHomeView: View {
         .task {
             guard let profile = profileManager.currentProfile else { return }
             catalogRepo.isLoading = true
-            await addonRepo.loadAddons(profileId: profile.id)
-            async let continueWatching: Void = homeRepo.loadContinueWatching(profileId: profile.id)
-            Task { await recsService.load(profileId: profile.id) }
-            await libraryRepo.loadLibrary(profileId: profile.id)
-            await reloadCatalogRows(mode: .replaceCache)
-            await continueWatching
+
+            if !(await StartupCoordinator.shared.isPhaseComplete(.phase1)) {
+                await StartupCoordinator.shared.startPhase1(
+                    profileId: profile.id,
+                    collectionRepo: collectionRepo,
+                    addonRepo: addonRepo,
+                    catalogRepo: catalogRepo,
+                    homeRepo: homeRepo,
+                    recsService: recsService,
+                    libraryRepo: libraryRepo
+                )
+            }
+
+            await StartupCoordinator.shared.waitForPhase(.phase2)
+
+            catalogRepo.catalogRows = await StartupCoordinator.shared.catalogRows
+            catalogRepo.collectionRows = await StartupCoordinator.shared.collectionRows
+            catalogRepo.allFolderRows = await StartupCoordinator.shared.allFolderRows
+            catalogRepo.isLoading = false
+
             warmupContinueWatching()
-            prefetchHeroLogos()
             await updateAmbientColorIfNeeded()
+
+            Task {
+                await StartupCoordinator.shared.startPhase3(
+                    catalogRepo: catalogRepo,
+                    collectionRepo: collectionRepo,
+                    addonRepo: addonRepo
+                )
+            }
+
             Task {
                 await AwardIndex.shared.buildIfNeeded(
                     catalogRepo: catalogRepo,
