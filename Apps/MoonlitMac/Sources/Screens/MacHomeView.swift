@@ -6,6 +6,9 @@ import OSLog
 struct MacHomeView: View {
     let onSelectMedia: (MetaPreview) -> Void
     var onSelectFolder: ((CatalogRow) -> Void)?
+    var onSelectGenre: ((String, MediaType) -> Void)? = nil
+    var onSelectLanguage: ((String, String) -> Void)? = nil
+    var initialCategory: HomeCategoryFilter = .featured
 
     @EnvironmentObject var profileManager: ProfileManager
     @Environment(\.openWindow) private var openWindow
@@ -18,11 +21,76 @@ struct MacHomeView: View {
     @StateObject private var heroStore = HeroPreferenceStore.shared
     @StateObject private var libraryRepo = LibraryRepository.shared
     @StateObject private var recsService = RecommendationsService.shared
+    @StateObject private var watchProgressRepo = WatchProgressRepository.shared
 
     @State private var heroIndex = 0
     @State private var isResumingItemId: String?
-    @State private var ambientColor: Color = .clear
-    @State private var ambientColor2: Color = .clear
+    @State private var categoryState: HomeCategoryState
+
+    init(
+        onSelectMedia: @escaping (MetaPreview) -> Void,
+        onSelectFolder: ((CatalogRow) -> Void)? = nil,
+        onSelectGenre: ((String, MediaType) -> Void)? = nil,
+        onSelectLanguage: ((String, String) -> Void)? = nil,
+        initialCategory: HomeCategoryFilter = .featured
+    ) {
+        self.onSelectMedia = onSelectMedia
+        self.onSelectFolder = onSelectFolder
+        self.onSelectGenre = onSelectGenre
+        self.onSelectLanguage = onSelectLanguage
+        self.initialCategory = initialCategory
+        _categoryState = State(initialValue: HomeCategoryState(category: initialCategory))
+    }
+
+    private var categoryGenres: [String] {
+        availableHomeGenres(in: catalogRepo.catalogRows, category: categoryState.category)
+    }
+
+    /// True on the dedicated Movies / Series nav tabs, where the primary
+    /// Featured/Movies/Shows selector would just duplicate the top nav.
+    private var isDedicatedMediaTab: Bool {
+        initialCategory != .featured
+    }
+
+    private var browseTitle: String? {
+        switch initialCategory {
+        case .movies: return "Browse Movies"
+        case .shows: return "Browse Series"
+        case .featured: return nil
+        }
+    }
+
+    private var visibleCatalogRows: [CatalogRow] {
+        catalogRepo.catalogRows.compactMap { filteredHomeRow($0, filter: categoryState) }
+    }
+
+    private let homeGenres: [String] = [
+        "Action", "Adventure", "Thriller", "Crime", "Drama",
+        "Romance", "Mystery", "Sci-Fi", "Fantasy", "Horror",
+        "Comedy", "Family", "Animation", "Western", "War",
+        "History", "Documentary", "Music",
+    ]
+
+    private let homeLanguages: [MacLanguageData] = [
+        .init(iso: "ko", name: "Korean", endonym: "한국어", hue: 25),
+        .init(iso: "ja", name: "Japanese", endonym: "日本語", hue: 350),
+        .init(iso: "es", name: "Spanish", endonym: "Español", hue: 60),
+        .init(iso: "fr", name: "French", endonym: "Français", hue: 260),
+        .init(iso: "zh", name: "Chinese", endonym: "中文", hue: 10),
+        .init(iso: "hi", name: "Indian", endonym: "हिन्दी", hue: 300),
+        .init(iso: "de", name: "German", endonym: "Deutsch", hue: 40),
+        .init(iso: "it", name: "Italian", endonym: "Italiano", hue: 145),
+        .init(iso: "pt", name: "Portuguese", endonym: "Português", hue: 130),
+        .init(iso: "tr", name: "Turkish", endonym: "Türkçe", hue: 200),
+        .init(iso: "sv", name: "Swedish", endonym: "Svenska", hue: 230),
+        .init(iso: "da", name: "Danish", endonym: "Dansk", hue: 0),
+        .init(iso: "no", name: "Norwegian", endonym: "Norsk", hue: 250),
+        .init(iso: "ru", name: "Russian", endonym: "Русский", hue: 340),
+        .init(iso: "pl", name: "Polish", endonym: "Polski", hue: 170),
+        .init(iso: "th", name: "Thai", endonym: "ไทย", hue: 320),
+        .init(iso: "nl", name: "Dutch", endonym: "Nederlands", hue: 80),
+        .init(iso: "ar", name: "Arabic", endonym: "العربية", hue: 165),
+    ]
     @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
 
     private let mainRowNames: Set<String> = [
@@ -56,7 +124,8 @@ struct MacHomeView: View {
         var candidates: [MetaPreview] = []
         for row in heroRows {
             var taken = 0
-            for item in row.items.sorted(by: { ($0.popularity ?? 0) > ($1.popularity ?? 0) }) where !seen.contains(item.id) {
+            for item in row.items.sorted(by: { ($0.popularity ?? 0) > ($1.popularity ?? 0) })
+                where !seen.contains(item.id) && matchesHomeCategory(item, filter: categoryState) {
                 guard taken < 8, candidates.count < 20 else { break }
                 seen.insert(item.id)
                 candidates.append(item)
@@ -66,22 +135,29 @@ struct MacHomeView: View {
         return candidates
     }
 
-    private var currentHeroBackdropURL: URL? {
-        guard featuredItems.indices.contains(heroIndex) else { return nil }
-        let item = featuredItems[heroIndex]
-        return MacHeroArtworkProvider.shared.heroArtURL(for: item)
-            ?? (item.banner ?? item.poster).flatMap(URL.init)
-    }
-
     /// Display rows with because_you_watched merged into one folder tile
     private var recsDisplayRows: [RecommendationRow] {
+        let watchedIds = watchProgressRepo.watchedMediaIds
+        func notWatched(_ item: MetaPreview) -> Bool {
+            let baseId = item.id.split(separator: ":").first.map(String.init) ?? item.id
+            return !watchedIds.contains(item.id) && !watchedIds.contains(baseId)
+        }
         var result: [RecommendationRow] = []
         var becauseRows: [RecommendationRow] = []
         for row in recsService.rows {
+            let filtered = row.items.filter(notWatched)
+            guard !filtered.isEmpty else { continue }
+            let filteredRow = RecommendationRow(
+                rowType: row.rowType,
+                rowTitle: row.rowTitle,
+                coverImage: row.coverImage,
+                sortOrder: row.sortOrder,
+                items: filtered
+            )
             if row.rowType == "because_you_watched" {
-                becauseRows.append(row)
+                becauseRows.append(filteredRow)
             } else {
-                result.append(row)
+                result.append(filteredRow)
             }
         }
         if !becauseRows.isEmpty {
@@ -97,13 +173,27 @@ struct MacHomeView: View {
         return result
     }
 
+    @State private var ambientColor: Color = .clear
+    @State private var ambientColor2: Color = .clear
+
+    /// The blurred backdrop shown behind the home page — the current hero item's
+    /// landscape art. Drives the restored `.heroBackdrop` fusion background.
+    private var currentHeroBackdropURL: URL? {
+        guard featuredItems.indices.contains(heroIndex) else { return nil }
+        let item = featuredItems[heroIndex]
+        return MacHeroArtworkProvider.shared.heroArtURL(for: item)
+            ?? item.artworkURL(preferring: .landscape)
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
-            FusionAmbientBackground(
+            MacFusionAmbientBackground(
                 ambientColor: ambientColor,
                 ambientColor2: ambientColor2,
+                isEnabled: cinematicModeEnabled,
                 heroBackdropURL: currentHeroBackdropURL,
-                isEnabled: cinematicModeEnabled
+                intensity: 0.9,
+                style: .heroBackdrop
             )
             .animation(.easeInOut(duration: 0.9), value: ambientColor)
             .animation(.easeInOut(duration: 0.9), value: ambientColor2)
@@ -111,24 +201,26 @@ struct MacHomeView: View {
             .animation(.easeInOut(duration: 0.35), value: cinematicModeEnabled)
 
             ScrollView {
-                VStack(spacing: 0) {
-                    if !featuredItems.isEmpty {
-                        HomeHero(
-                            items: featuredItems,
-                            currentIndex: $heroIndex,
-                            onWatchNow: { item in route(item: item) },
-                            onToggleLibrary: { item in
-                                Task {
-                                    guard let profile = profileManager.currentProfile else { return }
-                                    await libraryRepo.toggleLibrary(
-                                        profileId: profile.id,
-                                        mediaId: item.id,
-                                        mediaType: item.type.rawValue,
-                                        name: item.name,
+            VStack(spacing: 0) {
+                if !featuredItems.isEmpty {
+                    HomeHero(
+                        items: featuredItems,
+                        currentIndex: $heroIndex,
+                        onWatchNow: { item in route(item: item) },
+                        onToggleLibrary: { item in
+                            Task {
+                                guard let profile = profileManager.currentProfile else { return }
+                                await libraryRepo.toggleLibrary(
+                                    profileId: profile.id,
+                                    mediaId: item.id,
+                                    mediaType: item.type.rawValue,
+                                    name: item.name,
                                         poster: item.poster
                                     )
                                 }
-                            }
+                            },
+                            ambientColor: ambientColor,
+                            ambientColor2: ambientColor2
                         )
                         .task(id: "\(heroIndex)-\(cinematicModeEnabled)") {
                             await updateAmbientColorIfNeeded()
@@ -136,12 +228,26 @@ struct MacHomeView: View {
                         .onChange(of: heroIndex) { _, _ in
                             Task { await updateAmbientColorIfNeeded() }
                         }
+
+                        if isDedicatedMediaTab {
+                            MacCategoryPillsRow(
+                                genres: categoryGenres,
+                                state: $categoryState,
+                                hidePrimaryCategories: isDedicatedMediaTab,
+                                browseTitle: browseTitle
+                            ) { genre in
+                                let kind: MediaType = categoryState.category == .movies ? .movie : .series
+                                onSelectGenre?(genre, kind)
+                            }
+                            .padding(.top, 14)
+                            .onChange(of: categoryState) { _, _ in heroIndex = 0 }
+                        }
                     }
 
                     if !homeRepo.continueWatchingItems.isEmpty {
                         continueWatchingRow
-                            .padding(.top, featuredItems.isEmpty ? 96 : 18)
-                            .padding(.bottom, 28)
+                            .padding(.top, featuredItems.isEmpty ? 96 : 26)
+                            .padding(.bottom, 38)
                     }
 
                     // For You — Personalized Recommendations
@@ -150,7 +256,7 @@ struct MacHomeView: View {
                             Text("For You")
                                 .font(.system(size: 21, weight: .bold))
                                 .foregroundColor(.white)
-                                .padding(.horizontal, 28)
+                                .padding(.horizontal, 32)
 
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 12) {
@@ -162,7 +268,7 @@ struct MacHomeView: View {
                                                     id: "because_you_watched_all",
                                                     title: "Because You Watched...",
                                                     items: subRows.flatMap { $0.items },
-                                                    tileShape: "landscape",
+                                                    tileShape: nil,
                                                     coverImage: displayRow.coverImage
                                                 )
                                                 onSelectFolder?(catalogRow)
@@ -171,7 +277,7 @@ struct MacHomeView: View {
                                                     id: displayRow.id,
                                                     title: displayRow.rowTitle,
                                                     items: displayRow.items,
-                                                    tileShape: "landscape",
+                                                    tileShape: nil,
                                                     coverImage: displayRow.coverImage
                                                 )
                                                 onSelectFolder?(catalogRow)
@@ -179,7 +285,7 @@ struct MacHomeView: View {
                                         } label: {
                                             VStack(alignment: .center, spacing: 8) {
                                                 ZStack {
-                                                    RoundedRectangle(cornerRadius: 12)
+                                                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard)
                                                         .fill(MoonlitTheme.surfaceElevated)
                                                         .frame(width: 220, height: 124)
 
@@ -190,7 +296,7 @@ struct MacHomeView: View {
                                                             Color.clear
                                                         }
                                                         .frame(width: 220, height: 124)
-                                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                                        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard))
                                                     }
                                                 }
 
@@ -205,15 +311,23 @@ struct MacHomeView: View {
                                         .buttonStyle(.plain)
                                     }
                                 }
-                                .padding(.horizontal, 28)
+                                .padding(.horizontal, 32)
+                                .padding(.vertical, 8)
                             }
                         }
-                        .padding(.bottom, 20)
+                        .padding(.bottom, 32)
                     }
 
+                    genreBrowseRow
+                        .padding(.top, 20)
+                        .padding(.bottom, 24)
+
+                    languageBrowseRow
+                        .padding(.bottom, 36)
+
                     if !catalogRepo.catalogRows.isEmpty {
-                        LazyVStack(spacing: 30) {
-                            ForEach(catalogRepo.catalogRows) { row in
+                        LazyVStack(spacing: 44) {
+                            ForEach(visibleCatalogRows) { row in
                                 MacCollectionRowContainer(
                                     row: row,
                                     style: rowStyleStore.style(forRowTitle: row.title),
@@ -234,11 +348,11 @@ struct MacHomeView: View {
                         loadingState.padding(.top, 180)
                     }
 
-                    Spacer().frame(height: 48)
+                    Spacer().frame(height: 64)
                 }
             }
             .ignoresSafeArea(edges: .top)
-        }
+        }  // ZStack
         .background(MoonlitTheme.background)
         .task {
             guard let profile = profileManager.currentProfile else { return }
@@ -250,6 +364,8 @@ struct MacHomeView: View {
             await reloadCatalogRows(mode: .replaceCache)
             await continueWatching
             warmupContinueWatching()
+            prefetchHeroLogos()
+            await updateAmbientColorIfNeeded()
             Task {
                 await AwardIndex.shared.buildIfNeeded(
                     catalogRepo: catalogRepo,
@@ -274,7 +390,7 @@ struct MacHomeView: View {
             Text("Continue Watching")
                 .font(.system(size: 21, weight: .bold))
                 .foregroundColor(.white)
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 32)
 
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 14) {
@@ -288,19 +404,66 @@ struct MacHomeView: View {
                         .onTapGesture { resumeItem(item) }
                     }
                 }
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 6)
             }
         }
     }
 
     private var loadingState: some View {
-        VStack(spacing: 18) {
-            MacLottieLoadingView(size: 70)
-            Text("Loading your collections")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(.white.opacity(0.62))
+        MacLoadingView(size: 44)
+            .frame(maxWidth: .infinity)
+    }
+
+    private var genreBrowseRow: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Browse by Genre")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 32)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 20) {
+                    ForEach(homeGenres, id: \.self) { genre in
+                        MacGenreTile(
+                            name: genre,
+                            onTap: {
+                                onSelectGenre?(genre, .movie)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 6)
+            }
         }
-        .frame(maxWidth: .infinity)
+    }
+
+    private var languageBrowseRow: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Browse by Language")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 32)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 20) {
+                    ForEach(homeLanguages, id: \.iso) { lang in
+                        MacLanguageTile(
+                            iso: lang.iso,
+                            name: lang.name,
+                            endonym: lang.endonym,
+                            hue: lang.hue,
+                            onTap: {
+                                onSelectLanguage?(lang.iso, lang.name)
+                            }
+                        )
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 6)
+            }
+        }
     }
 
     private func route(item: MetaPreview) {
@@ -308,7 +471,8 @@ struct MacHomeView: View {
             let fallback = CatalogRow(
                 id: item.id, title: item.name, items: [],
                 tileShape: item.posterShape?.rawValue ?? "poster",
-                coverImage: item.poster ?? item.banner
+                coverImage: item.artworkString(preferring: .portrait),
+                heroBackdrop: item.backdrop
             )
             onSelectFolder?(catalogRepo.allFolderRows[item.id] ?? fallback)
         } else {
@@ -336,6 +500,7 @@ struct MacHomeView: View {
                     sourceHeaders: cachedSource.sourceHeaders,
                     logo: item.logo, poster: item.poster,
                     episodeThumbnail: item.thumbnail,
+                    background: item.background,
                     seasonNumber: item.seasonNumber,
                     episodeNumber: item.episodeNumber,
                     streamTitle: cachedSource.streamTitle ?? item.episodeTitle,
@@ -360,6 +525,7 @@ struct MacHomeView: View {
                 sourceHeaders: stream.behaviorHints?.proxyHeaders?.request,
                 logo: item.logo, poster: item.poster,
                 episodeThumbnail: item.thumbnail,
+                background: item.background,
                 seasonNumber: item.seasonNumber,
                 episodeNumber: item.episodeNumber,
                 streamTitle: stream.displayName,
@@ -380,6 +546,16 @@ struct MacHomeView: View {
         for item in homeRepo.continueWatchingItems.prefix(5) {
             Task {
                 await StreamWarmupRepository.shared.warmup(type: item.mediaType, id: item.mediaId, addons: addons)
+            }
+        }
+    }
+
+    private func prefetchHeroLogos() {
+        let topItems = catalogRepo.catalogRows.prefix(3).flatMap(\.items)
+        for item in topItems {
+            guard let logoURL = item.logo.flatMap(URL.init) else { continue }
+            Task.detached(priority: .background) {
+                _ = await MoonlitImageCache.image(for: logoURL)
             }
         }
     }
@@ -440,7 +616,7 @@ struct MacHomeView: View {
         }
         let item = featuredItems[heroIndex]
         guard let url = MacHeroArtworkProvider.shared.heroArtURL(for: item)
-                ?? (item.banner ?? item.poster).flatMap(URL.init) else {
+                ?? item.artworkURL(preferring: .landscape) else {
             ambientColor = .clear
             ambientColor2 = .clear
             return
@@ -459,147 +635,10 @@ struct MacHomeView: View {
     }
 }
 
-// MARK: - FusionAmbientBackground
-
-private struct FusionAmbientBackground: View {
-    let ambientColor: Color
-    let ambientColor2: Color
-    let heroBackdropURL: URL?
-    let isEnabled: Bool
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .top) {
-                MoonlitTheme.background
-
-                if isEnabled, let url = heroBackdropURL {
-                    CachedAsyncImage(url: url) { image in
-                        image.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.clear
-                    }
-                    .frame(width: geo.size.width, height: geo.size.height * 0.72)
-                    .clipped()
-                    .scaleEffect(1.1)
-                    .blur(radius: 30)
-                    .saturation(0.28)
-                    .brightness(0.14)
-                    .opacity(0.90)
-                    .mask(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .black, location: 0.0),
-                                .init(color: .black, location: 0.50),
-                                .init(color: .black.opacity(0.5), location: 0.72),
-                                .init(color: .clear, location: 1.0),
-                            ],
-                            startPoint: .top, endPoint: .bottom
-                        )
-                    )
-                    .id(url)
-                    .transition(.opacity)
-                }
-
-                if isEnabled {
-                    RadialGradient(
-                        stops: [
-                            .init(color: ambientColor.opacity(0.75), location: 0.0),
-                            .init(color: ambientColor.opacity(0.45), location: 0.30),
-                            .init(color: ambientColor.opacity(0.18), location: 0.60),
-                            .init(color: .clear, location: 1.0),
-                        ],
-                        center: .top,
-                        startRadius: 0,
-                        endRadius: geo.size.height * 0.80
-                    )
-                    .blur(radius: 28)
-
-                    RadialGradient(
-                        colors: [ambientColor2.opacity(0.45), .clear],
-                        center: UnitPoint(x: 0.80, y: 0.05),
-                        startRadius: 0,
-                        endRadius: geo.size.height * 0.50
-                    )
-
-                    LinearGradient(
-                        stops: [
-                            .init(color: .black.opacity(0.0), location: 0.00),
-                            .init(color: .black.opacity(0.10), location: 0.30),
-                            .init(color: MoonlitTheme.background.opacity(0.60), location: 0.65),
-                            .init(color: MoonlitTheme.background, location: 1.00)
-                        ],
-                        startPoint: .top, endPoint: .bottom
-                    )
-                }
-            }
-        }
-        .ignoresSafeArea()
-    }
+private struct MacLanguageData {
+    let iso: String
+    let name: String
+    let endonym: String
+    let hue: Double
 }
 
-// MARK: - Color Extraction Extensions
-
-private extension NSImage {
-    func moonlitAmbientColors() -> (Color, Color)? {
-        guard let tiffData = tiffRepresentation,
-              let bitmap = NSBitmapImageRep(data: tiffData),
-              let ci = CIImage(bitmapImageRep: bitmap) else { return nil }
-        let e = ci.extent
-        let topH = e.height * 0.6
-
-        func avgColor(in rect: CGRect) -> Color? {
-            guard let filter = CIFilter(name: "CIAreaAverage", parameters: [
-                kCIInputImageKey: ci,
-                kCIInputExtentKey: CIVector(cgRect: rect)
-            ]), let out = filter.outputImage else { return nil }
-            var px = [UInt8](repeating: 0, count: 4)
-            let ctx = CIContext(options: [.workingColorSpace: kCFNull as Any])
-            ctx.render(out, toBitmap: &px, rowBytes: 4,
-                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                       format: .RGBA8, colorSpace: nil)
-            return Color(red: Double(px[0]) / 255, green: Double(px[1]) / 255, blue: Double(px[2]) / 255)
-        }
-
-        let leftRect  = CGRect(x: e.minX,                    y: e.minY, width: e.width * 0.45, height: topH)
-        let rightRect = CGRect(x: e.minX + e.width * 0.55,   y: e.minY, width: e.width * 0.45, height: topH)
-
-        guard let c1 = avgColor(in: leftRect), let c2 = avgColor(in: rightRect) else { return nil }
-        return (c1, c2)
-    }
-}
-
-private extension Color {
-    var moonlitBoostedForAmbient: Color {
-        guard let rgb = NSColor(self).usingColorSpace(.deviceRGB) else { return self }
-        let r = rgb.redComponent
-        let g = rgb.greenComponent
-        let b = rgb.blueComponent
-
-        let maxC = max(r, g, b)
-        let minC = min(r, g, b)
-        let delta = maxC - minC
-
-        var hue: CGFloat = 0
-        var saturation: CGFloat = 0
-        let brightness = maxC
-
-        if delta > 0.001 {
-            saturation = delta / maxC
-            if r == maxC {
-                hue = ((g - b) / delta).truncatingRemainder(dividingBy: 6)
-            } else if g == maxC {
-                hue = (b - r) / delta + 2
-            } else {
-                hue = (r - g) / delta + 4
-            }
-            hue /= 6
-            if hue < 0 { hue += 1 }
-        }
-
-        return Color(
-            hue: Double(hue),
-            saturation: Double(min(max(saturation * 2.2, 0.60), 1.0)),
-            brightness: Double(min(max(brightness * 1.3, 0.40), 0.75))
-        )
-    }
-}

@@ -50,74 +50,85 @@ struct MacFolderView: View {
 
     private var columns: [GridItem] {
         if shouldUseLandscapeLayout {
-            [GridItem(.adaptive(minimum: 230), spacing: 16)]
+            // Landscape folder tiles are a fixed 240pt wide (MediaCard). The column
+            // minimum must be >= that width, or an adaptive column can resolve
+            // narrower than the tile and the tiles overlap. 248 leaves a hair of
+            // breathing room over the 240 tile.
+            [GridItem(.adaptive(minimum: 248), spacing: 16)]
         } else {
             [GridItem(.adaptive(minimum: 155), spacing: 16)]
         }
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                hero
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    hero
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Button { onBack() } label: {
-                        Label("Back", systemImage: "chevron.left")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 9)
-                            .macGlassCapsule(interactive: true)
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.top, 18)
-
-                    if displayRow.titleLogo == nil {
-                        Text(displayRow.title)
-                            .font(.system(size: 36, weight: .black))
-                            .foregroundColor(.white)
-                            .padding(.top, 16)
-                    }
-                }
-                .padding(.horizontal, 28)
-
-                if isLoadingInitial && displayRow.items.isEmpty {
-                    loadingState
-                        .padding(.top, 72)
-                } else if displayRow.items.isEmpty || unavailableReason != nil {
-                    emptyState
-                        .padding(.top, 72)
-                } else {
-                    LazyVGrid(columns: columns, spacing: 18) {
-                        ForEach(displayRow.items) { item in
-                            MediaCard(item: item, row: shapeRow)
-                                .onTapGesture { route(item) }
-                                .onAppear {
-                                    if item.id == displayRow.items.last?.id {
-                                        Task { await loadMoreIfNeeded() }
+                    if isLoadingInitial && displayRow.items.isEmpty {
+                        loadingState
+                            .padding(.top, 72)
+                    } else if displayRow.items.isEmpty || unavailableReason != nil {
+                        emptyState
+                            .padding(.top, 72)
+                    } else {
+                        LazyVGrid(columns: columns, spacing: 18) {
+                            ForEach(displayRow.items) { item in
+                                MediaCard(item: item, row: shapeRow)
+                                    .onTapGesture { route(item) }
+                                    .onAppear {
+                                        if item.id == displayRow.items.last?.id {
+                                            Task { await loadMoreIfNeeded() }
+                                        }
                                     }
-                                }
+                            }
                         }
-                    }
-                    .padding(.horizontal, 28)
-                    .padding(.top, 24)
+                        .padding(.horizontal, 28)
+                        .padding(.top, 24)
 
-                    if isLoadingMore {
-                        HStack {
-                            Spacer()
-                            MacLottieLoadingView(size: 42)
-                            Spacer()
+                        if isLoadingMore {
+                            HStack {
+                                Spacer()
+                                MacLottieLoadingView(size: 26)
+                                Spacer()
+                            }
+                            .padding(.vertical, 28)
                         }
-                        .padding(.vertical, 28)
                     }
+
+                    Spacer().frame(height: 48)
                 }
-
-                Spacer().frame(height: 48)
             }
+            .ignoresSafeArea(.container, edges: .top)
+
+            HStack {
+                Button { onBack() } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .macDarkGlassCapsule(interactive: true)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+            }
+            .padding(.horizontal, 28)
+            .padding(.top, 48)
         }
         .background(MoonlitTheme.background)
         .task(id: row.id) {
+            if let logoURL = displayRow.titleLogo.flatMap(URL.init) {
+                Task.detached(priority: .background) {
+                    _ = await MoonlitImageCache.image(for: logoURL)
+                }
+            }
             await loadInitialIfNeeded()
         }
     }
@@ -126,50 +137,51 @@ struct MacFolderView: View {
     private var hero: some View {
         if let backdrop = displayRow.heroBackdrop ?? displayRow.backdropImage ?? displayRow.coverImage,
            let url = URL(string: backdrop) {
-            CachedAsyncImage(url: url) { image in
-                image.resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 300)
-                    .clipped()
-                    .overlay(
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0.0),
-                                .init(color: MoonlitTheme.background.opacity(0.35), location: 0.55),
-                                .init(color: MoonlitTheme.background.opacity(0.85), location: 0.82),
-                                .init(color: MoonlitTheme.background, location: 1.0),
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .overlay(alignment: .bottom) {
-                        if let logo = displayRow.titleLogo, let logoURL = URL(string: logo) {
-                            CachedAsyncImage(url: logoURL) { logoImage in
-                                logoImage.resizable()
-                                    .aspectRatio(contentMode: .fit)
-                                    .frame(maxWidth: 360, maxHeight: 96)
-                                    .shadow(color: .black.opacity(0.5), radius: 8, y: 3)
-                            } placeholder: { Color.clear }
-                            .padding(.bottom, 22)
-                            .padding(.horizontal, 28)
-                        }
-                    }
-            } placeholder: {
-                MoonlitTheme.surfaceElevated.frame(height: 200)
+            ZStack(alignment: .bottomLeading) {
+                CachedAsyncImage(url: url, maxDimension: 3000) { image in
+                    image.resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 400)
+                        .clipped()
+                } placeholder: {
+                    MoonlitTheme.surfaceElevated.frame(height: 400)
+                }
+
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: MoonlitTheme.background.opacity(0.35), location: 0.45),
+                        .init(color: MoonlitTheme.background.opacity(0.85), location: 0.75),
+                        .init(color: MoonlitTheme.background, location: 1.0),
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+
+                if let logo = displayRow.titleLogo, let logoURL = URL(string: logo) {
+                    CachedAsyncImage(url: logoURL) { logoImage in
+                        logoImage.resizable()
+                            .aspectRatio(contentMode: .fit)
+                            .frame(maxWidth: 360, maxHeight: 96)
+                            .shadow(color: .black.opacity(0.5), radius: 8, y: 3)
+                    } placeholder: { Color.clear }
+                    .padding(.horizontal, 28)
+                    .padding(.bottom, 24)
+                } else {
+                    Text(displayRow.title)
+                        .font(.system(size: 36, weight: .black))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 28)
+                        .padding(.bottom, 20)
+                }
             }
         }
     }
 
     private var loadingState: some View {
-        VStack(spacing: 14) {
-            MacLottieLoadingView(size: 58)
-            Text("Loading folder")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.6))
-        }
-        .frame(maxWidth: .infinity)
+        MacLoadingView(size: 40)
+            .frame(maxWidth: .infinity)
     }
 
     private var emptyState: some View {
@@ -226,7 +238,8 @@ struct MacFolderView: View {
                 title: item.name,
                 items: [],
                 tileShape: item.posterShape?.rawValue ?? "poster",
-                coverImage: item.poster ?? item.banner
+                coverImage: item.artworkString(preferring: .portrait),
+                heroBackdrop: item.backdrop
             )
             onSelectFolder?(catalogRepo.allFolderRows[item.id] ?? fallback)
         } else {

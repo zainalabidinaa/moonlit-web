@@ -6,10 +6,14 @@ struct HomeHero: View {
     @Binding var currentIndex: Int
     let onWatchNow: (MetaPreview) -> Void
     let onToggleLibrary: (MetaPreview) -> Void
+    var ambientColor: Color = .clear
+    var ambientColor2: Color = .clear
 
     @State private var autoTimer: Timer?
     @StateObject private var libraryRepo = LibraryRepository.shared
     @StateObject private var artwork = MacHeroArtworkProvider.shared
+    @StateObject private var awardsMeta = AwardsMetadataService.shared
+    @StateObject private var awardIndex = AwardIndex.shared
 
     private let heroHeight: CGFloat = 560
 
@@ -25,6 +29,24 @@ struct HomeHero: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
+                RadialGradient(
+                    stops: [
+                        .init(color: ambientColor.opacity(0.65), location: 0.0),
+                        .init(color: ambientColor.opacity(0.30), location: 0.40),
+                        .init(color: .clear, location: 1.0),
+                    ],
+                    center: .top,
+                    startRadius: 0,
+                    endRadius: heroHeight * 0.90
+                )
+
+                RadialGradient(
+                    colors: [ambientColor2.opacity(0.40), .clear],
+                    center: UnitPoint(x: 0.75, y: 0.10),
+                    startRadius: 20,
+                    endRadius: heroHeight * 0.55
+                )
+
                 if let currentItem {
                     heroImage(for: currentItem)
                         .id(currentItem.id)
@@ -32,27 +54,14 @@ struct HomeHero: View {
                         .animation(.easeInOut(duration: 0.35), value: currentItem.id)
                 }
 
-                HStack {
-                    heroStepButton(systemName: "chevron.left") {
-                        stepHero(-1)
-                    }
-                    Spacer()
-                    heroStepButton(systemName: "chevron.right") {
-                        stepHero(1)
-                    }
-                }
-                .padding(.horizontal, 22)
-                .opacity(items.count > 1 ? 1 : 0)
-                .allowsHitTesting(items.count > 1)
-
                 Color.clear
                     .frame(maxWidth: .infinity, maxHeight: heroHeight)
                 .mask(
                     LinearGradient(
                         stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.56),
-                            .init(color: .black.opacity(0.40), location: 0.82),
+                            .init(color: .black.opacity(0.92), location: 0.0),
+                            .init(color: .black.opacity(0.88), location: 0.50),
+                            .init(color: .black.opacity(0.35), location: 0.78),
                             .init(color: .clear, location: 1.0)
                         ],
                         startPoint: .top,
@@ -83,7 +92,17 @@ struct HomeHero: View {
                     }
 
                     metaRow
-                        .padding(.bottom, 4)
+
+                    if let description = currentItem?.description, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.75))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
+                            .frame(maxWidth: 480, alignment: .leading)
+                            .shadow(color: .black.opacity(0.4), radius: 3)
+                            .padding(.bottom, 4)
+                    }
 
                     HStack(spacing: 12) {
                         Button {
@@ -106,7 +125,7 @@ struct HomeHero: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 11)
-                                .macGlassCapsule(interactive: true)
+                                .macDarkGlassCapsule(interactive: true)
                         }
                         .buttonStyle(.plain)
                     }
@@ -118,13 +137,44 @@ struct HomeHero: View {
                 pageIndicator
                     .padding(.bottom, 22)
             }
+            .overlay(alignment: .topTrailing) {
+                if let currentItem {
+                    let summary = awardsMeta.summary(forId: currentItem.id)
+                    MacCompactAwardBadgeView(
+                        asset: summary?.isWinner == true
+                            ? summary?.primaryBodyWithAsset?.assetName
+                            : awardIndex.assetName(forId: currentItem.id)
+                    )
+                    .padding(.trailing, 28)
+                    .padding(.top, 24)
+                    .allowsHitTesting(false)
+                }
+            }
         .frame(height: heroHeight)
+        .overlay(alignment: .center) {
+            HStack {
+                heroStepButton(systemName: "chevron.left") {
+                    stepHero(-1)
+                }
+                .opacity(0.55)
+                Spacer()
+                heroStepButton(systemName: "chevron.right") {
+                    stepHero(1)
+                }
+                .opacity(0.55)
+            }
+            .padding(.horizontal, 22)
+            .opacity(items.count > 1 ? 1 : 0)
+            .allowsHitTesting(items.count > 1)
+        }
         .onAppear {
             artwork.prefetch(items: items)
+            awardsMeta.prefetch(ids: items.map(\.id))
             startAutoAdvance()
         }
         .onChange(of: items.map(\.id)) { _, _ in
             artwork.prefetch(items: items)
+            awardsMeta.prefetch(ids: items.map(\.id))
         }
         .onDisappear {
             autoTimer?.invalidate()
@@ -180,8 +230,10 @@ struct HomeHero: View {
     private func heroImage(for item: MetaPreview) -> some View {
         Group {
             if let url = artwork.heroArtURL(for: item) {
-                CachedAsyncImage(url: url) { image in
-                    image.resizable().scaledToFill()
+                CachedAsyncImage(url: url, maxDimension: 3000) { image in
+                    image.resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(maxWidth: .infinity, maxHeight: heroHeight, alignment: .top)
                 } placeholder: {
                     MoonlitTheme.surfaceElevated
                 }
@@ -194,9 +246,9 @@ struct HomeHero: View {
         .mask(
             LinearGradient(
                 stops: [
-                    .init(color: .black, location: 0.0),
-                    .init(color: .black, location: 0.56),
-                    .init(color: .black.opacity(0.40), location: 0.82),
+                    .init(color: .black.opacity(0.92), location: 0.0),
+                    .init(color: .black.opacity(0.85), location: 0.50),
+                    .init(color: .black.opacity(0.35), location: 0.78),
                     .init(color: .clear, location: 1.0)
                 ],
                 startPoint: .top,
@@ -208,10 +260,10 @@ struct HomeHero: View {
     private func heroStepButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 18, weight: .bold))
+                .font(.system(size: 16, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 44, height: 44)
-                .macGlassCapsule(interactive: true)
+                .frame(width: 40, height: 40)
+                .macDarkGlassCapsule(interactive: true)
         }
         .buttonStyle(.plain)
     }
@@ -223,6 +275,12 @@ struct HomeHero: View {
             Task { @MainActor in
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {
                     currentIndex = (currentIndex + 1) % max(items.count, 1)
+                }
+                let nextIdx = (currentIndex + 1) % max(items.count, 1)
+                if let logoURL = items[nextIdx].logo.flatMap(URL.init) {
+                    Task.detached(priority: .background) {
+                        _ = await MoonlitImageCache.image(for: logoURL)
+                    }
                 }
             }
         }
