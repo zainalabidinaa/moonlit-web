@@ -372,7 +372,7 @@ struct MacHomeView: View {
 
             await StartupCoordinator.shared.waitForPhase(.phase2)
 
-            prefetchHeroLogos(from: await StartupCoordinator.shared.catalogRows)
+            await prefetchHeroLogos(from: await StartupCoordinator.shared.catalogRows)
 
             catalogRepo.catalogRows = await StartupCoordinator.shared.catalogRows
             catalogRepo.collectionRows = await StartupCoordinator.shared.collectionRows
@@ -574,13 +574,15 @@ struct MacHomeView: View {
         }
     }
 
-    private func prefetchHeroLogos(from rows: [CatalogRow]? = nil) {
+    private func prefetchHeroLogos(from rows: [CatalogRow]? = nil) async {
         let source = rows ?? catalogRepo.catalogRows
         let topItems = source.prefix(3).flatMap(\.items)
-        for item in topItems {
-            guard let logoURL = item.logo.flatMap(URL.init) else { continue }
-            Task.detached(priority: .background) {
-                _ = await MoonlitImageCache.image(for: logoURL)
+        let logoURLs = topItems.compactMap { $0.logo.flatMap(URL.init) }
+        await withTaskGroup(of: Void.self) { group in
+            for url in logoURLs {
+                group.addTask {
+                    _ = await MoonlitImageCache.image(for: url)
+                }
             }
         }
     }

@@ -1,7 +1,6 @@
 import Foundation
 
 public final class CatalogService: @unchecked Sendable {
-    private static let catalogProxyBase = "https://moonlit-web-zainalabidinaas-projects.vercel.app/api/stremio"
     public static let shared = CatalogService()
     private let client = StremioHTTPClient.shared
 
@@ -33,25 +32,7 @@ public final class CatalogService: @unchecked Sendable {
     }
 
     public func fetchCatalog(query: StremioCatalogQuery) async throws -> [MetaPreview] {
-        // Proxy URL via Vercel edge function (expects query params: url, type, id, extras)
-        let url: String = {
-            let direct = query.buildURL()
-            guard direct.contains("/catalog/") else { return direct }
-            var components = URLComponents(string: CatalogService.catalogProxyBase + "/catalog")
-            var params: [URLQueryItem] = [
-                URLQueryItem(name: "url", value: query.baseURL),
-                URLQueryItem(name: "type", value: query.type),
-                URLQueryItem(name: "id", value: query.id)
-            ]
-            if !query.extras.isEmpty {
-                if let jsonData = try? JSONEncoder().encode(query.extras),
-                   let jsonStr = String(data: jsonData, encoding: .utf8) {
-                    params.append(URLQueryItem(name: "extras", value: jsonStr))
-                }
-            }
-            components?.queryItems = params
-            return components?.string ?? direct
-        }()
+        let url = query.buildURL()
         let addonBase = query.baseURL
 
         struct RawMeta: Codable {
@@ -135,16 +116,7 @@ public final class CatalogService: @unchecked Sendable {
             }
         }
 
-        // Use URL path suffix as a stable cache key so entries survive proxy/base changes
-        let cacheKey: String = {
-            let direct = query.buildURL()
-            if let baseEnd = direct.range(of: "/catalog/") {
-                return "catalog:" + direct[baseEnd.lowerBound...]
-            }
-            return url
-        }()
-
-        if let cached = CatalogResponseCache.shared.get(key: cacheKey),
+        if let cached = CatalogResponseCache.shared.get(key: url),
            let response = try? JSONDecoder().decode(CatalogResponse.self, from: cached) {
             return mapResponse(response)
         }
@@ -152,7 +124,7 @@ public final class CatalogService: @unchecked Sendable {
         do {
             let text = try await client.getText(url: url)
             if let data = text.data(using: .utf8) {
-                CatalogResponseCache.shared.set(key: cacheKey, data: data)
+                CatalogResponseCache.shared.set(key: url, data: data)
                 let response = try JSONDecoder().decode(CatalogResponse.self, from: data)
                 return mapResponse(response)
             }
