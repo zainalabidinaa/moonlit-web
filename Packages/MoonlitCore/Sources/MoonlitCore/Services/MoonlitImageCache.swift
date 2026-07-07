@@ -11,7 +11,7 @@ public typealias MoonlitImage = UIImage
 #endif
 
 public enum MoonlitImageCache {
-    private static let queue = DispatchQueue(label: "moonlit.imgcache", qos: .utility)
+    private static let queue = DispatchQueue(label: "moonlit.imgcache", qos: .utility, attributes: .concurrent)
 
     /// Bounded in-memory cache of already-decoded, downsampled images.
     /// `NSCache` is thread-safe and evicts automatically under memory pressure,
