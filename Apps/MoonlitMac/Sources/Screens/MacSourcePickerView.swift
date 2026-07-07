@@ -7,10 +7,16 @@ struct MacSourcePickerView: View {
     let mediaName: String
     let poster: String?
     let logo: String?
+    let background: String?
     let videoId: String?
     let seasonNumber: Int?
     let episodeNumber: Int?
     let onLaunch: (PlayerLaunch) -> Void
+    /// When true, always show the manual list — ignores autoplay preference.
+    /// Set by the in-player picker where the user explicitly asked to pick.
+    var forceManual: Bool = false
+    /// The player's current source URL, used to highlight the active stream row.
+    var currentSourceUrl: String? = nil
 
     @StateObject private var streamRepo = StreamRepository.shared
     @StateObject private var addonRepo = AddonRepository.shared
@@ -21,6 +27,7 @@ struct MacSourcePickerView: View {
     @State private var autoLaunchStatus: String? = nil
 
     private var autoplayMode: AutoplayMode {
+        if forceManual { return .manual }
         guard let profile = ProfileManager.shared.currentProfile else { return .manual }
         return StreamAutoplayPreferenceStore.shared.mode(profileId: profile.id) == .automatic ? .auto : .manual
     }
@@ -35,36 +42,43 @@ struct MacSourcePickerView: View {
     }
 
     var body: some View {
-        Group {
-            if streamRepo.isLoading || (autoplayMode == .auto && !isAutoPlaying) {
-                loadingView
-            } else if autoplayMode == .auto && (isAutoPlaying || !streamRepo.streams.isEmpty) {
-                autoPlayView
-            } else if streamRepo.streams.isEmpty {
-                emptyView
-            } else {
-                manualPickerView
-            }
-        }
-        .frame(minWidth: 500, minHeight: 400)
-        .background(MoonlitTheme.background)
-        .task {
-            await streamRepo.fetchStreams(
-                type: mediaType.rawValue,
-                id: videoId ?? mediaId,
-                addons: addonRepo.enabledAddons
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
             )
-        }
-        .onChange(of: streamRepo.streams) { _, streams in
-            if autoplayMode == .auto && !streams.isEmpty && !isAutoPlaying {
-                startAutoPlay(streams: streams)
+            Group {
+                if streamRepo.isLoading && autoplayMode == .auto {
+                    loadingView
+                } else if !forceManual && autoplayMode == .auto && (isAutoPlaying || !streamRepo.streams.isEmpty) {
+                    autoPlayView
+                } else if streamRepo.streams.isEmpty {
+                    emptyView
+                } else {
+                    manualPickerView
+                }
+            }
+            .frame(minWidth: 500, minHeight: 400)
+            .task {
+                await streamRepo.fetchStreams(
+                    type: mediaType.rawValue,
+                    id: videoId ?? mediaId,
+                    addons: addonRepo.enabledAddons
+                )
+            }
+            .onChange(of: streamRepo.streams) { _, streams in
+                if !forceManual, autoplayMode == .auto, !streams.isEmpty, !isAutoPlaying {
+                    startAutoPlay(streams: streams)
+                }
+            }
+            .onChange(of: streamRepo.isLoading) { _, isLoading in
+                guard !isLoading, !forceManual, autoplayMode == .auto,
+                      !streamRepo.streams.isEmpty, !isAutoPlaying else { return }
+                startAutoPlay(streams: streamRepo.streams)
             }
         }
-        .onChange(of: streamRepo.isLoading) { _, isLoading in
-            guard !isLoading, autoplayMode == .auto,
-                  !streamRepo.streams.isEmpty, !isAutoPlaying else { return }
-            startAutoPlay(streams: streamRepo.streams)
-        }
+        .background(MoonlitTheme.background)
     }
 
     private var loadingView: some View {
@@ -74,6 +88,9 @@ struct MacSourcePickerView: View {
             Text("Finding streams...")
                 .font(.headline)
                 .foregroundColor(.white)
+            Button("Cancel") { dismiss() }
+                .buttonStyle(.borderedProminent)
+                .tint(.white.opacity(0.2))
             Spacer()
         }
     }
@@ -203,7 +220,7 @@ struct MacSourcePickerView: View {
                                 Button {
                                     launchStream(stream)
                                 } label: {
-                                    StreamRowView(stream: stream)
+                                    StreamRowView(stream: stream, isCurrent: stream.url == currentSourceUrl)
                                 }
                                 .buttonStyle(.plain)
                             }
@@ -232,7 +249,7 @@ struct MacSourcePickerView: View {
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 5)
                                 .background(selectedAddonFilter == nil ? Color.white.opacity(0.2) : Color.white.opacity(0.08))
-                                .cornerRadius(14)
+                                .cornerRadius(MoonlitTheme.radiusCard)
                         }
                         .buttonStyle(.plain)
 
@@ -246,7 +263,7 @@ struct MacSourcePickerView: View {
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 5)
                                     .background(selectedAddonFilter == addon ? Color.white.opacity(0.2) : Color.white.opacity(0.08))
-                                    .cornerRadius(14)
+                                    .cornerRadius(MoonlitTheme.radiusCard)
                             }
                             .buttonStyle(.plain)
                         }
@@ -257,11 +274,12 @@ struct MacSourcePickerView: View {
     }
 
     private var filteredStreams: [StreamItem] {
+        let ranked = StreamSourceSelector.rankedCandidates(from: streamRepo.streams, prefer4K: prefer4K)
+            .filter { $0.url != nil && !($0.url?.isEmpty ?? true) }
         guard let filter = selectedAddonFilter else {
-            return StreamSourceSelector.rankedCandidates(from: streamRepo.streams, prefer4K: prefer4K)
+            return ranked
         }
-        return StreamSourceSelector.rankedCandidates(from: streamRepo.streams, prefer4K: prefer4K)
-            .filter { $0.addonName == filter }
+        return ranked.filter { $0.addonName == filter }
     }
 
     private func groupedByAddon(_ streams: [StreamItem]) -> [(key: String, value: [StreamItem])] {
@@ -274,7 +292,7 @@ struct MacSourcePickerView: View {
         autoLaunchAttempts = 0
         autoLaunchStatus = "Finding best source..."
 
-        let candidates = StreamSourceSelector.cachedCandidates(currentUrl: nil, from: streams)
+        let candidates = StreamSourceSelector.candidatesForAutoPlay(from: streams, prefer4K: prefer4K)
 
         guard !candidates.isEmpty else {
             autoLaunchStatus = "No playable streams found"
@@ -306,12 +324,15 @@ struct MacSourcePickerView: View {
             sourceUrl: url,
             sourceHeaders: candidate.behaviorHints?.proxyHeaders?.request,
             logo: logo, poster: poster,
+            background: background,
             seasonNumber: seasonNumber,
             episodeNumber: episodeNumber,
             streamTitle: candidate.displayName,
             providerName: candidate.addonName,
             contentType: mediaType,
-            videoId: videoId ?? mediaId
+            videoId: videoId ?? mediaId,
+            parentMetaId: mediaId,
+            parentMetaType: mediaType.rawValue
         )
 
         onLaunch(launch)
@@ -325,12 +346,15 @@ struct MacSourcePickerView: View {
             sourceUrl: url,
             sourceHeaders: stream.behaviorHints?.proxyHeaders?.request,
             logo: logo, poster: poster,
+            background: background,
             seasonNumber: seasonNumber,
             episodeNumber: episodeNumber,
             streamTitle: stream.displayName,
             providerName: stream.addonName,
             contentType: mediaType,
-            videoId: videoId ?? mediaId
+            videoId: videoId ?? mediaId,
+            parentMetaId: mediaId,
+            parentMetaType: mediaType.rawValue
         )
         onLaunch(launch)
     }
@@ -346,6 +370,7 @@ private enum AutoplayMode {
 
 struct StreamRowView: View {
     let stream: StreamItem
+    var isCurrent: Bool = false
     @State private var isHovering = false
 
     private var meta: StreamMetadata { stream.parseMetadata() }
@@ -354,14 +379,15 @@ struct StreamRowView: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    if let res = meta.resolution {
-                        Text(res)
+                    let quality = StreamSourceSelector.quality(of: stream)
+                    if quality != .unknown {
+                        Text(qualityLabel(for: quality))
                             .font(.system(size: 10, weight: .bold))
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(resolutionColor)
+                            .background(qualityColor(for: quality))
                             .foregroundColor(.black)
-                            .cornerRadius(4)
+                            .cornerRadius(MoonlitTheme.radiusSmall)
                     }
                     if let codec = meta.videoCodec {
                         Text(codec)
@@ -380,7 +406,7 @@ struct StreamRowView: View {
                             .padding(.vertical, 2)
                             .background(Color.purple.opacity(0.3))
                             .foregroundColor(MoonlitTheme.accent)
-                            .cornerRadius(4)
+                            .cornerRadius(MoonlitTheme.radiusSmall)
                     }
                 }
 
@@ -399,21 +425,36 @@ struct StreamRowView: View {
 
             Spacer()
 
-            Image(systemName: "play.circle.fill")
-                .font(.title3)
-                .foregroundColor(MoonlitTheme.accent)
-                .opacity(isHovering ? 1 : 0.5)
+            if isCurrent {
+                Image(systemName: "checkmark")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(MoonlitTheme.accent)
+            } else {
+                Image(systemName: "play.circle.fill")
+                    .font(.title3)
+                    .foregroundColor(MoonlitTheme.accent)
+                    .opacity(isHovering ? 1 : 0.5)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
-        .background(isHovering ? MoonlitTheme.surfaceElevated : MoonlitTheme.surface)
+        .background(isCurrent ? MoonlitTheme.accent.opacity(0.08) : (isHovering ? MoonlitTheme.surfaceElevated : MoonlitTheme.surface))
         .onHover { isHovering = $0 }
     }
 
-    private var resolutionColor: Color {
-        guard let res = meta.resolution?.uppercased() else { return .gray }
-        if res.contains("4K") || res.contains("2160") { return .yellow }
-        if res.contains("1080") { return .blue }
-        return .green
+    private func qualityLabel(for quality: StreamQuality) -> String {
+        switch quality {
+        case .ultraHD4K: return "4K"
+        case .hd1080: return "1080p"
+        case .unknown: return "Auto"
+        }
+    }
+
+    private func qualityColor(for quality: StreamQuality) -> Color {
+        switch quality {
+        case .ultraHD4K: return .yellow
+        case .hd1080: return .blue
+        default: return .green
+        }
     }
 }

@@ -290,22 +290,8 @@ struct MacPlayerView: View {
         }
         .ignoresSafeArea(edges: .all)
         .sheet(isPresented: $showSourcePicker) {
-            MacSourcePickerView(
-                mediaType: launch.contentType == .movie ? .movie : .series,
-                mediaId: launch.parentMetaId ?? launch.videoId,
-                mediaName: launch.title,
-                poster: launch.poster,
-                logo: launch.logo,
-                background: launch.background,
-                videoId: launch.videoId,
-                seasonNumber: launch.seasonNumber,
-                episodeNumber: launch.episodeNumber,
-                onLaunch: { newLaunch in
-                    showSourcePicker = false
-                    switchToSource(newLaunch)
-                }
-            )
-            .frame(minWidth: 560, minHeight: 520)
+            sourcePickerSheet
+                .frame(minWidth: 560, minHeight: 520)
         }
         .animation(.easeInOut(duration: 0.25), value: showUpNextPanel)
         .animation(.easeInOut(duration: 0.2), value: showEpisodeInfoPanel)
@@ -641,6 +627,26 @@ struct MacPlayerView: View {
             try? await Task.sleep(for: .seconds(2.5))
             screenshotToast = nil
         }
+    }
+
+    private var sourcePickerSheet: some View {
+        MacSourcePickerView(
+            mediaType: launch.contentType == .movie ? .movie : .series,
+            mediaId: launch.parentMetaId ?? launch.videoId,
+            mediaName: launch.title,
+            poster: launch.poster,
+            logo: launch.logo,
+            background: launch.background,
+            videoId: launch.videoId,
+            seasonNumber: launch.seasonNumber,
+            episodeNumber: launch.episodeNumber,
+            onLaunch: { newLaunch in
+                showSourcePicker = false
+                switchToSource(newLaunch)
+            },
+            forceManual: true,
+            currentSourceUrl: launch.sourceUrl
+        )
     }
 
     /// Switches the currently-playing stream to a new source picked from the
