@@ -25,6 +25,17 @@ public class ProfileManager: ObservableObject {
         defer {
             Task { @MainActor in
                 let elapsed = Date().timeIntervalSince(startTime)
+                if self.isAuthenticated, let profile = self.currentProfile {
+                    await StartupCoordinator.shared.startPhase1(
+                        profileId: profile.id,
+                        collectionRepo: CollectionRepository.shared,
+                        addonRepo: AddonRepository.shared,
+                        catalogRepo: CatalogRepository.shared,
+                        homeRepo: HomeRepository.shared,
+                        recsService: RecommendationsService.shared,
+                        libraryRepo: LibraryRepository.shared
+                    )
+                }
                 let remaining = 1.5 - elapsed
                 if remaining > 0 {
                     try? await Task.sleep(for: .seconds(remaining))
@@ -83,6 +94,43 @@ public class ProfileManager: ObservableObject {
         SessionStore.save(session)
         try await loadProfiles(userId: session.userId)
         self.isAuthenticated = true
+    }
+
+    public func signInWithApple(idToken: String, nonce: String) async throws {
+        let session = try await auth.signInWithApple(idToken: idToken, nonce: nonce)
+        self.currentSession = session
+        SessionStore.save(session)
+        try? await loadProfiles(userId: session.userId)
+        if profiles.isEmpty {
+            try? await createProfile(name: "Profile")
+        }
+        self.isAuthenticated = true
+    }
+
+    public func linkAppleAccount(idToken: String, nonce: String) async throws {
+        guard let session = currentSession else { throw SupabaseError.notAuthenticated }
+        try await auth.linkAppleAccount(idToken: idToken, nonce: nonce, accessToken: session.accessToken)
+    }
+
+    public func fetchAppleIdentityId() async throws -> String? {
+        guard let session = currentSession else { return nil }
+        return try await auth.fetchAppleIdentityId(accessToken: session.accessToken)
+    }
+
+    public func unlinkAppleAccount(identityId: String) async throws {
+        guard let session = currentSession else { throw SupabaseError.notAuthenticated }
+        try await auth.unlinkAppleAccount(identityId: identityId, accessToken: session.accessToken)
+    }
+
+    public func deleteAccount() async throws {
+        guard let session = currentSession else { throw SupabaseError.notAuthenticated }
+        try await auth.deleteAccount(accessToken: session.accessToken)
+        SessionStore.clear()
+        UserDefaults.standard.removeObject(forKey: "moonlit.currentProfileId")
+        currentSession = nil
+        currentProfile = nil
+        profiles = []
+        isAuthenticated = false
     }
 
     public func signUp(email: String, password: String, inviteCode: String) async throws {
