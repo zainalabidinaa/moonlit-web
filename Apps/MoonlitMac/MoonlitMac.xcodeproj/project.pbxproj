@@ -7,49 +7,88 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		02E1AC0593B4CE1F16054AD8 /* MacGenreTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07CFDC10BCB824784885A43E /* MacGenreTile.swift */; };
 		0434A643770BBCD9E71AD961 /* MoonlitCore in Frameworks */ = {isa = PBXBuildFile; productRef = 7EE300B52893BDFEB6E4CD8A /* MoonlitCore */; };
+		0958B6F94C40E13A03110152 /* PlayerThumbnailer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559013A17D8BF462D97DF356 /* PlayerThumbnailer.swift */; };
 		1D76ECF10296E2C499AA3D7A /* MacMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52DC05DEE092B59B66CC9462 /* MacMainView.swift */; };
 		1DAC6A174AEB0CD71E887260 /* MoonlitMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB2FDAA15BE1573F9A0DBE25 /* MoonlitMacApp.swift */; };
+		1F7097425D15AEF6005D2A1F /* MacMediaGallerySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = B447007F960A22CD8F0B0918 /* MacMediaGallerySection.swift */; };
 		2139E0904B51EBF40B0B2F2A /* MacLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6671C5C2ADE5BEF5FC27BD /* MacLibraryView.swift */; };
 		2282336F7B1A714D972B7B15 /* MacHeroArtworkProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68723EE3B4C7FE9139592ADC /* MacHeroArtworkProvider.swift */; };
 		2489EF41CF3777E044E0A4DF /* MPVPlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 605DACE20012FDD95FF4DBBC /* MPVPlayerEngine.swift */; };
+		2743A2A4DE6BB939F0E866E4 /* MacCreditCardRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 266DBC64808802F7E23E3F43 /* MacCreditCardRow.swift */; };
+		2BC9D57AA45A6C822B22F5CB /* PipChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8ACB3E6C35FC5065B77C8D82 /* PipChrome.swift */; };
 		2C15D148DA38303A1C7FE51B /* MacVideoPlayerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9233E0C7BA3F9046C2251C68 /* MacVideoPlayerSettingsView.swift */; };
 		2CF12E193DCD9262B9C471AA /* MacDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052473F49CB95FBD1F8838AF /* MacDetailView.swift */; };
+		31C7FBA4F00E4B3C2602A3D1 /* MacCrewInfoGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1D58107BDC750E491BA9E1D /* MacCrewInfoGrid.swift */; };
+		31E2DDBEB2CA9C76834EDAB7 /* AirPlayButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4513239AEA48E02693ED8739 /* AirPlayButton.swift */; };
 		32E6266EABC12DF8EF92A50D /* MacSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACEA8A56ABE9C564AB4E9980 /* MacSettingsView.swift */; };
 		34B463C7670571C7C17AAB9E /* MacContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BEA6021AB3614622579AC7C /* MacContentView.swift */; };
 		369A90B492A5704D5DC58C25 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2913E8E76C1F1C786DADC31B /* CachedAsyncImage.swift */; };
+		3848125089F7CEB0158FD7D5 /* MacLanguageHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DEA148BF859239189A9BC9CD /* MacLanguageHubView.swift */; };
+		3877BE1BC57D7821A28E3A7F /* PlayerPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BA622729539F47419839F85 /* PlayerPalette.swift */; };
 		38BA50E2986D20EEA4B5F1A9 /* HomeHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D2D82C47F098486AA781F81 /* HomeHero.swift */; };
 		39BE4DABC68A721261025B9C /* home-organizer.json in Resources */ = {isa = PBXBuildFile; fileRef = 52F3EFA6F297A4AF855EBD5C /* home-organizer.json */; };
 		3CE8F26ED8AE7DFB216FBF77 /* Moonlit.icns in Resources */ = {isa = PBXBuildFile; fileRef = A7A92444BA2DF9718F44ED60 /* Moonlit.icns */; };
 		443F817AF38DE8B6B4FE9F5B /* MacSubtitleAppearanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 969309521BF6039E67B1E940 /* MacSubtitleAppearanceView.swift */; };
+		461043F5FC48B9AA4AF85DDB /* MacPillButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9261CB397B894229B7695434 /* MacPillButton.swift */; };
 		4CD29CF08FF71B5826D44643 /* MacGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC888E52897BC1B355CC6713 /* MacGlass.swift */; };
 		4D3A2FB060D5449934E6D0CE /* MPVKit in Frameworks */ = {isa = PBXBuildFile; productRef = 0AFBE70E521A5ED1A84BD1E0 /* MPVKit */; };
 		4EE583ED3CCDB5F3F73A1F7D /* MacSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FAFD5650F1E64747838706C /* MacSearchView.swift */; };
 		563B44CDDD90A9C6E705F752 /* MacAdminView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 120A55F30266640026255392 /* MacAdminView.swift */; };
+		57114145F0473685C20DADB9 /* MacLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 883881EE0381F26CCAF5B13D /* MacLoadingView.swift */; };
+		599C2860F7A1EC34C4FA357C /* Anime4K_Clamp_Highlights.glsl in Resources */ = {isa = PBXBuildFile; fileRef = 7543C46D7D1CC470F5C723ED /* Anime4K_Clamp_Highlights.glsl */; };
 		5BCBD0DC7BB95368925FFE1B /* AnimatedRemoteImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E5F3C38B059C096C03B643 /* AnimatedRemoteImage.swift */; };
+		5D296EAC81DC01DB7A0EAAC8 /* MacCategoryPillsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1444BBA123499B4B8906D42E /* MacCategoryPillsRow.swift */; };
+		626B34920447CCCE816BDE92 /* MacInformationGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7E03360D6FEBE8C88FC425E /* MacInformationGrid.swift */; };
 		62C731C32F74857549B05275 /* MacActorBioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1BA185DC9BB6B07E6C3B3BD /* MacActorBioView.swift */; };
 		68516177FCB90B9BE51E70BD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CA508899867E4C60AADB62B5 /* Assets.xcassets */; };
+		6C09604220FE022924DE2F5E /* MacFusionAmbientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B50C5C6AF0004BD755911D /* MacFusionAmbientBackground.swift */; };
 		7806A82AD86D830C13022008 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8855ACA248C766D43DB9144D /* MediaCard.swift */; };
 		78D7B2DC74F7AC9F175738FF /* MacLottieLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4571A3350E71D289B912DB /* MacLottieLoadingView.swift */; };
 		7E14037911AD9B23D6978970 /* ContinueWatchingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0811B21A932A30DC1D1B55 /* ContinueWatchingCard.swift */; };
+		80EB74B7405EE61303DFE544 /* Mac4KButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AFAA82AC30101B7542D16E /* Mac4KButton.swift */; };
 		869020F565D3CEB5AA75C4B5 /* MacHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24B07B6B0246B63C0EC9BB03 /* MacHomeView.swift */; };
+		89237189153517E6934B1D07 /* Anime4K_Upscale_Denoise_CNN_x2_M.glsl in Resources */ = {isa = PBXBuildFile; fileRef = 3D3EA98C1FED4201A90D3994 /* Anime4K_Upscale_Denoise_CNN_x2_M.glsl */; };
 		8F1B9A926F9CA58792F577D2 /* PlayerControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94B6903286BA940F4A67FF30 /* PlayerControls.swift */; };
+		94A2BA8264E2D70B85397A1D /* SubtitleTrackPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B81B059FAD288AB68BC5DA2 /* SubtitleTrackPanel.swift */; };
 		95136C466083E79257D84104 /* MacSourcePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 559206E80316542AAD8D2821 /* MacSourcePickerView.swift */; };
+		A0DF1DD126F7C1E7297620D7 /* MacMediaBrowseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D082A9ED5729006FED56FB9 /* MacMediaBrowseView.swift */; };
+		A4AF892137F32B7FB93F39BA /* MacAwardHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 144FABD23176AE8CF9594243 /* MacAwardHubView.swift */; };
 		A6C26BA60691377C36EBFF27 /* MoonlitMacResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D8317D8AA7A977B0351A849 /* MoonlitMacResourceTests.swift */; };
 		AD682F7FE08247D8F97E86E5 /* MetalLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14426D01C4C6E3EF23822635 /* MetalLayer.swift */; };
+		AF46F52122F337A355F07A15 /* MacPipWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EB141CA029E24F57413AFA9 /* MacPipWindowController.swift */; };
 		B63B3DFEF07F667B09FEF412 /* MacPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A6B522E61A9FACBF9E2BF71 /* MacPlayerView.swift */; };
+		B7BB6551A0E557A0AE9B7B8B /* MacAwardBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54B84B802DF9FB0E89B1D19D /* MacAwardBadgeView.swift */; };
+		B9DAC1883B0DB70DE75A4136 /* AudioTrackPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 984B4242D0F7837F2EAE9D1D /* AudioTrackPanel.swift */; };
 		B9FBC76B0331FC8BA2D12C53 /* MediaRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F42FDB4DC3EDA9710A34C1A /* MediaRow.swift */; };
+		BA57486C5AEFEB708D2D25DC /* EpisodeInfoPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 397C0487908C280B22187898 /* EpisodeInfoPanel.swift */; };
+		BB4F0987D54AED268CE7E841 /* MacAwardsRecognitionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C3AB133358E91E30E2965D6 /* MacAwardsRecognitionSection.swift */; };
 		BB6050FD6049668171D88419 /* MoonlitAvatars.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20E6C311A3EC118D7BCB9A9F /* MoonlitAvatars.swift */; };
+		1E175E25FAC092E161B2CA10 /* MacAppleSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17AF6D724718CB7EF116579B /* MacAppleSignInCoordinator.swift */; };
 		BDFF2120F85A75F4EEC3B181 /* loading-animation-gradient-line-2-colors-1.json in Resources */ = {isa = PBXBuildFile; fileRef = 855BD155F1294A6AEF4F4453 /* loading-animation-gradient-line-2-colors-1.json */; };
+		BF18E850D3D0E2A849835599 /* MacStreamCheckPill.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B894B2556ADF6535518B70 /* MacStreamCheckPill.swift */; };
+		C209635FCB6DD400DF7003D6 /* OklchPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66D4E358D972BFC67D02A8F2 /* OklchPalette.swift */; };
+		C26C7DF002559A2BFD96E258 /* Anime4K_Restore_CNN_M.glsl in Resources */ = {isa = PBXBuildFile; fileRef = BDA98AE4C00605BACD1A11C7 /* Anime4K_Restore_CNN_M.glsl */; };
 		CA2164DE10D022CEA751A4FF /* SpeedPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07303D366ACA2319D3E716E6 /* SpeedPicker.swift */; };
 		CA2E5E9B90419172A61BAFF3 /* MacFolderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 589D73729F6E2881FD799CB2 /* MacFolderView.swift */; };
+		CAD61044E7DA0250759F3DEA /* MacLanguageTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = C42A4EE0D95A3BA1F98546DF /* MacLanguageTile.swift */; };
 		CCFF7478BD18E9E0DD1EA3F9 /* MacProfilePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 09CDFE2D6CAE882D8A0244EF /* MacProfilePicker.swift */; };
+		D388551F4DAB0E504715AE96 /* TMDBTileBackdropFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD390D20FEE15EE6261CF4C6 /* TMDBTileBackdropFetcher.swift */; };
 		D419ED2B5AED6A1BD039D784 /* FolderTile.swift in Sources */ = {isa = PBXBuildFile; fileRef = D78AF5FE70C8EF9CD22D34C1 /* FolderTile.swift */; };
+		D8D69B2B2ED93628BAE3A913 /* PlayerVolumeSlider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 792085596D14EB7883198DA8 /* PlayerVolumeSlider.swift */; };
+		D9669892EB14988A85C00845 /* RatingBadge.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEFE8078360B82E7855894C2 /* RatingBadge.swift */; };
 		DE84ED4EDA4FE188A5D8CB14 /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = 714A04614BD4900CFC05BE8C /* Lottie */; };
+		DEB082C2D57AB5F54D7048B8 /* EpisodeNavigator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A9B04FC74CA433C42F72E7C /* EpisodeNavigator.swift */; };
+		E10F6323D86DC95B7FC17A70 /* TileHaloColor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A80652D940229B9ECD6442E /* TileHaloColor.swift */; };
+		E85F56DDD5EBF17A06BB8506 /* MacTopTenRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43E67C0D3499769EEAFAFDAB /* MacTopTenRow.swift */; };
+		EA0468191A8A70DAF94C5D70 /* MacGenreHubView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EEF7F4695C9CE42ADAD9674 /* MacGenreHubView.swift */; };
 		EF250AEB5E421C281406BF6A /* PillNavBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7729F3A4A3F56A7FD59E46A2 /* PillNavBar.swift */; };
 		F13517CDF27A7BD0B673BC61 /* MacAddonsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D342DAA55C11F5EEA6A8E12A /* MacAddonsView.swift */; };
 		F53EA377EB3A79F7C11B26F4 /* MacAuthView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 917796194D88F9B3EE550178 /* MacAuthView.swift */; };
 		FA83F1C4EC9C87834AD976CA /* MPVPlayerViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726E6CEC0D2E28645E6524D5 /* MPVPlayerViewRepresentable.swift */; };
+		FB7B6809D81742F6DFD8157C /* LanguageFlag.swift in Sources */ = {isa = PBXBuildFile; fileRef = E364BB2E0DB08AECA7D9A155 /* LanguageFlag.swift */; };
+		FC06EE2D8CEE78505FD760C8 /* UpNextPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2ED00E89174193B4DCF2D0E8 /* UpNextPanel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -65,48 +104,87 @@
 /* Begin PBXFileReference section */
 		052473F49CB95FBD1F8838AF /* MacDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDetailView.swift; sourceTree = "<group>"; };
 		07303D366ACA2319D3E716E6 /* SpeedPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpeedPicker.swift; sourceTree = "<group>"; };
+		07CFDC10BCB824784885A43E /* MacGenreTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacGenreTile.swift; sourceTree = "<group>"; };
 		09CDFE2D6CAE882D8A0244EF /* MacProfilePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacProfilePicker.swift; sourceTree = "<group>"; };
+		0A9B04FC74CA433C42F72E7C /* EpisodeNavigator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodeNavigator.swift; sourceTree = "<group>"; };
+		0BA622729539F47419839F85 /* PlayerPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerPalette.swift; sourceTree = "<group>"; };
+		0C3AB133358E91E30E2965D6 /* MacAwardsRecognitionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAwardsRecognitionSection.swift; sourceTree = "<group>"; };
+		0EB141CA029E24F57413AFA9 /* MacPipWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPipWindowController.swift; sourceTree = "<group>"; };
 		120A55F30266640026255392 /* MacAdminView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAdminView.swift; sourceTree = "<group>"; };
 		14426D01C4C6E3EF23822635 /* MetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalLayer.swift; sourceTree = "<group>"; };
+		1444BBA123499B4B8906D42E /* MacCategoryPillsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCategoryPillsRow.swift; sourceTree = "<group>"; };
+		144FABD23176AE8CF9594243 /* MacAwardHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAwardHubView.swift; sourceTree = "<group>"; };
+		17B894B2556ADF6535518B70 /* MacStreamCheckPill.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacStreamCheckPill.swift; sourceTree = "<group>"; };
 		1D4571A3350E71D289B912DB /* MacLottieLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLottieLoadingView.swift; sourceTree = "<group>"; };
+		1EEF7F4695C9CE42ADAD9674 /* MacGenreHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacGenreHubView.swift; sourceTree = "<group>"; };
 		1F42FDB4DC3EDA9710A34C1A /* MediaRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaRow.swift; sourceTree = "<group>"; };
 		20E6C311A3EC118D7BCB9A9F /* MoonlitAvatars.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoonlitAvatars.swift; sourceTree = "<group>"; };
+		17AF6D724718CB7EF116579B /* MacAppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAppleSignInCoordinator.swift; sourceTree = "<group>"; };
 		24B07B6B0246B63C0EC9BB03 /* MacHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacHomeView.swift; sourceTree = "<group>"; };
+		266DBC64808802F7E23E3F43 /* MacCreditCardRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCreditCardRow.swift; sourceTree = "<group>"; };
 		2913E8E76C1F1C786DADC31B /* CachedAsyncImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CachedAsyncImage.swift; sourceTree = "<group>"; };
+		2ED00E89174193B4DCF2D0E8 /* UpNextPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpNextPanel.swift; sourceTree = "<group>"; };
+		397C0487908C280B22187898 /* EpisodeInfoPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EpisodeInfoPanel.swift; sourceTree = "<group>"; };
+		3D3EA98C1FED4201A90D3994 /* Anime4K_Upscale_Denoise_CNN_x2_M.glsl */ = {isa = PBXFileReference; path = Anime4K_Upscale_Denoise_CNN_x2_M.glsl; sourceTree = "<group>"; };
 		3D8317D8AA7A977B0351A849 /* MoonlitMacResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoonlitMacResourceTests.swift; sourceTree = "<group>"; };
+		43E67C0D3499769EEAFAFDAB /* MacTopTenRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacTopTenRow.swift; sourceTree = "<group>"; };
+		4513239AEA48E02693ED8739 /* AirPlayButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AirPlayButton.swift; sourceTree = "<group>"; };
+		4B81B059FAD288AB68BC5DA2 /* SubtitleTrackPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleTrackPanel.swift; sourceTree = "<group>"; };
 		4FAFD5650F1E64747838706C /* MacSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSearchView.swift; sourceTree = "<group>"; };
+		51B50C5C6AF0004BD755911D /* MacFusionAmbientBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFusionAmbientBackground.swift; sourceTree = "<group>"; };
 		52DC05DEE092B59B66CC9462 /* MacMainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMainView.swift; sourceTree = "<group>"; };
 		52F3EFA6F297A4AF855EBD5C /* home-organizer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "home-organizer.json"; sourceTree = "<group>"; };
+		54B84B802DF9FB0E89B1D19D /* MacAwardBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAwardBadgeView.swift; sourceTree = "<group>"; };
+		559013A17D8BF462D97DF356 /* PlayerThumbnailer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerThumbnailer.swift; sourceTree = "<group>"; };
 		559206E80316542AAD8D2821 /* MacSourcePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSourcePickerView.swift; sourceTree = "<group>"; };
 		589D73729F6E2881FD799CB2 /* MacFolderView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacFolderView.swift; sourceTree = "<group>"; };
 		5A6B522E61A9FACBF9E2BF71 /* MacPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPlayerView.swift; sourceTree = "<group>"; };
 		605DACE20012FDD95FF4DBBC /* MPVPlayerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerEngine.swift; sourceTree = "<group>"; };
+		66D4E358D972BFC67D02A8F2 /* OklchPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OklchPalette.swift; sourceTree = "<group>"; };
 		68723EE3B4C7FE9139592ADC /* MacHeroArtworkProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacHeroArtworkProvider.swift; sourceTree = "<group>"; };
+		6A80652D940229B9ECD6442E /* TileHaloColor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TileHaloColor.swift; sourceTree = "<group>"; };
 		6D2D82C47F098486AA781F81 /* HomeHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeHero.swift; sourceTree = "<group>"; };
 		726E6CEC0D2E28645E6524D5 /* MPVPlayerViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerViewRepresentable.swift; sourceTree = "<group>"; };
 		752DF6DD8BA3733825230785 /* MoonlitMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MoonlitMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		7543C46D7D1CC470F5C723ED /* Anime4K_Clamp_Highlights.glsl */ = {isa = PBXFileReference; path = Anime4K_Clamp_Highlights.glsl; sourceTree = "<group>"; };
 		7729F3A4A3F56A7FD59E46A2 /* PillNavBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PillNavBar.swift; sourceTree = "<group>"; };
+		792085596D14EB7883198DA8 /* PlayerVolumeSlider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerVolumeSlider.swift; sourceTree = "<group>"; };
 		855BD155F1294A6AEF4F4453 /* loading-animation-gradient-line-2-colors-1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "loading-animation-gradient-line-2-colors-1.json"; sourceTree = "<group>"; };
+		883881EE0381F26CCAF5B13D /* MacLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLoadingView.swift; sourceTree = "<group>"; };
 		8855ACA248C766D43DB9144D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
+		8ACB3E6C35FC5065B77C8D82 /* PipChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipChrome.swift; sourceTree = "<group>"; };
+		8D082A9ED5729006FED56FB9 /* MacMediaBrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMediaBrowseView.swift; sourceTree = "<group>"; };
 		917796194D88F9B3EE550178 /* MacAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAuthView.swift; sourceTree = "<group>"; };
 		9233E0C7BA3F9046C2251C68 /* MacVideoPlayerSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacVideoPlayerSettingsView.swift; sourceTree = "<group>"; };
+		9261CB397B894229B7695434 /* MacPillButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPillButton.swift; sourceTree = "<group>"; };
 		94B6903286BA940F4A67FF30 /* PlayerControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControls.swift; sourceTree = "<group>"; };
 		969309521BF6039E67B1E940 /* MacSubtitleAppearanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSubtitleAppearanceView.swift; sourceTree = "<group>"; };
+		984B4242D0F7837F2EAE9D1D /* AudioTrackPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTrackPanel.swift; sourceTree = "<group>"; };
 		9BEA6021AB3614622579AC7C /* MacContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacContentView.swift; sourceTree = "<group>"; };
+		A1D58107BDC750E491BA9E1D /* MacCrewInfoGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCrewInfoGrid.swift; sourceTree = "<group>"; };
 		A7A92444BA2DF9718F44ED60 /* Moonlit.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = Moonlit.icns; sourceTree = "<group>"; };
 		AB2FDAA15BE1573F9A0DBE25 /* MoonlitMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MoonlitMacApp.swift; sourceTree = "<group>"; };
 		AC888E52897BC1B355CC6713 /* MacGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacGlass.swift; sourceTree = "<group>"; };
 		ACEA8A56ABE9C564AB4E9980 /* MacSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSettingsView.swift; sourceTree = "<group>"; };
+		AD390D20FEE15EE6261CF4C6 /* TMDBTileBackdropFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TMDBTileBackdropFetcher.swift; sourceTree = "<group>"; };
 		B1BA185DC9BB6B07E6C3B3BD /* MacActorBioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacActorBioView.swift; sourceTree = "<group>"; };
+		B3AFAA82AC30101B7542D16E /* Mac4KButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Mac4KButton.swift; sourceTree = "<group>"; };
+		B447007F960A22CD8F0B0918 /* MacMediaGallerySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMediaGallerySection.swift; sourceTree = "<group>"; };
 		BA6671C5C2ADE5BEF5FC27BD /* MacLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLibraryView.swift; sourceTree = "<group>"; };
 		BD0811B21A932A30DC1D1B55 /* ContinueWatchingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContinueWatchingCard.swift; sourceTree = "<group>"; };
+		BDA98AE4C00605BACD1A11C7 /* Anime4K_Restore_CNN_M.glsl */ = {isa = PBXFileReference; path = Anime4K_Restore_CNN_M.glsl; sourceTree = "<group>"; };
 		C41BD9F68DBC2090B4A4D651 /* MoonlitMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MoonlitMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C42A4EE0D95A3BA1F98546DF /* MacLanguageTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLanguageTile.swift; sourceTree = "<group>"; };
 		C7B6DC32972C4ADAAFB1A917 /* MoonlitCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MoonlitCore; path = ../../Packages/MoonlitCore; sourceTree = SOURCE_ROOT; };
+		C7E03360D6FEBE8C88FC425E /* MacInformationGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacInformationGrid.swift; sourceTree = "<group>"; };
 		CA508899867E4C60AADB62B5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		D342DAA55C11F5EEA6A8E12A /* MacAddonsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAddonsView.swift; sourceTree = "<group>"; };
 		D78AF5FE70C8EF9CD22D34C1 /* FolderTile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderTile.swift; sourceTree = "<group>"; };
+		DEA148BF859239189A9BC9CD /* MacLanguageHubView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLanguageHubView.swift; sourceTree = "<group>"; };
+		E364BB2E0DB08AECA7D9A155 /* LanguageFlag.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageFlag.swift; sourceTree = "<group>"; };
 		F1EBEDB9393A3C2A221B949D /* MPVKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MPVKit; path = ../../Vendor/MPVKit; sourceTree = SOURCE_ROOT; };
 		F3E5F3C38B059C096C03B643 /* AnimatedRemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedRemoteImage.swift; sourceTree = "<group>"; };
+		FEFE8078360B82E7855894C2 /* RatingBadge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RatingBadge.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -156,23 +234,49 @@
 		1FA3650DB0F8D460449A83AA /* Components */ = {
 			isa = PBXGroup;
 			children = (
+				4513239AEA48E02693ED8739 /* AirPlayButton.swift */,
 				F3E5F3C38B059C096C03B643 /* AnimatedRemoteImage.swift */,
 				2913E8E76C1F1C786DADC31B /* CachedAsyncImage.swift */,
 				BD0811B21A932A30DC1D1B55 /* ContinueWatchingCard.swift */,
+				0A9B04FC74CA433C42F72E7C /* EpisodeNavigator.swift */,
 				D78AF5FE70C8EF9CD22D34C1 /* FolderTile.swift */,
 				6D2D82C47F098486AA781F81 /* HomeHero.swift */,
+				B3AFAA82AC30101B7542D16E /* Mac4KButton.swift */,
+				54B84B802DF9FB0E89B1D19D /* MacAwardBadgeView.swift */,
+				0C3AB133358E91E30E2965D6 /* MacAwardsRecognitionSection.swift */,
+				1444BBA123499B4B8906D42E /* MacCategoryPillsRow.swift */,
+				266DBC64808802F7E23E3F43 /* MacCreditCardRow.swift */,
+				A1D58107BDC750E491BA9E1D /* MacCrewInfoGrid.swift */,
+				51B50C5C6AF0004BD755911D /* MacFusionAmbientBackground.swift */,
+				07CFDC10BCB824784885A43E /* MacGenreTile.swift */,
 				AC888E52897BC1B355CC6713 /* MacGlass.swift */,
 				68723EE3B4C7FE9139592ADC /* MacHeroArtworkProvider.swift */,
+				C7E03360D6FEBE8C88FC425E /* MacInformationGrid.swift */,
+				C42A4EE0D95A3BA1F98546DF /* MacLanguageTile.swift */,
+				883881EE0381F26CCAF5B13D /* MacLoadingView.swift */,
 				1D4571A3350E71D289B912DB /* MacLottieLoadingView.swift */,
+				B447007F960A22CD8F0B0918 /* MacMediaGallerySection.swift */,
+				9261CB397B894229B7695434 /* MacPillButton.swift */,
+				0EB141CA029E24F57413AFA9 /* MacPipWindowController.swift */,
+				43E67C0D3499769EEAFAFDAB /* MacTopTenRow.swift */,
 				8855ACA248C766D43DB9144D /* MediaCard.swift */,
 				1F42FDB4DC3EDA9710A34C1A /* MediaRow.swift */,
 				14426D01C4C6E3EF23822635 /* MetalLayer.swift */,
 				20E6C311A3EC118D7BCB9A9F /* MoonlitAvatars.swift */,
+				17AF6D724718CB7EF116579B /* MacAppleSignInCoordinator.swift */,
 				605DACE20012FDD95FF4DBBC /* MPVPlayerEngine.swift */,
 				726E6CEC0D2E28645E6524D5 /* MPVPlayerViewRepresentable.swift */,
+				66D4E358D972BFC67D02A8F2 /* OklchPalette.swift */,
 				7729F3A4A3F56A7FD59E46A2 /* PillNavBar.swift */,
+				8ACB3E6C35FC5065B77C8D82 /* PipChrome.swift */,
 				94B6903286BA940F4A67FF30 /* PlayerControls.swift */,
+				559013A17D8BF462D97DF356 /* PlayerThumbnailer.swift */,
+				792085596D14EB7883198DA8 /* PlayerVolumeSlider.swift */,
+				FEFE8078360B82E7855894C2 /* RatingBadge.swift */,
 				07303D366ACA2319D3E716E6 /* SpeedPicker.swift */,
+				6A80652D940229B9ECD6442E /* TileHaloColor.swift */,
+				AD390D20FEE15EE6261CF4C6 /* TMDBTileBackdropFetcher.swift */,
+				3B059FFA1314D6879830CC88 /* PlayerModals */,
 			);
 			path = Components;
 			sourceTree = "<group>";
@@ -188,6 +292,20 @@
 			path = Sources;
 			sourceTree = "<group>";
 		};
+		3B059FFA1314D6879830CC88 /* PlayerModals */ = {
+			isa = PBXGroup;
+			children = (
+				984B4242D0F7837F2EAE9D1D /* AudioTrackPanel.swift */,
+				397C0487908C280B22187898 /* EpisodeInfoPanel.swift */,
+				E364BB2E0DB08AECA7D9A155 /* LanguageFlag.swift */,
+				17B894B2556ADF6535518B70 /* MacStreamCheckPill.swift */,
+				0BA622729539F47419839F85 /* PlayerPalette.swift */,
+				4B81B059FAD288AB68BC5DA2 /* SubtitleTrackPanel.swift */,
+				2ED00E89174193B4DCF2D0E8 /* UpNextPanel.swift */,
+			);
+			path = PlayerModals;
+			sourceTree = "<group>";
+		};
 		6880BCCD9FC8010E4DA9C9CE /* Screens */ = {
 			isa = PBXGroup;
 			children = (
@@ -195,11 +313,15 @@
 				D342DAA55C11F5EEA6A8E12A /* MacAddonsView.swift */,
 				120A55F30266640026255392 /* MacAdminView.swift */,
 				917796194D88F9B3EE550178 /* MacAuthView.swift */,
+				144FABD23176AE8CF9594243 /* MacAwardHubView.swift */,
 				052473F49CB95FBD1F8838AF /* MacDetailView.swift */,
 				589D73729F6E2881FD799CB2 /* MacFolderView.swift */,
+				1EEF7F4695C9CE42ADAD9674 /* MacGenreHubView.swift */,
 				24B07B6B0246B63C0EC9BB03 /* MacHomeView.swift */,
+				DEA148BF859239189A9BC9CD /* MacLanguageHubView.swift */,
 				BA6671C5C2ADE5BEF5FC27BD /* MacLibraryView.swift */,
 				52DC05DEE092B59B66CC9462 /* MacMainView.swift */,
+				8D082A9ED5729006FED56FB9 /* MacMediaBrowseView.swift */,
 				5A6B522E61A9FACBF9E2BF71 /* MacPlayerView.swift */,
 				09CDFE2D6CAE882D8A0244EF /* MacProfilePicker.swift */,
 				4FAFD5650F1E64747838706C /* MacSearchView.swift */,
@@ -227,12 +349,23 @@
 			path = Animations;
 			sourceTree = "<group>";
 		};
+		9354766EA166122A1361498E /* Shaders */ = {
+			isa = PBXGroup;
+			children = (
+				7543C46D7D1CC470F5C723ED /* Anime4K_Clamp_Highlights.glsl */,
+				BDA98AE4C00605BACD1A11C7 /* Anime4K_Restore_CNN_M.glsl */,
+				3D3EA98C1FED4201A90D3994 /* Anime4K_Upscale_Denoise_CNN_x2_M.glsl */,
+			);
+			path = Shaders;
+			sourceTree = "<group>";
+		};
 		9810D0A11AFF48A133CBEB7B /* Resources */ = {
 			isa = PBXGroup;
 			children = (
 				52F3EFA6F297A4AF855EBD5C /* home-organizer.json */,
 				A7A92444BA2DF9718F44ED60 /* Moonlit.icns */,
 				6D5E17B059EDB3D192765A7C /* Animations */,
+				9354766EA166122A1361498E /* Shaders */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -322,6 +455,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				599C2860F7A1EC34C4FA357C /* Anime4K_Clamp_Highlights.glsl in Resources */,
+				C26C7DF002559A2BFD96E258 /* Anime4K_Restore_CNN_M.glsl in Resources */,
+				89237189153517E6934B1D07 /* Anime4K_Upscale_Denoise_CNN_x2_M.glsl in Resources */,
 				68516177FCB90B9BE51E70BD /* Assets.xcassets in Resources */,
 				3CE8F26ED8AE7DFB216FBF77 /* Moonlit.icns in Resources */,
 				39BE4DABC68A721261025B9C /* home-organizer.json in Resources */,
@@ -366,41 +502,77 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				31E2DDBEB2CA9C76834EDAB7 /* AirPlayButton.swift in Sources */,
 				5BCBD0DC7BB95368925FFE1B /* AnimatedRemoteImage.swift in Sources */,
+				B9DAC1883B0DB70DE75A4136 /* AudioTrackPanel.swift in Sources */,
 				369A90B492A5704D5DC58C25 /* CachedAsyncImage.swift in Sources */,
 				7E14037911AD9B23D6978970 /* ContinueWatchingCard.swift in Sources */,
+				BA57486C5AEFEB708D2D25DC /* EpisodeInfoPanel.swift in Sources */,
+				DEB082C2D57AB5F54D7048B8 /* EpisodeNavigator.swift in Sources */,
 				D419ED2B5AED6A1BD039D784 /* FolderTile.swift in Sources */,
 				38BA50E2986D20EEA4B5F1A9 /* HomeHero.swift in Sources */,
+				FB7B6809D81742F6DFD8157C /* LanguageFlag.swift in Sources */,
 				2489EF41CF3777E044E0A4DF /* MPVPlayerEngine.swift in Sources */,
 				FA83F1C4EC9C87834AD976CA /* MPVPlayerViewRepresentable.swift in Sources */,
+				80EB74B7405EE61303DFE544 /* Mac4KButton.swift in Sources */,
 				62C731C32F74857549B05275 /* MacActorBioView.swift in Sources */,
 				F13517CDF27A7BD0B673BC61 /* MacAddonsView.swift in Sources */,
 				563B44CDDD90A9C6E705F752 /* MacAdminView.swift in Sources */,
 				F53EA377EB3A79F7C11B26F4 /* MacAuthView.swift in Sources */,
+				B7BB6551A0E557A0AE9B7B8B /* MacAwardBadgeView.swift in Sources */,
+				A4AF892137F32B7FB93F39BA /* MacAwardHubView.swift in Sources */,
+				BB4F0987D54AED268CE7E841 /* MacAwardsRecognitionSection.swift in Sources */,
+				5D296EAC81DC01DB7A0EAAC8 /* MacCategoryPillsRow.swift in Sources */,
 				34B463C7670571C7C17AAB9E /* MacContentView.swift in Sources */,
+				2743A2A4DE6BB939F0E866E4 /* MacCreditCardRow.swift in Sources */,
+				31C7FBA4F00E4B3C2602A3D1 /* MacCrewInfoGrid.swift in Sources */,
 				2CF12E193DCD9262B9C471AA /* MacDetailView.swift in Sources */,
 				CA2E5E9B90419172A61BAFF3 /* MacFolderView.swift in Sources */,
+				6C09604220FE022924DE2F5E /* MacFusionAmbientBackground.swift in Sources */,
+				EA0468191A8A70DAF94C5D70 /* MacGenreHubView.swift in Sources */,
+				02E1AC0593B4CE1F16054AD8 /* MacGenreTile.swift in Sources */,
 				4CD29CF08FF71B5826D44643 /* MacGlass.swift in Sources */,
 				2282336F7B1A714D972B7B15 /* MacHeroArtworkProvider.swift in Sources */,
 				869020F565D3CEB5AA75C4B5 /* MacHomeView.swift in Sources */,
+				626B34920447CCCE816BDE92 /* MacInformationGrid.swift in Sources */,
+				3848125089F7CEB0158FD7D5 /* MacLanguageHubView.swift in Sources */,
+				CAD61044E7DA0250759F3DEA /* MacLanguageTile.swift in Sources */,
 				2139E0904B51EBF40B0B2F2A /* MacLibraryView.swift in Sources */,
+				57114145F0473685C20DADB9 /* MacLoadingView.swift in Sources */,
 				78D7B2DC74F7AC9F175738FF /* MacLottieLoadingView.swift in Sources */,
 				1D76ECF10296E2C499AA3D7A /* MacMainView.swift in Sources */,
+				A0DF1DD126F7C1E7297620D7 /* MacMediaBrowseView.swift in Sources */,
+				1F7097425D15AEF6005D2A1F /* MacMediaGallerySection.swift in Sources */,
+				461043F5FC48B9AA4AF85DDB /* MacPillButton.swift in Sources */,
+				AF46F52122F337A355F07A15 /* MacPipWindowController.swift in Sources */,
 				B63B3DFEF07F667B09FEF412 /* MacPlayerView.swift in Sources */,
 				CCFF7478BD18E9E0DD1EA3F9 /* MacProfilePicker.swift in Sources */,
 				4EE583ED3CCDB5F3F73A1F7D /* MacSearchView.swift in Sources */,
 				32E6266EABC12DF8EF92A50D /* MacSettingsView.swift in Sources */,
 				95136C466083E79257D84104 /* MacSourcePickerView.swift in Sources */,
+				BF18E850D3D0E2A849835599 /* MacStreamCheckPill.swift in Sources */,
 				443F817AF38DE8B6B4FE9F5B /* MacSubtitleAppearanceView.swift in Sources */,
+				E85F56DDD5EBF17A06BB8506 /* MacTopTenRow.swift in Sources */,
 				2C15D148DA38303A1C7FE51B /* MacVideoPlayerSettingsView.swift in Sources */,
 				7806A82AD86D830C13022008 /* MediaCard.swift in Sources */,
 				B9FBC76B0331FC8BA2D12C53 /* MediaRow.swift in Sources */,
 				AD682F7FE08247D8F97E86E5 /* MetalLayer.swift in Sources */,
 				BB6050FD6049668171D88419 /* MoonlitAvatars.swift in Sources */,
+				1E175E25FAC092E161B2CA10 /* MacAppleSignInCoordinator.swift in Sources */,
 				1DAC6A174AEB0CD71E887260 /* MoonlitMacApp.swift in Sources */,
+				C209635FCB6DD400DF7003D6 /* OklchPalette.swift in Sources */,
 				EF250AEB5E421C281406BF6A /* PillNavBar.swift in Sources */,
+				2BC9D57AA45A6C822B22F5CB /* PipChrome.swift in Sources */,
 				8F1B9A926F9CA58792F577D2 /* PlayerControls.swift in Sources */,
+				3877BE1BC57D7821A28E3A7F /* PlayerPalette.swift in Sources */,
+				0958B6F94C40E13A03110152 /* PlayerThumbnailer.swift in Sources */,
+				D8D69B2B2ED93628BAE3A913 /* PlayerVolumeSlider.swift in Sources */,
+				D9669892EB14988A85C00845 /* RatingBadge.swift in Sources */,
 				CA2164DE10D022CEA751A4FF /* SpeedPicker.swift in Sources */,
+				94A2BA8264E2D70B85397A1D /* SubtitleTrackPanel.swift in Sources */,
+				D388551F4DAB0E504715AE96 /* TMDBTileBackdropFetcher.swift in Sources */,
+				E10F6323D86DC95B7FC17A70 /* TileHaloColor.swift in Sources */,
+				FC06EE2D8CEE78505FD760C8 /* UpNextPanel.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -419,6 +591,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MoonlitMac.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_KEY_CFBundleIconFile = Moonlit;
 				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
@@ -513,6 +686,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = MoonlitMac.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_KEY_CFBundleIconFile = Moonlit;
 				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
