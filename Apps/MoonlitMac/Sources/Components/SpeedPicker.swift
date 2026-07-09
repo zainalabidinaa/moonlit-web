@@ -36,6 +36,6 @@ struct SpeedPicker: View {
         }
         .frame(width: 140)
         .background(MoonlitTheme.surfaceElevated)
-        .cornerRadius(8)
+        .cornerRadius(MoonlitTheme.radiusControl)
     }
 }

@@ -21,7 +21,13 @@ struct MacLibraryView: View {
     }
 
     var body: some View {
-        ScrollView {
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 watchlistSection
                 likedSection
@@ -29,7 +35,9 @@ struct MacLibraryView: View {
                 Spacer().frame(height: 40)
             }
             .padding(.top, MoonlitTheme.navBarTopInset)
-        }
+        }  // ScrollView
+        }  // ZStack
+        .background(MoonlitTheme.background)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MoonlitTheme.background)
         .task {
@@ -41,6 +49,14 @@ struct MacLibraryView: View {
             await watchProgressRepo.loadAll(profileId: profile.id)
             await likedRepo.loadLiked(profileId: profile.id)
             await upcomingService.refresh(likedItems: likedRepo.likedItems)
+        }
+        .onAppear {
+            guard let profile = profileManager.currentProfile else { return }
+            Task {
+                await libraryRepo.loadLibrary(profileId: profile.id)
+                await likedRepo.loadLiked(profileId: profile.id)
+                await upcomingService.refresh(likedItems: likedRepo.likedItems)
+            }
         }
     }
 
@@ -67,6 +83,14 @@ struct MacLibraryView: View {
         likedRepo.likedItems.filter { upcomingService.isUpcoming($0.mediaId) }
     }
 
+    private func resolvedPosterURL(for mediaId: String, fallback poster: String?) -> URL? {
+        (PosterService.posterURL(forImdbId: mediaId) ?? poster).flatMap { URL(string: $0) }
+    }
+
+    private func resolvedPoster(for mediaId: String, fallback poster: String?) -> String? {
+        PosterService.posterURL(forImdbId: mediaId) ?? poster
+    }
+
     // MARK: - Watchlist Section
 
     private var watchlistSection: some View {
@@ -89,7 +113,7 @@ struct MacLibraryView: View {
                                     id: item.mediaId,
                                     type: mediaType,
                                     name: item.name ?? item.mediaId,
-                                    poster: item.poster
+                                    poster: resolvedPoster(for: item.mediaId, fallback: item.poster)
                                 ))
                             }
                     }
@@ -104,7 +128,7 @@ struct MacLibraryView: View {
         let progress = watchProgressRepo.getProgress(mediaId: item.mediaId)?.progressFraction ?? 0
         return VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .bottom) {
-                CachedAsyncImage(url: item.poster.flatMap { URL(string: $0) }) { img in
+                CachedAsyncImage(url: resolvedPosterURL(for: item.mediaId, fallback: item.poster)) { img in
                     img.resizable().aspectRatio(2/3, contentMode: .fill)
                 } placeholder: {
                     Rectangle()
@@ -116,7 +140,7 @@ struct MacLibraryView: View {
                 }
                 .frame(height: 195)
                 .clipped()
-                .cornerRadius(8)
+                .cornerRadius(MoonlitTheme.radiusControl)
 
                 if progress > 0.02 {
                     GeometryReader { geo in
@@ -167,7 +191,7 @@ struct MacLibraryView: View {
                                     id: item.mediaId,
                                     type: mediaType,
                                     name: item.name,
-                                    poster: item.poster
+                                    poster: resolvedPoster(for: item.mediaId, fallback: item.poster)
                                 ))
                             }
                     }
@@ -192,7 +216,7 @@ struct MacLibraryView: View {
             }
             .frame(height: 195)
             .clipped()
-            .cornerRadius(8)
+            .cornerRadius(MoonlitTheme.radiusControl)
 
             Text(item.name)
                 .font(.caption)
@@ -222,7 +246,7 @@ struct MacLibraryView: View {
                     }
                 }
                 .background(MoonlitTheme.surface)
-                .cornerRadius(10)
+                .cornerRadius(MoonlitTheme.radiusControl)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 8)
             }
@@ -238,7 +262,7 @@ struct MacLibraryView: View {
             }
             .frame(width: 44, height: 66)
             .clipped()
-            .cornerRadius(6)
+            .cornerRadius(MoonlitTheme.radiusSmall)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(item.name)
@@ -258,7 +282,7 @@ struct MacLibraryView: View {
                 .padding(.vertical, 4)
                 .background(MoonlitTheme.accent.opacity(0.2))
                 .foregroundColor(MoonlitTheme.accent)
-                .cornerRadius(6)
+                .cornerRadius(MoonlitTheme.radiusSmall)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -269,7 +293,7 @@ struct MacLibraryView: View {
                 id: item.mediaId,
                 type: mediaType,
                 name: item.name,
-                poster: item.poster
+                poster: resolvedPoster(for: item.mediaId, fallback: item.poster)
             ))
         }
     }
@@ -277,40 +301,43 @@ struct MacLibraryView: View {
     // MARK: - Helpers
 
     private func sectionHeader(title: String, icon: String, count: Int) -> some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 9) {
             Image(systemName: icon)
-                .font(.caption)
-                .foregroundColor(MoonlitTheme.accent)
-            Text(title.uppercased())
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(MoonlitTheme.textTertiary)
-                .tracking(1)
-            Text("(\(count))")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 15, weight: .semibold))
+                .foregroundColor(MoonlitTheme.harborGold)
+            Text(title)
+                .font(.system(size: 19, weight: .bold))
+                .foregroundColor(.white)
+            Text("\(count)")
+                .font(.system(size: 14, weight: .semibold))
                 .foregroundColor(MoonlitTheme.textTertiary)
         }
         .padding(.horizontal, 20)
         .padding(.top, 24)
-        .padding(.bottom, 8)
+        .padding(.bottom, 10)
     }
 
     private func filterChips(selection: Binding<MediaFilter>) -> some View {
         HStack(spacing: 8) {
             ForEach(MediaFilter.allCases, id: \.self) { filter in
-                Button(filter.rawValue) {
+                let isSelected = selection.wrappedValue == filter
+                Button {
                     selection.wrappedValue = filter
+                } label: {
+                    Text(filter.rawValue)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(isSelected ? Color(red: 0.14, green: 0.11, blue: 0.02) : .white.opacity(0.85))
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 6)
+                        .background(
+                            Capsule().fill(isSelected ? MoonlitTheme.harborGold : Color.white.opacity(0.08))
+                        )
                 }
-                .font(.caption.weight(.semibold))
-                .padding(.horizontal, 12)
-                .padding(.vertical, 5)
-                .background(selection.wrappedValue == filter ? MoonlitTheme.accent : MoonlitTheme.surface)
-                .foregroundColor(selection.wrappedValue == filter ? .white : MoonlitTheme.textSecondary)
-                .cornerRadius(20)
                 .buttonStyle(.plain)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 10)
+        .padding(.horizontal, 20)
+        .padding(.bottom, 12)
     }
 
     private func emptyState(icon: String, message: String) -> some View {

@@ -6,127 +6,156 @@ struct MacActorBioView: View {
     let tmdbPersonId: Int?
     var characterName: String? = nil
     var showName: String? = nil
+    var onBack: () -> Void = {}
 
-    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ActorBioViewModel()
-    @State private var creditsFilter: CreditFilter = .all
+    @State private var mediaFilter: CreditMediaFilter = .all
+    @State private var departmentFilter: String? = nil
     @State private var bioExpanded = false
 
-    enum CreditFilter: String, CaseIterable {
-        case all = "All"
-        case acting = "Acting"
-        case directing = "Directing"
-    }
-
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                if viewModel.isLoading {
-                    HStack {
-                        Spacer()
-                        ProgressView().tint(MoonlitTheme.accent)
-                        Spacer()
-                    }
-                    .frame(minHeight: 200)
-                } else if let person = viewModel.person {
-                    photoStrip(person)
-
-                    bioHeader(person)
-
-                    if person.birthday != nil || person.placeOfBirth != nil
-                        || !person.alsoKnownAs.isEmpty || person.knownForDepartment != nil {
-                        sectionHeader("Personal Info")
-                        infoTable(person)
-                    }
-
-                    if !viewModel.knownForItems.isEmpty {
-                        sectionHeader("Known For")
-                        knownForRow
-                    }
-
-                    let credits = filteredCredits(person)
-                    if !credits.isEmpty {
-                        sectionHeader("Credits")
-                        creditFilterChips
-                        creditsGroupedList(credits)
-                    }
-                } else if let error = viewModel.error {
-                    errorView(error)
-                }
-
-                Spacer().frame(height: 40)
-            }
-        }
-        .background(MoonlitTheme.background)
-        .task {
-            await viewModel.load(personId: tmdbPersonId, name: name)
-        }
-        .task(id: viewModel.person?.id) {
-            guard let knownFor = viewModel.person?.credits.knownFor else { return }
-            await viewModel.fetchKnownForBackdrops(knownFor)
-        }
-    }
-
-    // MARK: - Photo Strip
-
-    private func photoStrip(_ person: PersonDetails) -> some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 10) {
-                ForEach(person.profileImages.prefix(8), id: \.self) { path in
-                    Group {
-                        if let url = TMDBPersonService.shared.imageURL(path: path, size: "w300") {
-                            CachedAsyncImage(url: url) { img in
-                                img.resizable().scaledToFill()
-                            } placeholder: {
-                                Color.white.opacity(0.05)
-                                    .overlay(Image(systemName: "person.fill").foregroundColor(.white.opacity(0.2)))
-                            }
-                        } else {
-                            Color.white.opacity(0.05)
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 0) {
+                    if viewModel.isLoading {
+                        HStack {
+                            Spacer()
+                            ProgressView().tint(MoonlitTheme.accent)
+                            Spacer()
                         }
+                        .frame(minHeight: 200)
+                    } else if let person = viewModel.person {
+                        bioHeader(person)
+
+                        if person.birthday != nil || person.placeOfBirth != nil
+                            || !person.alsoKnownAs.isEmpty || person.knownForDepartment != nil {
+                            sectionHeader("Personal Info")
+                            infoTable(person)
+                        }
+
+                        if !viewModel.knownForItems.isEmpty {
+                            sectionHeader("Known For")
+                            knownForRow
+                        }
+
+                        let credits = person.credits.filtered(media: mediaFilter, department: departmentFilter)
+                        if !credits.isEmpty {
+                            sectionHeader("Credits")
+                            creditFilterMenus(person)
+                            creditsGroupedList(credits)
+                        }
+                    } else if let error = viewModel.error {
+                        errorView(error)
                     }
-                    .frame(width: 90, height: 135)
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+
+                    Spacer().frame(height: 40)
                 }
+            }
+            .ignoresSafeArea(.container, edges: .top)
+            .task {
+                await viewModel.load(personId: tmdbPersonId, name: name)
+            }
+            .task(id: viewModel.person?.id) {
+                guard let knownFor = viewModel.person?.credits.knownFor else { return }
+                await viewModel.fetchKnownForBackdrops(knownFor)
+            }
+
+            HStack {
+                Button { onBack() } label: {
+                    Label("Back", systemImage: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 9)
+                        .macDarkGlassCapsule(interactive: true)
+                }
+                .buttonStyle(.plain)
+                Spacer()
             }
             .padding(.horizontal, 28)
-            .padding(.top, 12)
+            .padding(.top, 48)
         }
+        .background(MoonlitTheme.background)
     }
 
-    // MARK: - Bio Header
+    // MARK: - Bio Header (Harbor-style: large photo left, name/bio right)
 
     private func bioHeader(_ person: PersonDetails) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(person.name)
-                .font(.title2.weight(.bold))
-                .foregroundColor(.white)
-            if let character = characterName {
-                Text("as \(character)")
-                    .font(.subheadline)
-                    .foregroundColor(MoonlitTheme.textSecondary)
-            }
-            if !person.biography.isEmpty {
-                Text(person.biography)
-                    .font(.caption)
-                    .foregroundColor(MoonlitTheme.textSecondary)
-                    .lineLimit(bioExpanded ? nil : 4)
-                    .animation(.easeInOut(duration: 0.2), value: bioExpanded)
-                    .padding(.top, 4)
-
-                if person.biography.count > 200 {
-                    Button { bioExpanded.toggle() } label: {
-                        Text(bioExpanded ? "Show Less" : "Show More")
-                            .font(.caption.bold())
-                            .foregroundColor(.white)
+        HStack(alignment: .top, spacing: 36) {
+            Group {
+                if let path = person.profileImages.first,
+                   let url = TMDBPersonService.shared.imageURL(path: path, size: "w500") {
+                    CachedAsyncImage(url: url) { img in
+                        img.resizable().scaledToFill()
+                    } placeholder: {
+                        Color.white.opacity(0.05)
+                            .overlay(Image(systemName: "person.fill").foregroundColor(.white.opacity(0.2)))
                     }
-                    .buttonStyle(.plain)
+                } else {
+                    Color.white.opacity(0.05)
+                        .overlay(Image(systemName: "person.fill").foregroundColor(.white.opacity(0.2)))
                 }
             }
+            .frame(width: 320, height: 420)
+            .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard))
+
+            VStack(alignment: .leading, spacing: 12) {
+                Text((person.knownForDepartment ?? "Acting").uppercased())
+                    .font(.system(size: 13, weight: .semibold))
+                    .tracking(4)
+                    .foregroundColor(.white.opacity(0.45))
+
+                Text(person.name)
+                    .font(.system(size: 52, weight: .semibold, design: .serif))
+                    .foregroundColor(.white)
+
+                HStack(spacing: 16) {
+                    if let birthday = person.birthday {
+                        let ageSuffix = age(from: birthday).map { " · \($0)" } ?? ""
+                        Text(formatDate(birthday) + ageSuffix)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                    if let place = person.placeOfBirth {
+                        Text(place)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.white.opacity(0.6))
+                    }
+                }
+
+                if let character = characterName {
+                    Text("as \(character)")
+                        .font(.subheadline)
+                        .foregroundColor(MoonlitTheme.textSecondary)
+                }
+
+                if !person.biography.isEmpty {
+                    Text(person.biography)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(MoonlitTheme.textSecondary)
+                        .lineLimit(bioExpanded ? nil : 8)
+                        .animation(.easeInOut(duration: 0.2), value: bioExpanded)
+                        .padding(.top, 6)
+
+                    if person.biography.count > 400 {
+                        Button { bioExpanded.toggle() } label: {
+                            Text(bioExpanded ? "Show Less" : "Show More")
+                                .font(.caption.bold())
+                                .foregroundColor(.white)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 28)
-        .padding(.top, 16)
+        .padding(.top, 20)
     }
 
     // MARK: - Info Table
@@ -147,7 +176,7 @@ struct MacActorBioView: View {
                 infoRow(label: "Also Known As", value: first)
             }
         }
-        .background(MoonlitTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+        .background(MoonlitTheme.surface, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard))
         .padding(.horizontal, 28)
     }
 
@@ -195,7 +224,7 @@ struct MacActorBioView: View {
                             }
                         }
                         .frame(width: 110, height: 165)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
 
                         Text(credit.title)
                             .font(.caption.weight(.semibold))
@@ -212,35 +241,54 @@ struct MacActorBioView: View {
 
     // MARK: - Credits
 
-    private var creditFilterChips: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(CreditFilter.allCases, id: \.self) { filter in
-                    Button { creditsFilter = filter } label: {
-                        Text(filter.rawValue)
-                            .font(.caption.weight(.semibold))
-                            .foregroundColor(creditsFilter == filter ? .white : MoonlitTheme.textSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(creditsFilter == filter ? Color.white.opacity(0.22) : Color.white.opacity(0.08))
-                            .cornerRadius(20)
+    private func creditFilterMenus(_ person: PersonDetails) -> some View {
+        HStack(spacing: 8) {
+            Menu {
+                Picker("Media", selection: $mediaFilter) {
+                    ForEach(CreditMediaFilter.allCases, id: \.self) { filter in
+                        Text(filter.rawValue).tag(filter)
                     }
-                    .buttonStyle(.plain)
                 }
+            } label: {
+                filterChip(mediaFilter.rawValue)
             }
-            .padding(.horizontal, 28)
-            .padding(.bottom, 6)
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+
+            Menu {
+                Picker("Department", selection: $departmentFilter) {
+                    Text("All Departments").tag(String?.none)
+                    ForEach(person.credits.departments, id: \.self) { department in
+                        Text(department).tag(String?.some(department))
+                    }
+                }
+            } label: {
+                filterChip(departmentFilter ?? "All Departments")
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+
+            Spacer(minLength: 0)
         }
+        .padding(.horizontal, 28)
+        .padding(.bottom, 6)
     }
 
-    private func filteredCredits(_ person: PersonDetails) -> [PersonCredit] {
-        switch creditsFilter {
-        case .all: return person.credits.allCombined
-        case .acting: return person.credits.cast.sorted { ($0.releaseDate ?? "") > ($1.releaseDate ?? "") }
-        case .directing: return person.credits.crew
-            .filter { $0.job?.lowercased().contains("direct") == true }
-            .sorted { ($0.releaseDate ?? "") > ($1.releaseDate ?? "") }
+    private func filterChip(_ title: String) -> some View {
+        HStack(spacing: 4) {
+            Text(title)
+                .font(.caption.weight(.semibold))
+                .foregroundColor(.white)
+                .lineLimit(1)
+            Image(systemName: "chevron.up.chevron.down")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundColor(.white.opacity(0.7))
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .macDarkGlassCapsule(interactive: true)
     }
 
     private func creditsGroupedList(_ credits: [PersonCredit]) -> some View {
@@ -250,90 +298,23 @@ struct MacActorBioView: View {
             return dict.sorted { $0.key > $1.key }
         }()
 
-        return LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+        return LazyVStack(alignment: .leading, spacing: 20) {
             ForEach(grouped, id: \.0) { year, yearCredits in
-                Section {
-                    ForEach(yearCredits) { credit in
-                        creditRow(credit)
-                        if credit.id != yearCredits.last?.id {
-                            Divider().background(Color.white.opacity(0.06)).padding(.leading, 62)
+                HStack(alignment: .top, spacing: 14) {
+                    Text(year)
+                        .font(.title2.weight(.heavy))
+                        .foregroundColor(.white.opacity(0.35))
+                        .frame(width: 64, alignment: .leading)
+
+                    VStack(spacing: 10) {
+                        ForEach(yearCredits) { credit in
+                            MacCreditCardRow(credit: credit, department: departmentFilter ?? credit.departmentLabel)
                         }
                     }
-                } header: {
-                    Text(year)
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(MoonlitTheme.textTertiary)
-                        .padding(.horizontal, 28)
-                        .padding(.vertical, 6)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(MoonlitTheme.background)
                 }
             }
         }
         .padding(.horizontal, 28)
-    }
-
-    private func creditRow(_ credit: PersonCredit) -> some View {
-        HStack(spacing: 10) {
-            Group {
-                if let url = TMDBPersonService.shared.imageURL(path: credit.posterPath, size: "w92") {
-                    CachedAsyncImage(url: url) { img in
-                        img.resizable().scaledToFill()
-                    } placeholder: {
-                        Color.white.opacity(0.05)
-                            .overlay(Image(systemName: "film").foregroundColor(.white.opacity(0.15)))
-                    }
-                } else {
-                    Color.white.opacity(0.05)
-                        .overlay(Image(systemName: "film").foregroundColor(.white.opacity(0.15)))
-                }
-            }
-            .frame(width: 38, height: 54)
-            .clipShape(RoundedRectangle(cornerRadius: 5))
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(credit.title)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundColor(.white)
-                    .lineLimit(1)
-                HStack(spacing: 6) {
-                    Text(credit.mediaType == "tv" ? "TV" : "Film")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundColor(.white.opacity(0.7))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(Color.white.opacity(0.12)))
-                    Text(credit.creditType)
-                        .font(.caption)
-                        .foregroundColor(MoonlitTheme.textTertiary)
-                    if let eps = credit.episodeCount, credit.mediaType == "tv" {
-                        Text("· \(eps) ep")
-                            .font(.caption)
-                            .foregroundColor(MoonlitTheme.textTertiary)
-                    }
-                }
-                if let character = credit.character, !character.isEmpty {
-                    Text("as \(character)")
-                        .font(.system(size: 11))
-                        .foregroundColor(MoonlitTheme.textTertiary)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            if let score = credit.voteAverage, score > 0 {
-                VStack(spacing: 0) {
-                    Text(String(format: "%.1f", score))
-                        .font(.caption.weight(.bold))
-                        .foregroundColor(.white)
-                    Text("★")
-                        .font(.system(size: 8))
-                        .foregroundColor(.yellow)
-                }
-            }
-        }
-        .padding(.vertical, 8)
     }
 
     // MARK: - Helpers

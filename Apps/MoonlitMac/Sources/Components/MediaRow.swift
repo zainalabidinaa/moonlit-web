@@ -11,13 +11,15 @@ struct MediaRow: View {
             rowHeader(title: row.title, onHeaderTap: onHeaderTap)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 14) {
+                LazyHStack(spacing: 18) {
                     ForEach(row.items) { item in
                         MediaCard(item: item, row: row)
+                            .equatable()
                             .onTapGesture { onTap(item) }
                     }
                 }
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 10)
             }
         }
     }
@@ -39,6 +41,8 @@ struct MacCollectionRowContainer: View {
             MacCardStackRow(row: row, onTap: onTap, onHeaderTap: onHeaderTap)
         case .carouselCinematic:
             MacCarouselCinematicRow(row: row, onTap: onTap)
+        case .topTen:
+            MacTopTenRow(row: row, onTap: onTap, onHeaderTap: onHeaderTap)
         }
     }
 }
@@ -93,7 +97,7 @@ private struct MacHeroBannerRow: View {
                                     landscapeArtwork(for: item)
                                         .frame(height: 100)
                                         .frame(maxWidth: .infinity)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
                                     Text(item.name)
                                         .font(.system(size: 12, weight: .semibold))
                                         .foregroundStyle(.white)
@@ -111,7 +115,7 @@ private struct MacHeroBannerRow: View {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
                         .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
                 )
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 32)
             }
         }
     }
@@ -164,6 +168,7 @@ private struct MacCardStackRow: View {
         let isFront = index == frontIndex
 
         return MediaCard(item: item, row: CatalogRow(id: row.id, title: row.title, items: row.items, tileShape: "poster"))
+            .equatable()
             .scaleEffect(layout.scale)
             .rotationEffect(.degrees(layout.rotation))
             .offset(x: layout.x, y: layout.y)
@@ -218,7 +223,7 @@ private struct MacCarouselCinematicRow: View {
             rowHeader(title: row.title, onHeaderTap: nil)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                LazyHStack(spacing: 14) {
+                LazyHStack(spacing: 18) {
                     ForEach(Array(row.items.enumerated()), id: \.element.id) { index, item in
                         CinematicTile(
                             item: item,
@@ -228,7 +233,8 @@ private struct MacCarouselCinematicRow: View {
                         .onTapGesture { onTap(item) }
                     }
                 }
-                .padding(.horizontal, 28)
+                .padding(.horizontal, 32)
+                .padding(.vertical, 10)
             }
         }
     }
@@ -256,9 +262,9 @@ private struct CinematicTile: View {
                 .padding(12)
         }
         .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         )
     }
@@ -290,7 +296,7 @@ private func rowHeader(title: String, onHeaderTap: (() -> Void)?) -> some View {
                     .background(Color.white.opacity(0.10), in: Circle())
             }
         }
-        .padding(.horizontal, 28)
+        .padding(.horizontal, 32)
     }
     .buttonStyle(.plain)
     .disabled(onHeaderTap == nil)
@@ -299,7 +305,7 @@ private func rowHeader(title: String, onHeaderTap: (() -> Void)?) -> some View {
 @ViewBuilder
 @MainActor
 private func landscapeArtwork(for item: MetaPreview) -> some View {
-    if let url = (item.banner ?? item.poster).flatMap(URL.init) {
+    if let url = item.artworkURL(preferring: .landscape) {
         CachedAsyncImage(url: url) { image in
             image.resizable().aspectRatio(contentMode: .fill)
         } placeholder: {

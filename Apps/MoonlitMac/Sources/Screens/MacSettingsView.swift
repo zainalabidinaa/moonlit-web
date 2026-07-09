@@ -10,191 +10,55 @@ struct MacSettingsView: View {
     @State private var systemAddonName: String?
     @State private var systemAddonUrl: String?
     @State private var presentedSheet: SettingsSheet?
+    @State private var selectedCategory: MacSettingsCategory = .general
+
+    private struct SidebarGroup: Identifiable {
+        let id = UUID()
+        let heading: String?
+        let categories: [MacSettingsCategory]
+    }
+
+    private var sidebarGroups: [SidebarGroup] {
+        var groups: [SidebarGroup] = [
+            SidebarGroup(heading: "Account", categories: [.general, .account]),
+            SidebarGroup(heading: "Playback", categories: [.playback]),
+            SidebarGroup(heading: "Appearance", categories: [.appearance, .addons]),
+        ]
+        if roleManager.isAdmin {
+            groups.append(SidebarGroup(heading: "Admin", categories: [.admin]))
+        }
+        return groups
+    }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 22) {
-                profileCard
-                    .padding(.top, MoonlitTheme.navBarTopInset)
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
 
-                settingsSection("General") {
-                    settingsRow(
-                        icon: "key.horizontal.fill",
-                        title: "Metadata Integrations",
-                        subtitle: metadataStatus,
-                        action: { presentedSheet = .metadataIntegrations }
-                    )
-                }
+            HStack(spacing: 0) {
+                sidebar
 
-                if profileManager.isAuthenticated {
-                    settingsSection("Trakt") {
-                        if traktAuth.isConnected {
-                            settingsRow(
-                                icon: "t.circle.fill",
-                                title: "Trakt Connected",
-                                subtitle: "Watchlist syncing enabled",
-                                action: {}
-                            )
-                            MacSettingsDivider()
-                            Button {
-                                Task {
-                                    guard let profile = profileManager.currentProfile else { return }
-                                    await traktAuth.disconnect(profileId: profile.id)
-                                }
-                            } label: {
-                                Label("Disconnect Trakt", systemImage: "xmark.circle")
-                                    .font(.subheadline)
-                                    .foregroundStyle(.red)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(.horizontal, 18)
-                                    .padding(.vertical, 12)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                        } else {
-                            settingsRow(
-                                icon: "t.circle",
-                                title: "Trakt",
-                                subtitle: "Connect to sync watchlist and collections",
-                                action: { presentedSheet = .trakt }
-                            )
-                        }
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 1)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        detailContent
+                        Spacer(minLength: 32)
                     }
+                    .frame(maxWidth: 640, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 28)
+                    .padding(.top, MoonlitTheme.navBarTopInset + 6)
+                    .padding(.bottom, 28)
                 }
-
-                if roleManager.isAdmin {
-                    settingsSection("Admin Content Management") {
-                        settingsRow(
-                            icon: "chart.bar.fill",
-                            title: "Admin Dashboard",
-                            subtitle: "Invite codes and user management",
-                            action: { presentedSheet = .adminDashboard }
-                        )
-                        MacSettingsDivider()
-                        settingsRow(
-                            icon: "puzzlepiece.extension.fill",
-                            title: "Addons",
-                            subtitle: "\(addonRepo.userAddons.count) installed",
-                            action: { presentedSheet = .addons }
-                        )
-                        MacSettingsDivider()
-                        settingsRow(
-                            icon: "rectangle.stack.fill",
-                            title: "Catalog Management",
-                            subtitle: "Home catalogs, folder rows, hidden folders",
-                            action: { presentedSheet = .catalogManagement }
-                        )
-                        MacSettingsDivider()
-                        settingsRow(
-                            icon: "sparkles.tv.fill",
-                            title: "Hero Management",
-                            subtitle: "Choose hero carousel sources and order",
-                            action: { presentedSheet = .heroManagement }
-                        )
-                    }
-                } else {
-                    settingsSection("Content Management") {
-                        settingsRow(
-                            icon: "puzzlepiece.extension.fill",
-                            title: "Addons",
-                            subtitle: "\(addonRepo.userAddons.count) installed",
-                            action: { presentedSheet = .addons }
-                        )
-                    }
-                }
-
-                settingsSection("Playback") {
-                    settingsRow(
-                        icon: "play.rectangle.fill",
-                        title: "Video Player",
-                        subtitle: "Format compatibility, skip intro, player engine",
-                        action: { presentedSheet = .videoPlayer }
-                    )
-                    MacSettingsDivider()
-                    settingsRow(
-                        icon: "captions.bubble.fill",
-                        title: "Subtitles",
-                        subtitle: "Style and readability",
-                        action: { presentedSheet = .subtitleAppearance }
-                    )
-                    MacSettingsDivider()
-                    settingsRow(
-                        icon: "bolt.fill",
-                        title: "Stream Auto-Play",
-                        subtitle: autoplaySummary,
-                        action: { presentedSheet = .streamAutoplay }
-                    )
-                }
-
-                settingsSection("Appearance") {
-                    settingsRow(
-                        icon: "rectangle.3.group.bubble.left.fill",
-                        title: "Collection Design",
-                        subtitle: "Home row visibility and display styles",
-                        action: { presentedSheet = .collectionDesign }
-                    )
-                    MacSettingsDivider()
-                    cinematicModeRow
-                }
-
-                if let systemAddonUrl {
-                    settingsSection("System Addon") {
-                        HStack(spacing: 14) {
-                            Image(systemName: "star.circle.fill")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundStyle(MoonlitTheme.accent)
-                                .frame(width: 34)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(systemAddonName ?? "System Addon")
-                                    .font(.subheadline.weight(.semibold))
-                                    .foregroundStyle(.white)
-                                Text(systemAddonUrl)
-                                    .font(.caption)
-                                    .foregroundStyle(MoonlitTheme.textTertiary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                            Spacer()
-                        }
-                        .padding(.horizontal, 18)
-                        .padding(.vertical, 14)
-                    }
-                }
-
-                settingsSection("App") {
-                    HStack {
-                        Text("Version")
-                            .font(.subheadline.weight(.semibold))
-                            .foregroundStyle(.white)
-                        Spacer()
-                        Text(appVersion)
-                            .font(.subheadline)
-                            .foregroundStyle(MoonlitTheme.textSecondary)
-                    }
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 15)
-                }
-
-                Button {
-                    Task { await profileManager.signOut() }
-                } label: {
-                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.red)
-                        .frame(maxWidth: .infinity, minHeight: 46)
-                        .contentShape(Rectangle())
-                        .macGlassCard(cornerRadius: 14, interactive: true)
-                }
-                .buttonStyle(.plain)
-                .padding(.top, 2)
-
-                Spacer(minLength: 32)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .frame(maxWidth: 780, alignment: .leading)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 28)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MoonlitTheme.background)
         .sheet(item: $presentedSheet) { sheet in
             NavigationStack {
@@ -204,6 +68,333 @@ struct MacSettingsView: View {
             .preferredColorScheme(.dark)
         }
         .task { await loadSettingsSupportData() }
+    }
+
+    private var sidebar: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                sidebarProfileHeader
+                    .padding(.horizontal, 8)
+
+                ForEach(sidebarGroups) { group in
+                    VStack(alignment: .leading, spacing: 2) {
+                        if let heading = group.heading {
+                            Text(heading.uppercased())
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(.white.opacity(0.35))
+                                .tracking(1)
+                                .padding(.horizontal, 8)
+                                .padding(.bottom, 4)
+                        }
+                        ForEach(group.categories) { category in
+                            sidebarRow(category)
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, MoonlitTheme.navBarTopInset + 6)
+            .padding(.bottom, 20)
+        }
+        .frame(width: 230)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .background(MoonlitTheme.surface.opacity(0.35))
+    }
+
+    @ViewBuilder
+    private var sidebarProfileHeader: some View {
+        if let profile = profileManager.currentProfile {
+            Button {
+                selectedCategory = .account
+            } label: {
+                HStack(spacing: 10) {
+                    Circle()
+                        .fill(profile.avatarColor.map { Color(hex: $0) } ?? MoonlitTheme.accent)
+                        .frame(width: 34, height: 34)
+                        .overlay(
+                            Text(String(profile.name.prefix(1).uppercased()))
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(.white)
+                        )
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(profile.name)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                        Text(roleManager.isAdmin ? "Admin" : "Profile")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(MoonlitTheme.harborGold)
+                    }
+                    Spacer()
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func sidebarRow(_ category: MacSettingsCategory) -> some View {
+        let isSelected = selectedCategory == category
+        return Button {
+            selectedCategory = category
+        } label: {
+            HStack(spacing: 11) {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.12) : Color.white.opacity(0.05))
+                    .frame(width: 34, height: 34)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 9, style: .continuous)
+                            .strokeBorder(Color.white.opacity(isSelected ? 0.1 : 0), lineWidth: 1)
+                    )
+                    .overlay(
+                        Image(systemName: category.icon)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundStyle(isSelected ? MoonlitTheme.harborGold : .white.opacity(0.55))
+                    )
+
+                Text(category.title)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
+                    .foregroundStyle(isSelected ? .white : .white.opacity(0.7))
+
+                Spacer()
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(isSelected ? Color.white.opacity(0.06) : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .strokeBorder(Color.white.opacity(isSelected ? 0.08 : 0), lineWidth: 1)
+                    )
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var detailContent: some View {
+        switch selectedCategory {
+        case .general:
+            generalDetail
+        case .playback:
+            playbackDetail
+        case .appearance:
+            appearanceDetail
+        case .addons:
+            addonsDetail
+        case .admin:
+            adminDetail
+        case .account:
+            accountDetail
+        }
+    }
+
+    @ViewBuilder
+    private var generalDetail: some View {
+        detailHeader(MacSettingsCategory.general)
+
+        settingsSection("Metadata") {
+            settingsRow(
+                icon: "key.horizontal.fill",
+                title: "Metadata Integrations",
+                subtitle: metadataStatus,
+                action: { presentedSheet = .metadataIntegrations }
+            )
+        }
+
+        if profileManager.isAuthenticated {
+            settingsSection("Trakt") {
+                if traktAuth.isConnected {
+                    settingsRow(
+                        icon: "t.circle.fill",
+                        title: "Trakt Connected",
+                        subtitle: "Watchlist syncing enabled",
+                        action: {}
+                    )
+                    MacSettingsDivider()
+                    Button {
+                        Task {
+                            guard let profile = profileManager.currentProfile else { return }
+                            await traktAuth.disconnect(profileId: profile.id)
+                        }
+                    } label: {
+                        Label("Disconnect Trakt", systemImage: "xmark.circle")
+                            .font(.subheadline)
+                            .foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 18)
+                            .padding(.vertical, 12)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    settingsRow(
+                        icon: "t.circle",
+                        title: "Trakt",
+                        subtitle: "Connect to sync watchlist and collections",
+                        action: { presentedSheet = .trakt }
+                    )
+                }
+            }
+        }
+
+        if let systemAddonUrl {
+            settingsSection("System Addon") {
+                HStack(spacing: 14) {
+                    Image(systemName: "star.circle.fill")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(MoonlitTheme.accent)
+                        .frame(width: 34)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(systemAddonName ?? "System Addon")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.white)
+                        Text(systemAddonUrl)
+                            .font(.caption)
+                            .foregroundStyle(MoonlitTheme.textTertiary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var playbackDetail: some View {
+        detailHeader(MacSettingsCategory.playback)
+
+        settingsSection("Playback") {
+            settingsRow(
+                icon: "play.rectangle.fill",
+                title: "Video Player",
+                subtitle: "Format compatibility, skip intro, player engine",
+                action: { presentedSheet = .videoPlayer }
+            )
+            MacSettingsDivider()
+            settingsRow(
+                icon: "captions.bubble.fill",
+                title: "Subtitles",
+                subtitle: "Style and readability",
+                action: { presentedSheet = .subtitleAppearance }
+            )
+            MacSettingsDivider()
+            settingsRow(
+                icon: "bolt.fill",
+                title: "Stream Auto-Play",
+                subtitle: autoplaySummary,
+                action: { presentedSheet = .streamAutoplay }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var appearanceDetail: some View {
+        detailHeader(MacSettingsCategory.appearance)
+
+        settingsSection("Appearance") {
+            settingsRow(
+                icon: "rectangle.3.group.bubble.left.fill",
+                title: "Collection Design",
+                subtitle: "Home row visibility and display styles",
+                action: { presentedSheet = .collectionDesign }
+            )
+            MacSettingsDivider()
+            cinematicModeRow
+        }
+    }
+
+    @ViewBuilder
+    private var addonsDetail: some View {
+        detailHeader(MacSettingsCategory.addons)
+
+        settingsSection("Addons") {
+            settingsRow(
+                icon: "puzzlepiece.extension.fill",
+                title: "Addons",
+                subtitle: "\(addonRepo.userAddons.count) installed",
+                action: { presentedSheet = .addons }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var adminDetail: some View {
+        detailHeader(MacSettingsCategory.admin)
+
+        settingsSection("Admin") {
+            settingsRow(
+                icon: "chart.bar.fill",
+                title: "Admin Dashboard",
+                subtitle: "Invite codes and user management",
+                action: { presentedSheet = .adminDashboard }
+            )
+            MacSettingsDivider()
+            settingsRow(
+                icon: "rectangle.stack.fill",
+                title: "Catalog Management",
+                subtitle: "Home catalogs, folder rows, hidden folders",
+                action: { presentedSheet = .catalogManagement }
+            )
+            MacSettingsDivider()
+            settingsRow(
+                icon: "sparkles.tv.fill",
+                title: "Hero Management",
+                subtitle: "Choose hero carousel sources and order",
+                action: { presentedSheet = .heroManagement }
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var accountDetail: some View {
+        detailHeader(MacSettingsCategory.account)
+
+        profileCard
+
+        settingsSection("About") {
+            HStack {
+                Text("Version")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                Spacer()
+                Text(appVersion)
+                    .font(.subheadline)
+                    .foregroundStyle(MoonlitTheme.textSecondary)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 15)
+        }
+
+        Button {
+            Task { await profileManager.signOut() }
+        } label: {
+            Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.red)
+                .frame(maxWidth: .infinity, minHeight: 46)
+                .contentShape(Rectangle())
+                .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusCard, interactive: true)
+        }
+        .buttonStyle(.plain)
+        .padding(.top, 2)
+    }
+
+    private func detailHeader(_ category: MacSettingsCategory) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text(category.title)
+                .font(.system(size: 30, weight: .bold))
+                .foregroundStyle(.white)
+            Text(category.subtitle)
+                .font(.system(size: 13))
+                .foregroundStyle(MoonlitTheme.textSecondary)
+        }
+        .padding(.bottom, 6)
     }
 
     @ViewBuilder
@@ -227,10 +418,10 @@ struct MacSettingsView: View {
                         if roleManager.isAdmin {
                             Text("Admin")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(MoonlitTheme.accent)
+                                .foregroundStyle(MoonlitTheme.harborGold)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(MoonlitTheme.accent.opacity(0.18), in: Capsule())
+                                .background(MoonlitTheme.harborGold.opacity(0.18), in: Capsule())
                         }
                     }
                     if let email = profileManager.currentSession?.email {
@@ -250,12 +441,12 @@ struct MacSettingsView: View {
                         .foregroundStyle(.white)
                         .padding(.horizontal, 18)
                         .frame(height: 42)
-                        .macGlassCapsule(interactive: true)
+                        .macDarkGlassCapsule(interactive: true)
                 }
                 .buttonStyle(.plain)
             }
             .padding(20)
-            .macGlassCard(cornerRadius: 20)
+            .macDarkGlassCard(cornerRadius: 20)
         }
     }
 
@@ -346,7 +537,7 @@ struct MacSettingsView: View {
             VStack(spacing: 0) {
                 content()
             }
-        .macGlassCard(cornerRadius: 18)
+        .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
     }
 }
 
@@ -392,14 +583,14 @@ private struct MacTraktSettingsView: View {
                         .textFieldStyle(.plain)
                         .padding(10)
                         .background(MoonlitTheme.surface)
-                        .cornerRadius(8)
+                        .cornerRadius(MoonlitTheme.radiusControl)
                         .foregroundColor(.white)
 
                     TextField("Client Secret", text: $clientSecret)
                         .textFieldStyle(.plain)
                         .padding(10)
                         .background(MoonlitTheme.surface)
-                        .cornerRadius(8)
+                        .cornerRadius(MoonlitTheme.radiusControl)
                         .foregroundColor(.white)
 
                     Button {
@@ -419,7 +610,7 @@ private struct MacTraktSettingsView: View {
                                     ? MoonlitTheme.accent : MoonlitTheme.surface
                             )
                             .foregroundColor(.white)
-                            .cornerRadius(12)
+                            .cornerRadius(MoonlitTheme.radiusCard)
                     }
                     .buttonStyle(.plain)
                     .disabled(clientId.isEmpty || clientSecret.isEmpty)
@@ -495,7 +686,7 @@ private struct MacAdminDashboardView: View {
                         }
                     }
                     .padding(14)
-                    .background(MoonlitTheme.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .background(MoonlitTheme.surface, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard))
                 }
             }
             .padding(24)
@@ -545,6 +736,50 @@ private struct MacAdminDashboardView: View {
         systemAddonName = info?.name
         if addonRepo.managedAddons.isEmpty, let profile = profileManager.currentProfile {
             await addonRepo.loadAddons(profileId: profile.id, systemAddonUrl: info?.url)
+        }
+    }
+}
+
+private enum MacSettingsCategory: String, Identifiable, CaseIterable {
+    case general
+    case playback
+    case appearance
+    case addons
+    case admin
+    case account
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .general: "General"
+        case .playback: "Playback"
+        case .appearance: "Appearance"
+        case .addons: "Addons"
+        case .admin: "Admin"
+        case .account: "Account"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .general: "key.horizontal.fill"
+        case .playback: "play.rectangle.fill"
+        case .appearance: "paintpalette.fill"
+        case .addons: "puzzlepiece.extension.fill"
+        case .admin: "shield.fill"
+        case .account: "person.crop.circle.fill"
+        }
+    }
+
+    var subtitle: String {
+        switch self {
+        case .general: "Metadata sources, Trakt sync, and system addon status."
+        case .playback: "Video engine, subtitle style, and stream auto-play behavior."
+        case .appearance: "Home row layout and collection display styles."
+        case .addons: "Install and manage the addons your library pulls from."
+        case .admin: "Invite codes, catalogs, and hero carousel management."
+        case .account: "Your profile, app version, and sign-out."
         }
     }
 }
@@ -635,8 +870,8 @@ private struct MacMetadataIntegrationsView: View {
                 .font(.callout.monospaced())
                 .foregroundStyle(.white)
                 .padding(12)
-                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.white.opacity(0.09)))
+                .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
+                .overlay(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl).stroke(Color.white.opacity(0.09)))
             Text(subtitle)
                 .font(.caption)
                 .foregroundStyle(MoonlitTheme.textTertiary)
@@ -952,7 +1187,7 @@ private struct MacHeroManagementView: View {
                                 } label: {
                                     Image(systemName: "chevron.up")
                                         .frame(width: 34, height: 34)
-                                        .macGlassCapsule(interactive: true)
+                                        .macDarkGlassCapsule(interactive: true)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(index == 0)
@@ -961,7 +1196,7 @@ private struct MacHeroManagementView: View {
                                 } label: {
                                     Image(systemName: "chevron.down")
                                         .frame(width: 34, height: 34)
-                                        .macGlassCapsule(interactive: true)
+                                        .macDarkGlassCapsule(interactive: true)
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(index == orderedRows.count - 1)
@@ -1035,7 +1270,7 @@ private struct MacFormCard<Content: View>: View {
         VStack(spacing: 0) {
             content
         }
-        .macGlassCard(cornerRadius: 18)
+        .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
     }
 }
 
@@ -1075,7 +1310,7 @@ private struct MacInfoCard: View {
             Spacer()
         }
         .padding(16)
-        .macGlassCard(cornerRadius: 16)
+        .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
     }
 }
 
@@ -1107,6 +1342,6 @@ private struct MacEmptyBlock: View {
                 .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, minHeight: 190)
-        .macGlassCard(cornerRadius: 18)
+        .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
     }
 }

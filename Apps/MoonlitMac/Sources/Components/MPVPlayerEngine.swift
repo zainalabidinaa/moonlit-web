@@ -63,6 +63,13 @@ public class MPVPlayerEngine: ObservableObject {
     private var embeddedSubtitles: [SubtitleItem] = []
     private var externalSubtitles: [SubtitleItem] = []
 
+    /// Monotonic timestamp of the last user seek. For a short window after a seek
+    /// the position poller won't overwrite the optimistic `currentPosition`, so the
+    /// scrubber shows the new spot instantly instead of snapping back to mpv's
+    /// pre-seek position while the exact seek is still settling.
+    private var lastSeekMonotonic: CFTimeInterval = 0
+    private let seekSettleWindow: CFTimeInterval = 0.5
+
     public init() {}
 
     deinit {
@@ -166,6 +173,7 @@ public class MPVPlayerEngine: ObservableObject {
     }
 
     public func seek(to seconds: Double) {
+        lastSeekMonotonic = CACurrentMediaTime()
         command("seek", args: [String(seconds), "absolute"])
         currentPosition = seconds
     }
@@ -333,6 +341,14 @@ public class MPVPlayerEngine: ObservableObject {
         checkError("cache-secs", mpv_set_option_string(mpv, "cache-secs", "5"))
         checkError("cache-pause", mpv_set_option_string(mpv, "cache-pause", "yes"))
 
+        // Seeking feel: keep a generous back-buffer of already-demuxed data so a
+        // short backward jump (the −10s skip) replays instantly without re-hitting
+        // the network. Seeks stay frame-precise (hr-seek=yes) but drop frames while
+        // seeking so reaching the exact target is as fast as possible.
+        checkError("demuxer-max-back-bytes", mpv_set_option_string(mpv, "demuxer-max-back-bytes", "50MiB"))
+        checkError("hr-seek", mpv_set_option_string(mpv, "hr-seek", "yes"))
+        checkError("hr-seek-framedrop", mpv_set_option_string(mpv, "hr-seek-framedrop", "yes"))
+
         checkError("cache", mpv_set_option_string(mpv, "cache", "yes"))
         checkError("force-seekable", mpv_set_option_string(mpv, "force-seekable", "yes"))
         checkError("demuxer-lavf-o", mpv_set_option_string(mpv, "demuxer-lavf-o",
@@ -427,7 +443,10 @@ public class MPVPlayerEngine: ObservableObject {
             let finDur = dur.isFinite ? dur : nil
             guard let currentPos = finPos, let currentDur = finDur else { return }
             DispatchQueue.main.async {
-                if abs(currentPos - self.currentPosition) > 0.1 {
+                // Don't fight the optimistic seek: within the settle window keep the
+                // position the user seeked to instead of mpv's still-catching-up value.
+                let settling = CACurrentMediaTime() - self.lastSeekMonotonic < self.seekSettleWindow
+                if !settling, abs(currentPos - self.currentPosition) > 0.1 {
                     self.currentPosition = currentPos
                     self.positionPublisher.send(currentPos)
                 }

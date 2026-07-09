@@ -113,7 +113,7 @@ struct PlayerControls: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 3)
                             .background(Color.white.opacity(0.1))
-                            .cornerRadius(4)
+                            .cornerRadius(MoonlitTheme.radiusSmall)
                     }
                     .buttonStyle(.plain)
                     .popover(isPresented: $showSpeed, arrowEdge: .bottom) {

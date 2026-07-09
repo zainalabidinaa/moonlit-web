@@ -10,6 +10,7 @@ struct HomeHero: View {
     var ambientColor2: Color = .clear
 
     @State private var autoTimer: Timer?
+    @Environment(\.controlActiveState) private var controlActiveState
     @StateObject private var libraryRepo = LibraryRepository.shared
     @StateObject private var artwork = MacHeroArtworkProvider.shared
     @StateObject private var awardsMeta = AwardsMetadataService.shared
@@ -176,6 +177,16 @@ struct HomeHero: View {
             artwork.prefetch(items: items)
             awardsMeta.prefetch(ids: items.map(\.id))
         }
+        .onChange(of: controlActiveState) { _, newState in
+            // Don't spend the 60s advance (animation + ambient-color extraction) on a
+            // backgrounded window; resume when it becomes active again.
+            if newState == .inactive {
+                autoTimer?.invalidate()
+                autoTimer = nil
+            } else if autoTimer == nil {
+                startAutoAdvance()
+            }
+        }
         .onDisappear {
             autoTimer?.invalidate()
             autoTimer = nil
@@ -270,7 +281,7 @@ struct HomeHero: View {
 
     private func startAutoAdvance() {
         autoTimer?.invalidate()
-        guard items.count > 1 else { return }
+        guard items.count > 1, controlActiveState != .inactive else { return }
         autoTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { _ in
             Task { @MainActor in
                 withAnimation(.spring(response: 0.5, dampingFraction: 0.82)) {

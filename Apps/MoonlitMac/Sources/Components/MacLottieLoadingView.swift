@@ -1,39 +1,35 @@
 import SwiftUI
-import Lottie
 
+/// The app's loading spinner — two counter-rotating trimmed arcs in white,
+/// pure SwiftUI Shapes (no image/Lottie asset). Replaces the old Lottie
+/// dot-ring, which read as a lopsided crescent at the larger sizes it was
+/// used at across the app. Kept this file/type name so none of the 11 call
+/// sites needed to change.
 struct MacLottieLoadingView: View {
     var size: CGFloat = 44
+    var color: Color = .white
+
+    @State private var isAnimating = false
+
+    private var lineWidth: CGFloat { max(2, size / 14) }
 
     var body: some View {
-        LottieAnimationPlayer(animationName: "loading-animation-gradient-line-2-colors-1")
+        Circle()
+            .trim(from: 0, to: 0.7)
+            .stroke(color, style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+            .rotationEffect(.degrees(isAnimating ? 360 : 0))
+            .overlay(
+                Circle()
+                    .trim(from: 0, to: 0.7)
+                    .stroke(color.opacity(0.4), style: StrokeStyle(lineWidth: lineWidth, lineCap: .round))
+                    .frame(width: size * 0.5, height: size * 0.5)
+                    .rotationEffect(.degrees(isAnimating ? -360 : 0))
+            )
             .frame(width: size, height: size)
-    }
-}
-
-private struct LottieAnimationPlayer: NSViewRepresentable {
-    let animationName: String
-
-    func makeNSView(context: Context) -> NSView {
-        let container = NSView()
-        let animationView = LottieAnimationView(name: animationName, bundle: .main)
-        animationView.loopMode = .loop
-        animationView.contentMode = .scaleAspectFit
-        animationView.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(animationView)
-        NSLayoutConstraint.activate([
-            animationView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            animationView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            animationView.topAnchor.constraint(equalTo: container.topAnchor),
-            animationView.bottomAnchor.constraint(equalTo: container.bottomAnchor)
-        ])
-        animationView.play()
-        return container
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        guard let animationView = nsView.subviews.first as? LottieAnimationView else { return }
-        if !animationView.isAnimationPlaying {
-            animationView.play()
-        }
+            .onAppear {
+                withAnimation(.linear(duration: 1.1).repeatForever(autoreverses: false)) {
+                    isAnimating = true
+                }
+            }
     }
 }

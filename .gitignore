@@ -23,3 +23,10 @@ dist-ssr
 *.sln
 *.sw?
 build/
+
+# Playwright MCP page snapshots (test artifacts)
+.playwright-mcp/
+
+# Xcode / runtime artifacts
+*.profraw
+*.httpcache/

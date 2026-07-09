@@ -10,116 +10,145 @@ struct MacAuthView: View {
     @State private var isSignUp = false
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @StateObject private var appleCoordinator = MacAppleSignInCoordinator()
 
     var body: some View {
-        HStack(spacing: 0) {
-            Spacer()
-
-            VStack(spacing: 24) {
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            HStack(spacing: 0) {
                 Spacer()
 
-                AppIconView()
-                    .frame(width: 80, height: 80)
-                    .shadow(color: MoonlitTheme.accent.opacity(0.3), radius: 20)
+                VStack(spacing: 24) {
+                    Spacer()
 
-                Text("Moonlit")
-                    .font(.system(size: 32, weight: .bold))
-                    .foregroundColor(.white)
+                    AppIconView()
+                        .frame(width: 80, height: 80)
+                        .shadow(color: .black.opacity(0.35), radius: 20)
 
-                Text("Sign in to your media hub")
-                    .font(.system(size: 13))
-                    .foregroundColor(MoonlitTheme.textTertiary)
-
-                VStack(spacing: 10) {
-                    TextField("Email", text: $email)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 14))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(MoonlitTheme.surface)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                        .frame(width: 320)
+                    Text("Moonlit")
+                        .font(.system(size: 32, weight: .bold))
                         .foregroundColor(.white)
 
-                    SecureField("Password", text: $password)
-                        .textFieldStyle(.plain)
-                        .font(.system(size: 14))
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 10)
-                        .background(MoonlitTheme.surface)
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                        )
-                        .frame(width: 320)
-                        .foregroundColor(.white)
+                    Text("Sign in to your media hub")
+                        .font(.system(size: 13))
+                        .foregroundColor(MoonlitTheme.textTertiary)
 
-                    if isSignUp {
-                        TextField("Invite Code", text: $inviteCode)
+                    VStack(spacing: 10) {
+                        TextField("Email", text: $email)
                             .textFieldStyle(.plain)
                             .font(.system(size: 14))
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
                             .background(MoonlitTheme.surface)
-                            .cornerRadius(8)
+                            .cornerRadius(MoonlitTheme.radiusControl)
                             .overlay(
-                                RoundedRectangle(cornerRadius: 8)
+                                RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                                     .stroke(Color.white.opacity(0.08), lineWidth: 1)
                             )
                             .frame(width: 320)
                             .foregroundColor(.white)
-                    }
-                }
 
-                if let error = errorMessage {
-                    Text(error)
-                        .foregroundColor(.red)
-                        .font(.system(size: 12))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 320)
-                }
+                        SecureField("Password", text: $password)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 14))
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .background(MoonlitTheme.surface)
+                            .cornerRadius(MoonlitTheme.radiusControl)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
+                                    .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                            )
+                            .frame(width: 320)
+                            .foregroundColor(.white)
 
-                Button(action: performAuth) {
-                    HStack(spacing: 8) {
-                        if isLoading {
-                            ProgressView()
-                                .scaleEffect(0.7)
-                                .tint(.white)
+                        if isSignUp {
+                            TextField("Invite Code", text: $inviteCode)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 14))
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 10)
+                                .background(MoonlitTheme.surface)
+                                .cornerRadius(MoonlitTheme.radiusControl)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
+                                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                                )
+                                .frame(width: 320)
+                                .foregroundColor(.white)
                         }
-                        Text(isSignUp ? "Create Account" : "Sign In")
-                            .font(.system(size: 14, weight: .semibold))
                     }
-                    .frame(width: 320, height: 42)
-                    .background(
-                        (isLoading || email.isEmpty || password.isEmpty)
-                            ? MoonlitTheme.surface
-                            : MoonlitTheme.accent
-                    )
-                    .foregroundColor(.white)
-                    .cornerRadius(10)
-                }
-                .buttonStyle(.plain)
-                .disabled(isLoading || email.isEmpty || password.isEmpty)
 
-                Button(isSignUp ? "Have an account? Sign In" : "New to Moonlit? Create Account") {
-                    isSignUp.toggle()
-                    errorMessage = nil
+                    if let error = errorMessage {
+                        Text(error)
+                            .foregroundColor(.red)
+                            .font(.system(size: 12))
+                            .multilineTextAlignment(.center)
+                            .frame(width: 320)
+                    }
+
+                    Button(action: performAuth) {
+                        HStack(spacing: 8) {
+                            if isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.7)
+                                    .tint(.black)
+                            }
+                            Text(isSignUp ? "Create Account" : "Sign In")
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .frame(width: 320, height: 42)
+                    }
+                    .buttonStyle(MoonlitPrimaryButtonStyle(cornerRadius: MoonlitTheme.radiusControl))
+                    .disabled(isLoading || email.isEmpty || password.isEmpty)
+
+                    HStack(spacing: 10) {
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+                        Text("or")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(MoonlitTheme.textTertiary)
+                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
+                    }
+                    .frame(width: 320)
+                    .padding(.vertical, 2)
+
+                    Button(action: startAppleSignIn) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "apple.logo")
+                                .font(.system(size: 16, weight: .medium))
+                            Text("Sign in with Apple")
+                                .font(.system(size: 14, weight: .semibold))
+                        }
+                        .frame(width: 320, height: 42)
+                        .foregroundColor(.white)
+                        .background(Color.black, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous)
+                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(isLoading)
+
+                    Button(isSignUp ? "Have an account? Sign In" : "New to Moonlit? Create Account") {
+                        isSignUp.toggle()
+                        errorMessage = nil
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(MoonlitTheme.textTertiary)
+                    .font(.system(size: 13))
+
+                    Spacer()
                 }
-                .buttonStyle(.plain)
-                .foregroundColor(MoonlitTheme.textTertiary)
-                .font(.system(size: 13))
 
                 Spacer()
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MoonlitTheme.background)
     }
 
@@ -140,6 +169,27 @@ struct MacAuthView: View {
             }
             isLoading = false
         }
+    }
+
+    private func startAppleSignIn() {
+        isLoading = true
+        errorMessage = nil
+        appleCoordinator.onResult = { result in
+            Task { @MainActor in
+                switch result {
+                case .success(let creds):
+                    do {
+                        try await profileManager.signInWithApple(idToken: creds.idToken, nonce: creds.nonce)
+                    } catch {
+                        errorMessage = formatError(error)
+                    }
+                case .failure(let error):
+                    errorMessage = formatError(error)
+                }
+                isLoading = false
+            }
+        }
+        appleCoordinator.performRequest()
     }
 
     private func formatError(_ error: Error) -> String {

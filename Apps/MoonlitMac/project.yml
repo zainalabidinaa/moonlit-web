@@ -37,6 +37,9 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "com.moonlit.mac"
+        DEVELOPMENT_TEAM: 5TWS8P597N
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGN_ENTITLEMENTS: MoonlitMac.entitlements
         INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
         INFOPLIST_KEY_NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true

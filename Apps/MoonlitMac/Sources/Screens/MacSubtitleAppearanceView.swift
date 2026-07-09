@@ -23,60 +23,98 @@ struct MacSubtitleAppearanceView: View {
     private let alignments: [SubtitleAlignment] = [.left, .center, .right]
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                previewPanel
-                presetsSection
-                fontSection
-                colorsSection
-                positionSection
-                advancedSection
-                resetButton
-                Spacer().frame(height: 32)
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 12) {
+                    previewPanel
+                    presetsSection
+                    fontSection
+                    colorsSection
+                    positionSection
+                    advancedSection
+                    resetButton
+                    Spacer().frame(height: 32)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 16)
             }
-            .padding(.horizontal, 16)
-            .padding(.top, 16)
+            .frame(minWidth: 480, minHeight: 600)
+            .navigationTitle("Subtitle Appearance")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
-        .frame(minWidth: 480, minHeight: 600)
         .background(MoonlitTheme.background)
-        .navigationTitle("Subtitle Appearance")
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
-            }
-        }
     }
 
     // MARK: - Preview
 
     private var previewPanel: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 10)
-                .fill(Color.black)
-                .frame(height: 120)
-                .overlay(
-                    Image(systemName: "play.fill")
-                        .font(.system(size: 30))
-                        .foregroundColor(Color.white.opacity(0.08))
-                )
-            VStack {
-                Spacer()
-                Text("The quick brown fox jumps over the lazy dog")
-                    .font(.system(
-                        size: min(fontSize * 0.5, 18),
-                        weight: isBold ? .bold : .regular
-                    ))
-                    .italic(isItalic)
-                    .foregroundColor(Color(hex: textColorHex) ?? .white)
-                    .shadow(color: (Color(hex: outlineColorHex) ?? .black).opacity(0.9), radius: 1, x: 1, y: 1)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(
-                        (Color(hex: backgroundColorHex) ?? .black).opacity(backgroundOpacity)
-                            .cornerRadius(4)
+        ZStack(alignment: .bottom) {
+            RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
+                .fill(
+                    LinearGradient(
+                        colors: [Color(red: 0.22, green: 0.16, blue: 0.11), Color(red: 0.06, green: 0.05, blue: 0.05)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
                     )
-                    .padding(.bottom, 10)
-            }
+                )
+                .frame(height: 220)
+                .overlay(
+                    Image(systemName: "play.rectangle.fill")
+                        .font(.system(size: 44))
+                        .foregroundColor(.white.opacity(0.06))
+                )
+
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.7)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(height: 120)
+
+            Text("This is what your subtitles will look like while watching.")
+                .font(.system(
+                    size: min(fontSize * 0.5, 18),
+                    weight: isBold ? .bold : .regular
+                ))
+                .italic(isItalic)
+                .multilineTextAlignment(textAlignment)
+                .foregroundColor(Color(hex: textColorHex) ?? .white)
+                .shadow(color: (Color(hex: outlineColorHex) ?? .black).opacity(0.9), radius: max(textBlur, 1), x: 1, y: 1)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    (Color(hex: backgroundColorHex) ?? .black).opacity(backgroundOpacity)
+                        .cornerRadius(MoonlitTheme.radiusSmall)
+                )
+                .frame(maxWidth: .infinity, alignment: horizontalFrameAlignment)
+                .padding(.horizontal, 12 + horizontalMargin)
+                .padding(.bottom, 10 + verticalPosition * 0.5)
+        }
+        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
+    }
+
+    private var textAlignment: TextAlignment {
+        switch horizontalAlignment {
+        case .left: .leading
+        case .center: .center
+        case .right: .trailing
+        }
+    }
+
+    private var horizontalFrameAlignment: Alignment {
+        switch horizontalAlignment {
+        case .left: .leading
+        case .center: .center
+        case .right: .trailing
         }
     }
 
@@ -117,7 +155,7 @@ struct MacSubtitleAppearanceView: View {
                 }
             }
             .background(MoonlitTheme.surface)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
         }
     }
 
@@ -150,7 +188,7 @@ struct MacSubtitleAppearanceView: View {
                 .onChange(of: isItalic) { _, v in store.isItalic = v }
             }
             .background(MoonlitTheme.surface)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
         }
     }
 
@@ -178,7 +216,7 @@ struct MacSubtitleAppearanceView: View {
                 }
             }
             .background(MoonlitTheme.surface)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
         }
     }
 
@@ -210,7 +248,7 @@ struct MacSubtitleAppearanceView: View {
                 }
             }
             .background(MoonlitTheme.surface)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
         }
     }
 
@@ -232,7 +270,7 @@ struct MacSubtitleAppearanceView: View {
                 .onChange(of: scaleWithWindowSize) { _, v in store.scaleWithWindowSize = v }
             }
             .background(MoonlitTheme.surface)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
         }
     }
 
@@ -248,7 +286,7 @@ struct MacSubtitleAppearanceView: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .background(MoonlitTheme.surface)
-        .cornerRadius(10)
+        .cornerRadius(MoonlitTheme.radiusControl)
         .buttonStyle(.plain)
     }
 

@@ -83,6 +83,7 @@ struct ContinueWatchingCard: View {
                     Color.black.opacity(0.34)
                         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
                     MacLottieLoadingView(size: 24)
+                        .frame(width: width, height: height, alignment: .center)
                 }
             }
             .frame(width: width, height: height)

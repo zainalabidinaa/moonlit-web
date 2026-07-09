@@ -27,6 +27,10 @@ struct MacHomeView: View {
     @State private var isResumingItemId: String?
     @State private var categoryState: HomeCategoryState
 
+    /// Temporarily hides the "For You" personalized row on Home. Flip to `true`
+    /// to bring it back — the RecommendationsService pipeline stays intact.
+    private let showForYouSection = false
+
     init(
         onSelectMedia: @escaping (MetaPreview) -> Void,
         onSelectFolder: ((CatalogRow) -> Void)? = nil,
@@ -178,33 +182,40 @@ struct MacHomeView: View {
 
     /// The blurred backdrop shown behind the home page — the current hero item's
     /// landscape art. Drives the restored `.heroBackdrop` fusion background.
-    private var currentHeroBackdropURL: URL? {
-        guard featuredItems.indices.contains(heroIndex) else { return nil }
-        let item = featuredItems[heroIndex]
+    /// Backdrop for the current hero. Takes the already-computed `featured` list so `body`
+    /// evaluates the expensive `featuredItems` sort/dedup only once per pass.
+    private func backdropURL(for featured: [MetaPreview]) -> URL? {
+        guard featured.indices.contains(heroIndex) else { return nil }
+        let item = featured[heroIndex]
         return MacHeroArtworkProvider.shared.heroArtURL(for: item)
             ?? item.artworkURL(preferring: .landscape)
     }
 
     var body: some View {
-        ZStack(alignment: .top) {
+        // Evaluate the expensive featured sort/dedup once per pass, not ~5× — every
+        // reference below reuses these locals.
+        let featured = featuredItems
+        let heroBackdropURL = backdropURL(for: featured)
+        return ZStack(alignment: .top) {
             MacFusionAmbientBackground(
                 ambientColor: ambientColor,
                 ambientColor2: ambientColor2,
                 isEnabled: cinematicModeEnabled,
-                heroBackdropURL: currentHeroBackdropURL,
-                intensity: 0.9,
-                style: .heroBackdrop
+                heroBackdropURL: heroBackdropURL,
+                intensity: 1.20,
+                style: .heroBackdrop,
+                radiusScale: 1.80
             )
             .animation(.easeInOut(duration: 0.9), value: ambientColor)
             .animation(.easeInOut(duration: 0.9), value: ambientColor2)
-            .animation(.easeInOut(duration: 0.6), value: currentHeroBackdropURL)
+            .animation(.easeInOut(duration: 0.6), value: heroBackdropURL)
             .animation(.easeInOut(duration: 0.35), value: cinematicModeEnabled)
 
             ScrollView {
             VStack(spacing: 0) {
-                if !featuredItems.isEmpty {
+                if !featured.isEmpty {
                     HomeHero(
-                        items: featuredItems,
+                        items: featured,
                         currentIndex: $heroIndex,
                         onWatchNow: { item in route(item: item) },
                         onToggleLibrary: { item in
@@ -222,11 +233,10 @@ struct MacHomeView: View {
                             ambientColor: ambientColor,
                             ambientColor2: ambientColor2
                         )
+                        // `.task(id:)` already re-runs whenever heroIndex or cinematic mode
+                        // changes, so a separate .onChange(of: heroIndex) would double-fetch.
                         .task(id: "\(heroIndex)-\(cinematicModeEnabled)") {
                             await updateAmbientColorIfNeeded()
-                        }
-                        .onChange(of: heroIndex) { _, _ in
-                            Task { await updateAmbientColorIfNeeded() }
                         }
 
                         if isDedicatedMediaTab {
@@ -246,12 +256,12 @@ struct MacHomeView: View {
 
                     if !homeRepo.continueWatchingItems.isEmpty {
                         continueWatchingRow
-                            .padding(.top, featuredItems.isEmpty ? 96 : 26)
+                            .padding(.top, featured.isEmpty ? 96 : 26)
                             .padding(.bottom, 38)
                     }
 
                     // For You — Personalized Recommendations
-                    if !recsService.rows.isEmpty {
+                    if showForYouSection && !recsService.rows.isEmpty {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("For You")
                                 .font(.system(size: 21, weight: .bold))
@@ -343,7 +353,7 @@ struct MacHomeView: View {
                                 }
                             }
                         }
-                        .padding(.top, featuredItems.isEmpty ? 96 : 24)
+                        .padding(.top, featured.isEmpty ? 96 : 24)
                     } else if catalogRepo.isLoading || addonRepo.isLoading {
                         loadingState.padding(.top, 180)
                     }
@@ -658,10 +668,16 @@ struct MacHomeView: View {
 
         do {
             let (data, _) = try await URLSession.shared.data(from: url)
-            guard let image = NSImage(data: data),
-                  let (c1, c2) = image.moonlitAmbientColors() else { return }
-            ambientColor = c1.moonlitBoostedForAmbient
-            ambientColor2 = c2.moonlitBoostedForAmbient
+            // Image decode + vImage box-blur/peak detection are CPU-heavy; run them off
+            // the main actor and hop back only to assign the @State colors.
+            let colors: (Color, Color)? = await Task.detached(priority: .userInitiated) {
+                guard let image = NSImage(data: data),
+                      let (c1, c2) = image.moonlitAmbientColors() else { return nil }
+                return (c1.moonlitBoostedForAmbient, c2.moonlitBoostedForAmbient)
+            }.value
+            guard let colors else { return }
+            ambientColor = colors.0
+            ambientColor2 = colors.1
         } catch {
             ambientColor = .clear
             ambientColor2 = .clear

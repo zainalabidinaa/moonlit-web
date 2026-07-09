@@ -1,0 +1,12 @@
+{
+  "images" : [
+    {
+      "filename" : "golden-globe.png",
+      "idiom" : "universal"
+    }
+  ],
+  "info" : {
+    "author" : "xcode",
+    "version" : 1
+  }
+}

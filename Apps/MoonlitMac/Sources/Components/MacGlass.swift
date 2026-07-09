@@ -19,7 +19,7 @@ extension View {
     }
 
     @ViewBuilder
-    func macGlassCapsule(interactive: Bool = false) -> some View {
+    func macDarkGlassCapsule(interactive: Bool = false) -> some View {
         if #available(macOS 26.0, *) {
             self.glassEffect(
                 interactive ? .regular.interactive() : .regular,
@@ -28,7 +28,24 @@ extension View {
         } else {
             self
                 .background(.ultraThinMaterial, in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 0.8))
+        }
+    }
+
+    @ViewBuilder
+    func macLiquidGlassCapsule(interactive: Bool = false) -> some View {
+        if #available(macOS 26.0, *) {
+            self
+                .glassEffect(
+                    interactive ? .clear.interactive() : .clear,
+                    in: .capsule
+                )
+                .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
+        } else {
+            self
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.12), lineWidth: 0.5))
+                .shadow(color: .black.opacity(0.3), radius: 12, y: 4)
         }
     }
 
@@ -50,16 +67,16 @@ extension View {
     }
 
     @ViewBuilder
-    func macDarkGlassCapsule(interactive: Bool = false) -> some View {
+    func macGlassCapsule(interactive: Bool = false) -> some View {
         if #available(macOS 26.0, *) {
             self.glassEffect(
-                interactive ? .clear.interactive() : .clear,
+                interactive ? .regular.interactive() : .regular,
                 in: .capsule
             )
         } else {
             self
-                .background(Color.white.opacity(0.12), in: Capsule())
-                .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 0.8))
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.white.opacity(0.10), lineWidth: 1))
         }
     }
 }
@@ -78,7 +95,7 @@ struct MacGlassIconButton: View {
                 .foregroundStyle(.white)
                 .frame(width: size, height: size)
                 .contentShape(Circle())
-                .macGlassCapsule(interactive: true)
+                .macDarkGlassCapsule(interactive: true)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(accessibilityLabel)

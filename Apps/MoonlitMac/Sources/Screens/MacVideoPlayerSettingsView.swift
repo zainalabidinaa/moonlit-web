@@ -6,164 +6,183 @@ struct MacVideoPlayerSettingsView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 6) {
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 6) {
 
-                sectionLabel("Playback")
-                settingsCard {
-                    toggleRow("Autoplay next episode", isOn: Binding(
-                        get: { prefs.autoplayNextEpisode },
-                        set: { prefs.autoplayNextEpisode = $0 }
-                    ))
-                    Divider().background(Color.white.opacity(0.08))
-                    pickerRow("Show Next Episode when", value: "\(prefs.showNextEpisodeSecondsRemaining)s remaining") {
-                        Picker("", selection: Binding(
-                            get: { prefs.showNextEpisodeSecondsRemaining },
-                            set: { prefs.showNextEpisodeSecondsRemaining = $0 }
-                        )) {
-                            ForEach([15, 20, 30, 45, 60], id: \.self) { s in
-                                Text("\(s) seconds").tag(s)
-                            }
-                        }
-                    }
-                }
-
-                sectionLabel("Skip Intro")
-                settingsCard {
-                    toggleRow("Show 'Skip Intro' when detected", isOn: Binding(
-                        get: { prefs.showSkipIntroButton },
-                        set: { prefs.showSkipIntroButton = $0 }
-                    ))
-                    Divider().background(Color.white.opacity(0.08))
-                    toggleRow("Auto-skip intros when detected", isOn: Binding(
-                        get: { prefs.autoSkipIntros },
-                        set: { prefs.autoSkipIntros = $0 }
-                    ))
-                    Divider().background(Color.white.opacity(0.08))
-                    toggleRow("Use IntroDB for TV episodes", isOn: Binding(
-                        get: { prefs.useIntroDB },
-                        set: { prefs.useIntroDB = $0 }
-                    ))
-                    Divider().background(Color.white.opacity(0.08))
-                    toggleRow("Show highlights on timeline", isOn: Binding(
-                        get: { prefs.showHighlightsOnTimeline },
-                        set: { prefs.showHighlightsOnTimeline = $0 }
-                    ))
-                    Divider().background(Color.white.opacity(0.08))
-                    toggleRow("Fallback skip when no intro data", isOn: Binding(
-                        get: { prefs.fallbackSkipEnabled },
-                        set: { prefs.fallbackSkipEnabled = $0 }
-                    ))
-                    if prefs.fallbackSkipEnabled {
+                    sectionLabel("Playback")
+                    settingsCard {
+                        toggleRow("Autoplay next episode", isOn: Binding(
+                            get: { prefs.autoplayNextEpisode },
+                            set: { prefs.autoplayNextEpisode = $0 }
+                        ))
                         Divider().background(Color.white.opacity(0.08))
-                        pickerRow("Fallback skip duration", value: "\(prefs.fallbackSkipSeconds)s") {
+                        pickerRow("Show Next Episode when", value: "\(prefs.showNextEpisodeSecondsRemaining)s remaining") {
                             Picker("", selection: Binding(
-                                get: { prefs.fallbackSkipSeconds },
-                                set: { prefs.fallbackSkipSeconds = $0 }
+                                get: { prefs.showNextEpisodeSecondsRemaining },
+                                set: { prefs.showNextEpisodeSecondsRemaining = $0 }
                             )) {
-                                ForEach([30, 60, 85, 90, 120], id: \.self) { s in
+                                ForEach([15, 20, 30, 45, 60], id: \.self) { s in
                                     Text("\(s) seconds").tag(s)
                                 }
                             }
                         }
                     }
-                }
-                .animation(.easeInOut(duration: 0.2), value: prefs.fallbackSkipEnabled)
 
-                Text("Skip timestamps sourced from PublicMetaDB. IntroDB provides crowdsourced intro data for TV shows.")
-                    .font(.caption)
-                    .foregroundColor(MoonlitTheme.textTertiary)
-                    .padding(.horizontal, 20)
-
-                sectionLabel("Format Compatibility")
-                settingsCard {
-                    toggleRow("Show only compatible formats", isOn: Binding(
-                        get: { prefs.showOnlyCompatibleFormats },
-                        set: { prefs.showOnlyCompatibleFormats = $0 }
-                    ))
-                }
-
-                sectionLabel("Media Type Players")
-                settingsCard {
-                    toggleRow("Use different players per media type", isOn: Binding(
-                        get: { prefs.usePerTypePlayers },
-                        set: { prefs.usePerTypePlayers = $0 }
-                    ))
-                    if prefs.usePerTypePlayers {
-                        Divider().background(Color.white.opacity(0.08))
-                        enginePickerRow("Movies", engine: Binding(
-                            get: { prefs.moviePlayer },
-                            set: { prefs.moviePlayer = $0 }
+                    sectionLabel("Skip Intro")
+                    settingsCard {
+                        toggleRow("Show 'Skip Intro' when detected", isOn: Binding(
+                            get: { prefs.showSkipIntroButton },
+                            set: { prefs.showSkipIntroButton = $0 }
                         ))
                         Divider().background(Color.white.opacity(0.08))
-                        enginePickerRow("Series", engine: Binding(
-                            get: { prefs.seriesPlayer },
-                            set: { prefs.seriesPlayer = $0 }
+                        toggleRow("Auto-skip intros when detected", isOn: Binding(
+                            get: { prefs.autoSkipIntros },
+                            set: { prefs.autoSkipIntros = $0 }
                         ))
                         Divider().background(Color.white.opacity(0.08))
-                        enginePickerRow("Live", engine: Binding(
-                            get: { prefs.livePlayer },
-                            set: { prefs.livePlayer = $0 }
+                        toggleRow("Use IntroDB for TV episodes", isOn: Binding(
+                            get: { prefs.useIntroDB },
+                            set: { prefs.useIntroDB = $0 }
                         ))
-                    }
-                }
-                .animation(.easeInOut(duration: 0.2), value: prefs.usePerTypePlayers)
-
-                Text("Auto-Detect: .m3u8/HLS uses AVPlayer; .mkv/.avi and complex formats use KSPlayer.")
-                    .font(.caption)
-                    .foregroundColor(MoonlitTheme.textTertiary)
-                    .padding(.horizontal, 20)
-
-                sectionLabel("Cache Mode")
-                settingsCard {
-                    pickerRow("Cache mode", value: prefs.cacheMode.displayName) {
-                        Picker("", selection: Binding(
-                            get: { prefs.cacheMode },
-                            set: { prefs.cacheMode = $0 }
-                        )) {
-                            ForEach(CacheMode.allCases, id: \.self) { mode in
-                                Text(mode.displayName).tag(mode)
+                        Divider().background(Color.white.opacity(0.08))
+                        toggleRow("Show highlights on timeline", isOn: Binding(
+                            get: { prefs.showHighlightsOnTimeline },
+                            set: { prefs.showHighlightsOnTimeline = $0 }
+                        ))
+                        Divider().background(Color.white.opacity(0.08))
+                        toggleRow("Fallback skip when no intro data", isOn: Binding(
+                            get: { prefs.fallbackSkipEnabled },
+                            set: { prefs.fallbackSkipEnabled = $0 }
+                        ))
+                        if prefs.fallbackSkipEnabled {
+                            Divider().background(Color.white.opacity(0.08))
+                            pickerRow("Fallback skip duration", value: "\(prefs.fallbackSkipSeconds)s") {
+                                Picker("", selection: Binding(
+                                    get: { prefs.fallbackSkipSeconds },
+                                    set: { prefs.fallbackSkipSeconds = $0 }
+                                )) {
+                                    ForEach([30, 60, 85, 90, 120], id: \.self) { s in
+                                        Text("\(s) seconds").tag(s)
+                                    }
+                                }
                             }
                         }
                     }
-                }
-                Text("Memory buffers in RAM for smooth playback. Disk caches segments for resume. Off streams live.")
-                    .font(.caption)
-                    .foregroundColor(MoonlitTheme.textTertiary)
-                    .padding(.horizontal, 20)
+                    .animation(.easeInOut(duration: 0.2), value: prefs.fallbackSkipEnabled)
 
-                sectionLabel("Previews")
-                settingsCard {
-                    toggleRow("Autoplay previews in Home", isOn: Binding(
-                        get: { prefs.autoplayPreviews },
-                        set: { prefs.autoplayPreviews = $0 }
-                    ))
-                    Divider().background(Color.white.opacity(0.08))
-                    toggleRow("Play preview sound", isOn: Binding(
-                        get: { prefs.playPreviewSound },
-                        set: { prefs.playPreviewSound = $0 }
-                    ))
-                }
+                    Text("Skip timestamps sourced from PublicMetaDB. IntroDB provides crowdsourced intro data for TV shows.")
+                        .font(.caption)
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                        .padding(.horizontal, 20)
 
-                Spacer().frame(height: 32)
+                    sectionLabel("Video Enhancement")
+                    settingsCard {
+                        toggleRow("Anime4K upscaling", isOn: Binding(
+                            get: { prefs.anime4KEnabled },
+                            set: { prefs.anime4KEnabled = $0 }
+                        ))
+                    }
+                    Text("Real-time upscaling and line restoration for animated content. Uses GPU compute shaders (may affect performance on integrated graphics).")
+                        .font(.caption)
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                        .padding(.horizontal, 20)
+
+                    sectionLabel("Format Compatibility")
+                    settingsCard {
+                        toggleRow("Show only compatible formats", isOn: Binding(
+                            get: { prefs.showOnlyCompatibleFormats },
+                            set: { prefs.showOnlyCompatibleFormats = $0 }
+                        ))
+                    }
+
+                    sectionLabel("Media Type Players")
+                    settingsCard {
+                        toggleRow("Use different players per media type", isOn: Binding(
+                            get: { prefs.usePerTypePlayers },
+                            set: { prefs.usePerTypePlayers = $0 }
+                        ))
+                        if prefs.usePerTypePlayers {
+                            Divider().background(Color.white.opacity(0.08))
+                            enginePickerRow("Movies", engine: Binding(
+                                get: { prefs.moviePlayer },
+                                set: { prefs.moviePlayer = $0 }
+                            ))
+                            Divider().background(Color.white.opacity(0.08))
+                            enginePickerRow("Series", engine: Binding(
+                                get: { prefs.seriesPlayer },
+                                set: { prefs.seriesPlayer = $0 }
+                            ))
+                            Divider().background(Color.white.opacity(0.08))
+                            enginePickerRow("Live", engine: Binding(
+                                get: { prefs.livePlayer },
+                                set: { prefs.livePlayer = $0 }
+                            ))
+                        }
+                    }
+                    .animation(.easeInOut(duration: 0.2), value: prefs.usePerTypePlayers)
+
+                    Text("Auto-Detect: .m3u8/HLS uses AVPlayer; .mkv/.avi and complex formats use KSPlayer.")
+                        .font(.caption)
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                        .padding(.horizontal, 20)
+
+                    sectionLabel("Cache Mode")
+                    settingsCard {
+                        pickerRow("Cache mode", value: prefs.cacheMode.displayName) {
+                            Picker("", selection: Binding(
+                                get: { prefs.cacheMode },
+                                set: { prefs.cacheMode = $0 }
+                            )) {
+                                ForEach(CacheMode.allCases, id: \.self) { mode in
+                                    Text(mode.displayName).tag(mode)
+                                }
+                            }
+                        }
+                    }
+                    Text("Memory buffers in RAM for smooth playback. Disk caches segments for resume. Off streams live.")
+                        .font(.caption)
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                        .padding(.horizontal, 20)
+
+                    sectionLabel("Previews")
+                    settingsCard {
+                        toggleRow("Autoplay previews in Home", isOn: Binding(
+                            get: { prefs.autoplayPreviews },
+                            set: { prefs.autoplayPreviews = $0 }
+                        ))
+                        Divider().background(Color.white.opacity(0.08))
+                        toggleRow("Play preview sound", isOn: Binding(
+                            get: { prefs.playPreviewSound },
+                            set: { prefs.playPreviewSound = $0 }
+                        ))
+                    }
+
+                    Spacer().frame(height: 32)
+                }
+                .padding(.top, 16)
             }
-            .padding(.top, 16)
+            .frame(minWidth: 460, minHeight: 500)
+            .navigationTitle("Video Player")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Done") { dismiss() }
+                }
+            }
         }
-        .frame(minWidth: 460, minHeight: 500)
         .background(MoonlitTheme.background)
-        .navigationTitle("Video Player")
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Done") { dismiss() }
-            }
-        }
     }
 
     @ViewBuilder
     private func settingsCard<Content: View>(@ViewBuilder content: () -> Content) -> some View {
         VStack(spacing: 0) { content() }
             .background(MoonlitTheme.surface)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
             .padding(.horizontal, 16)
     }
 

@@ -15,7 +15,7 @@ final class MacHeroArtworkProvider: ObservableObject {
 
     func heroArtURL(for item: MetaPreview) -> URL? {
         if let url = urls[item.id] { return url }
-        return URL(string: item.banner ?? item.poster ?? "")
+        return item.artworkURL(preferring: .landscape)
     }
 
     func prefetch(items: [MetaPreview]) {
@@ -67,7 +67,7 @@ final class MacHeroArtworkProvider: ObservableObject {
         let images = try JSONDecoder().decode(TMDBImagesResponse.self, from: imageData)
         let candidates = images.backdrops.isEmpty ? images.posters : images.backdrops
         guard let best = candidates.max(by: { ($0.voteAverage ?? 0) < ($1.voteAverage ?? 0) }) else { return nil }
-        return URL(string: "https://image.tmdb.org/t/p/w1280\(best.filePath)")
+        return URL(string: "https://image.tmdb.org/t/p/original\(best.filePath)")
     }
 }
 

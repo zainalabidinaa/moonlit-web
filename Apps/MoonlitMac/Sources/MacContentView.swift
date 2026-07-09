@@ -58,7 +58,7 @@ private struct SessionRestoreView: View {
                 AppIconView()
                     .frame(width: 96, height: 96)
                     .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .shadow(color: MoonlitTheme.accent.opacity(0.35), radius: 32, y: 12)
+                    .shadow(color: .black.opacity(0.35), radius: 32, y: 12)
                     .scaleEffect(appeared ? 1 : 0.85)
                     .opacity(appeared ? 1 : 0)
 
@@ -139,7 +139,7 @@ private struct MacOnboardingView: View {
             AppIconView()
                 .frame(width: 96, height: 96)
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                .shadow(color: MoonlitTheme.accent.opacity(0.35), radius: 32, y: 12)
+                .shadow(color: .black.opacity(0.35), radius: 32, y: 12)
             Text("Moonlit")
                 .font(.system(size: 36, weight: .semibold))
                 .foregroundStyle(.white)
@@ -157,7 +157,7 @@ private struct MacOnboardingView: View {
                     .foregroundStyle(.black)
                     .frame(maxWidth: 320)
                     .padding(.vertical, 14)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 40)
@@ -189,7 +189,7 @@ private struct MacOnboardingView: View {
                     .foregroundStyle(.black)
                     .frame(maxWidth: 320)
                     .padding(.vertical, 14)
-                    .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
             }
             .buttonStyle(.plain)
             .padding(.horizontal, 40)
@@ -203,7 +203,7 @@ private struct MacOnboardingView: View {
             AppIconView()
                 .frame(width: 80, height: 80)
                 .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .shadow(color: MoonlitTheme.accent.opacity(0.3), radius: 24, y: 10)
+                .shadow(color: .black.opacity(0.35), radius: 24, y: 10)
             Text("Sign in when you're ready")
                 .font(.system(size: 28, weight: .semibold))
                 .foregroundStyle(.white)
@@ -224,7 +224,7 @@ private struct MacOnboardingView: View {
                         .foregroundStyle(.black)
                         .frame(maxWidth: 320)
                         .padding(.vertical, 14)
-                        .background(.white, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 Button(action: onSkip) {
@@ -233,7 +233,7 @@ private struct MacOnboardingView: View {
                         .foregroundStyle(.white.opacity(0.58))
                         .frame(maxWidth: 320)
                         .padding(.vertical, 14)
-                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                 }
                 .buttonStyle(.plain)
             }

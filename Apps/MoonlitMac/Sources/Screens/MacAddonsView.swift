@@ -21,46 +21,53 @@ struct MacAddonsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 18) {
-                    installCard
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            NavigationStack {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        installCard
 
-                    if addonRepo.isLoading {
-                        MacLottieLoadingView(size: 38)
-                            .frame(maxWidth: .infinity, minHeight: 160)
-                    } else if groupedAddons.isEmpty {
-                        emptyState
-                    } else {
-                        ForEach(groupedAddons, id: \.0) { category, addons in
-                            addonSection(category: category, addons: addons)
+                        if addonRepo.isLoading {
+                            MacLoadingView(size: 32)
+                                .frame(maxWidth: .infinity, minHeight: 160)
+                        } else if groupedAddons.isEmpty {
+                            emptyState
+                        } else {
+                            ForEach(groupedAddons, id: \.0) { category, addons in
+                                addonSection(category: category, addons: addons)
+                            }
                         }
-                    }
 
-                    Spacer(minLength: 28)
+                        Spacer(minLength: 28)
+                    }
+                    .frame(maxWidth: 760, alignment: .leading)
+                    .frame(maxWidth: .infinity)
+                    .padding(24)
                 }
-                .frame(maxWidth: 760, alignment: .leading)
-                .frame(maxWidth: .infinity)
-                .padding(24)
+                .navigationTitle("Addons")
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.blue)
+                    }
+                }
             }
-            .background(MoonlitTheme.background)
-            .navigationTitle("Addons")
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Done") { dismiss() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue)
+            .frame(minWidth: 680, minHeight: 560)
+            .preferredColorScheme(.dark)
+            .task {
+                if addonRepo.managedAddons.isEmpty, let profile = profileManager.currentProfile {
+                    let info = try? await SyncService.shared.pullSystemAddonInfo()
+                    await addonRepo.loadAddons(profileId: profile.id, systemAddonUrl: info?.url)
                 }
             }
         }
-        .frame(minWidth: 680, minHeight: 560)
-        .preferredColorScheme(.dark)
-        .task {
-            if addonRepo.managedAddons.isEmpty, let profile = profileManager.currentProfile {
-                let info = try? await SyncService.shared.pullSystemAddonInfo()
-                await addonRepo.loadAddons(profileId: profile.id, systemAddonUrl: info?.url)
-            }
-        }
+        .background(MoonlitTheme.background)
     }
 
     private var installCard: some View {
@@ -74,7 +81,7 @@ struct MacAddonsView: View {
                     .textFieldStyle(.plain)
                     .foregroundStyle(.white)
                     .padding(12)
-                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 10))
+                    .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
 
                 Button {
                     installAddon()
@@ -101,7 +108,7 @@ struct MacAddonsView: View {
             }
         }
         .padding(16)
-        .macGlassCard(cornerRadius: 18)
+        .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
     }
 
     private func addonSection(category: MacAddonCategory, addons: [ManagedAddon]) -> some View {
@@ -122,7 +129,7 @@ struct MacAddonsView: View {
                     }
                 }
             }
-            .macGlassCard(cornerRadius: 18)
+            .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
         }
     }
 
@@ -200,7 +207,7 @@ struct MacAddonsView: View {
                 .foregroundStyle(.white)
         }
         .frame(maxWidth: .infinity, minHeight: 190)
-        .macGlassCard(cornerRadius: 18)
+        .macDarkGlassCard(cornerRadius: MoonlitTheme.radiusLarge)
     }
 
     private func installAddon() {

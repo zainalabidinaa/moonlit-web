@@ -6,77 +6,84 @@ struct MacProfilePicker: View {
     @State private var showCreate = false
 
     var body: some View {
-        VStack(spacing: 28) {
-            Spacer()
+        ZStack(alignment: .top) {
+            MacFusionAmbientBackground(
+                ambientColor: .clear,
+                ambientColor2: .clear,
+                isEnabled: true
+            )
+            VStack(spacing: 28) {
+                Spacer()
 
-            AppIconView()
-                .frame(width: 64, height: 64)
-                .shadow(color: MoonlitTheme.accent.opacity(0.3), radius: 16)
+                AppIconView()
+                    .frame(width: 64, height: 64)
+                    .shadow(color: .black.opacity(0.35), radius: 16)
 
-            Text("Who's watching?")
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundColor(.white)
+                Text("Who's watching?")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.white)
 
-            LazyVGrid(
-                columns: [GridItem(.adaptive(minimum: 120))],
-                spacing: 20
-            ) {
-                ForEach(profileManager.profiles) { profile in
-                    Button {
-                        profileManager.selectProfile(profile)
-                    } label: {
-                        VStack(spacing: 8) {
-                            MacProfileAvatarView(
-                                avatarId: profile.avatarId,
-                                name: profile.name,
-                                avatarColor: profile.avatarColor,
-                                size: 80
-                            )
-                            Text(profile.name)
-                                .font(.subheadline)
-                                .foregroundColor(.white)
-                            if profile.isAdmin {
-                                Text("Admin")
-                                    .font(.caption2)
-                                    .foregroundColor(MoonlitTheme.accent)
+                LazyVGrid(
+                    columns: [GridItem(.adaptive(minimum: 120))],
+                    spacing: 20
+                ) {
+                    ForEach(profileManager.profiles) { profile in
+                        Button {
+                            profileManager.selectProfile(profile)
+                        } label: {
+                            VStack(spacing: 8) {
+                                MacProfileAvatarView(
+                                    avatarId: profile.avatarId,
+                                    name: profile.name,
+                                    avatarColor: profile.avatarColor,
+                                    size: 80
+                                )
+                                Text(profile.name)
+                                    .font(.subheadline)
+                                    .foregroundColor(.white)
+                                if profile.isAdmin {
+                                    Text("Admin")
+                                        .font(.caption2)
+                                        .foregroundColor(MoonlitTheme.accent)
+                                }
                             }
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Button { showCreate = true } label: {
+                        VStack(spacing: 8) {
+                            Circle()
+                                .stroke(Color.white.opacity(0.2), lineWidth: 2)
+                                .frame(width: 80, height: 80)
+                                .overlay(
+                                    Image(systemName: "plus")
+                                        .font(.title2)
+                                        .foregroundColor(MoonlitTheme.textTertiary)
+                                )
+                            Text("Add Profile")
+                                .font(.subheadline)
+                                .foregroundColor(MoonlitTheme.textTertiary)
                         }
                     }
                     .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 40)
+                .frame(maxWidth: 500)
 
-                Button { showCreate = true } label: {
-                    VStack(spacing: 8) {
-                        Circle()
-                            .stroke(Color.white.opacity(0.2), lineWidth: 2)
-                            .frame(width: 80, height: 80)
-                            .overlay(
-                                Image(systemName: "plus")
-                                    .font(.title2)
-                                    .foregroundColor(MoonlitTheme.textTertiary)
-                            )
-                        Text("Add Profile")
-                            .font(.subheadline)
-                            .foregroundColor(MoonlitTheme.textTertiary)
-                    }
+                Button("Sign Out") {
+                    Task { await profileManager.signOut() }
                 }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 40)
-            .frame(maxWidth: 500)
+                .foregroundColor(MoonlitTheme.textTertiary)
 
-            Button("Sign Out") {
-                Task { await profileManager.signOut() }
+                Spacer()
             }
-            .foregroundColor(MoonlitTheme.textTertiary)
-
-            Spacer()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .sheet(isPresented: $showCreate) {
+                MacCreateProfile()
+            }
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(MoonlitTheme.background)
-        .sheet(isPresented: $showCreate) {
-            MacCreateProfile()
-        }
     }
 }
 
@@ -86,9 +93,7 @@ struct MacCreateProfile: View {
     @State private var name = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @State private var selectedEmojiIndex = 0
-
-    private let emojis = ["🌙", "⭐", "🎬", "🍿", "🦊", "🐉", "👾", "🌊", "🔮", "⚡"]
+    @State private var selectedAvatarId = Int.random(in: 0..<moonlitAvatarURLs.count)
 
     var body: some View {
         VStack(spacing: 20) {
@@ -96,43 +101,50 @@ struct MacCreateProfile: View {
 
             AppIconView()
                 .frame(width: 72, height: 72)
-                .shadow(color: MoonlitTheme.accent.opacity(0.3), radius: 20)
+                .shadow(color: .black.opacity(0.35), radius: 20)
 
             Text("Create Profile")
                 .font(.system(size: 20, weight: .semibold))
                 .foregroundColor(.white)
 
-            VStack(spacing: 8) {
-                Text(emojis[selectedEmojiIndex])
-                    .font(.system(size: 48))
-            }
+            MacProfileAvatarView(
+                avatarId: selectedAvatarId,
+                name: name.isEmpty ? "?" : name,
+                avatarColor: nil,
+                size: 92
+            )
+            .overlay(Circle().strokeBorder(Color.white.opacity(0.14), lineWidth: 1))
 
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 5), spacing: 10) {
-                ForEach(Array(emojis.enumerated()), id: \.offset) { index, emoji in
-                    Button {
-                        selectedEmojiIndex = index
-                    } label: {
-                        Text(emoji)
-                            .font(.system(size: 32))
-                            .frame(width: 48, height: 48)
-                            .background(
-                                selectedEmojiIndex == index
-                                    ? Circle().fill(Color.white.opacity(0.15))
-                                    : Circle().fill(Color.clear)
-                            )
+            ScrollView {
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 5), spacing: 12) {
+                    ForEach(0..<moonlitAvatarURLs.count, id: \.self) { index in
+                        Button {
+                            selectedAvatarId = index
+                        } label: {
+                            MacProfileAvatarView(avatarId: index, name: "", avatarColor: nil, size: 54)
+                                .overlay(
+                                    Circle().strokeBorder(
+                                        selectedAvatarId == index ? MoonlitTheme.harborGold : Color.clear,
+                                        lineWidth: 3
+                                    )
+                                )
+                                .padding(2)
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .buttonStyle(.plain)
                 }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 6)
             }
-            .frame(width: 320)
+            .frame(width: 340, height: 180)
 
             TextField("Profile Name", text: $name)
                 .textFieldStyle(.plain)
                 .padding(10)
                 .background(MoonlitTheme.surface)
-                .cornerRadius(8)
+                .cornerRadius(MoonlitTheme.radiusControl)
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                         .stroke(Color.white.opacity(0.1), lineWidth: 1)
                 )
                 .frame(width: 300)
@@ -151,22 +163,19 @@ struct MacCreateProfile: View {
                     if isLoading {
                         ProgressView()
                             .scaleEffect(0.7)
-                            .tint(.white)
+                            .tint(.black)
                     }
                     Text("Create Profile")
                         .fontWeight(.semibold)
                 }
                 .frame(width: 300, height: 40)
-                .background((name.isEmpty || isLoading) ? MoonlitTheme.surface : MoonlitTheme.accent)
-                .foregroundColor(.white)
-                .cornerRadius(20)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(MoonlitPrimaryButtonStyle(cornerRadius: 20))
             .disabled(name.isEmpty || isLoading)
 
             Spacer()
         }
-        .frame(width: 420, height: 500)
+        .frame(width: 420, height: 600)
         .background(MoonlitTheme.background)
     }
 
@@ -175,7 +184,7 @@ struct MacCreateProfile: View {
         errorMessage = nil
         Task {
             do {
-                try await profileManager.createProfile(name: name)
+                try await profileManager.createProfile(name: name, avatarId: selectedAvatarId)
                 dismiss()
             } catch {
                 errorMessage = error.localizedDescription

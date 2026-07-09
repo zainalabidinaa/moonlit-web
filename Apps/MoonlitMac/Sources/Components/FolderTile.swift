@@ -45,9 +45,9 @@ struct FolderTile: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(width: cardWidth, height: cardHeight)
-            .cornerRadius(10)
+            .cornerRadius(MoonlitTheme.radiusControl)
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                     .stroke(
                         isHovering && (row.focusGlowEnabled ?? false)
                             ? MoonlitTheme.accent.opacity(0.6)
