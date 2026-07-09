@@ -25,6 +25,9 @@ struct MacDetailView: View {
     @State private var selectedEpisodeNum: Int?
     @State private var selectedInitialPositionMs: Double?
     @State private var isLiked = false
+    @State private var isResolvingDownload = false
+    @State private var downloadMessage: String?
+    @ObservedObject private var downloadManager = DownloadManager.shared
     @State private var showFullOverview = false
     @State private var trailers: [MacMediaTrailer] = []
     @State private var trailerLink: URL?
@@ -488,6 +491,7 @@ struct MacDetailView: View {
     // MARK: - Actions
 
     private func heroActions(for detail: MetaDetail) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
         HStack(spacing: 12) {
                 let progress = watchedRepo.getProgress(mediaId: detail.id)
                 let watched = watchedRepo.isWatched(mediaId: detail.id)
@@ -571,6 +575,32 @@ struct MacDetailView: View {
                         .background(Color.white.opacity(0.12), in: Circle())
                 }
                 .buttonStyle(.plain)
+
+                let existingDownload = downloadManager.downloads.first { $0.mediaId == detail.id }
+                Button {
+                    startDownload()
+                } label: {
+                    Group {
+                        if isResolvingDownload {
+                            ProgressView().controlSize(.small).tint(.white)
+                        } else if existingDownload?.state == .completed {
+                            Image(systemName: "arrow.down.circle.fill")
+                                .foregroundColor(MoonlitTheme.accent)
+                        } else if existingDownload?.state == .downloading || existingDownload?.state == .queued {
+                            Image(systemName: "stop.circle")
+                                .foregroundColor(.white)
+                        } else {
+                            Image(systemName: "arrow.down.to.line")
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 50, height: 50)
+                    .background(Color.white.opacity(0.12), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .disabled(isResolvingDownload)
+                .help(downloadButtonHelp(existingDownload))
                 .onAppear { isLiked = likedRepo.isLiked(detail.id) }
 
                 if let firstTrailerURL = trailers.first?.url.flatMap(URL.init) {
@@ -619,6 +649,71 @@ struct MacDetailView: View {
                 .menuIndicator(.hidden)
                 .fixedSize()
             }
+            if let downloadMessage {
+                Text(downloadMessage)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(MoonlitTheme.textSecondary)
+                    .padding(.top, 6)
+            }
+        }
+    }
+
+    private func downloadButtonHelp(_ existing: DownloadItem?) -> String {
+        switch existing?.state {
+        case .completed: return "Downloaded — available offline"
+        case .downloading, .queued: return "Downloading…"
+        case .failed: return "Download failed — tap to retry"
+        default: return "Download for offline playback"
+        }
+    }
+
+    private func startDownload() {
+        guard let detail = metaRepo.detail, !isResolvingDownload else { return }
+
+        if let existing = downloadManager.downloads.first(where: { $0.mediaId == detail.id }) {
+            if existing.state == .completed {
+                downloadMessage = "Already downloaded"
+                return
+            }
+            if existing.state == .downloading || existing.state == .queued {
+                downloadManager.delete(existing)
+                downloadMessage = "Download cancelled"
+                return
+            }
+        }
+
+        isResolvingDownload = true
+        downloadMessage = "Finding a downloadable source…"
+        Task {
+            await StreamRepository.shared.fetchStreams(
+                type: type,
+                id: detail.id,
+                addons: addonRepo.enabledAddons
+            )
+            let candidates = StreamSourceSelector.cachedCandidates(
+                currentUrl: nil,
+                from: StreamRepository.shared.streams
+            )
+            isResolvingDownload = false
+
+            guard let candidate = candidates.first(where: {
+                $0.url.map { DownloadSupport.isDownloadable($0) } ?? false
+            }), let url = candidate.url else {
+                downloadMessage = "Not available offline"
+                return
+            }
+
+            let ok = downloadManager.startDownload(
+                mediaId: detail.id,
+                type: type,
+                name: detail.name,
+                poster: detail.rawPosterUrl ?? detail.poster,
+                quality: candidate.displayName,
+                url: url,
+                headers: candidate.behaviorHints?.proxyHeaders?.request
+            )
+            downloadMessage = ok ? "Download started" : "Not available offline"
+        }
     }
 
     private func playButtonTitle(hasProgress: Bool, isWatched: Bool, progress: WatchProgressEntry?) -> String {
