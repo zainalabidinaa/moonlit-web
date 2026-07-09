@@ -29,4 +29,16 @@ final class DownloadTests: XCTestCase {
         let back = try JSONDecoder().decode(DownloadItem.self, from: data)
         XCTAssertEqual(back, item)
     }
+
+    func testPersistenceRoundTrip() async {
+        let mgr = await DownloadManager(persistenceName: "test-downloads-\(UUID().uuidString).json")
+        let item = DownloadItem(id: "1", mediaId: "tt1", type: "movie", name: "M", poster: nil,
+                                quality: nil, remoteURL: "https://x/m.mp4", localFileName: "1.mp4",
+                                totalBytes: 10, receivedBytes: 0, state: .queued, createdAt: Date())
+        await mgr.upsertForTest(item)
+        let reloaded = await DownloadManager(persistenceName: mgr.persistenceNameForTest)
+        await reloaded.loadForTest()
+        let ids = await reloaded.downloads.map(\.id)
+        XCTAssertEqual(ids, ["1"])
+    }
 }
