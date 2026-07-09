@@ -28,11 +28,16 @@ struct MacDetailView: View {
     @State private var isResolvingDownload = false
     @State private var downloadMessage: String?
     @ObservedObject private var downloadManager = DownloadManager.shared
+    @ObservedObject private var heroArtwork = MacHeroArtworkProvider.shared
     @State private var showFullOverview = false
     @State private var trailers: [MacMediaTrailer] = []
     @State private var trailerLink: URL?
     @State private var ambientColor: Color = .clear
     @State private var ambientColor2: Color = .clear
+    /// TMDB best-rated backdrop, fetched as a fallback when the meta has no
+    /// `background` (mirrors Harbor's hero, which resolves the top-voted TMDB
+    /// backdrop when the title lacks one).
+    @State private var resolvedBackdrop: String?
     @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openURL) private var openURL
@@ -197,6 +202,19 @@ struct MacDetailView: View {
                 await awardsMeta.fetch(id: detail.id)
             }
         }
+        .task(id: metaRepo.detail?.id) {
+            resolvedBackdrop = nil
+            guard let detail = metaRepo.detail,
+                  detail.background == nil || detail.background?.isEmpty == true else { return }
+            let preview = MetaPreview(id: detail.id, type: MediaType(rawValue: type) ?? .movie, name: detail.name)
+            MacHeroArtworkProvider.shared.prefetch(items: [preview])
+        }
+        .onChange(of: heroArtwork.urls) { _, urls in
+            guard let id = metaRepo.detail?.id, let url = urls[id] else { return }
+            if resolvedBackdrop != url.absoluteString {
+                resolvedBackdrop = url.absoluteString
+            }
+        }
         .task(id: metaRepo.detail?.logo) {
             guard let logoURL = metaRepo.detail?.logo.flatMap(URL.init) else { return }
             _ = await MoonlitImageCache.image(for: logoURL)
@@ -207,7 +225,9 @@ struct MacDetailView: View {
     }
 
     private func updateAmbientColorIfNeeded() async {
-        guard cinematicModeEnabled, let urlString = metaRepo.detail?.background, let url = URL(string: urlString) else {
+        guard cinematicModeEnabled,
+              let urlString = metaRepo.detail?.background ?? resolvedBackdrop,
+              let url = URL(string: urlString) else {
             ambientColor = .clear
             ambientColor2 = .clear
             return
@@ -227,7 +247,7 @@ struct MacDetailView: View {
 
     private func hero(for detail: MetaDetail) -> some View {
         ZStack(alignment: .bottomLeading) {
-            backdrop(for: detail.background)
+            backdrop(for: detail.background ?? resolvedBackdrop)
 
             contentRail {
                 VStack(alignment: .leading, spacing: 22) {
