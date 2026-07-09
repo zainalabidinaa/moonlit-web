@@ -34,17 +34,31 @@ final class MPVContainerView: NSView {
     override init(frame: CGRect) {
         super.init(frame: frame)
         wantsLayer = true
+        layerContentsRedrawPolicy = .duringViewResize
         layer?.addSublayer(metalLayer)
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
         wantsLayer = true
+        layerContentsRedrawPolicy = .duringViewResize
         layer?.addSublayer(metalLayer)
+    }
+
+    override func setFrameSize(_ newSize: NSSize) {
+        super.setFrameSize(newSize)
+        // Keep the Metal layer in lockstep with the view during live window
+        // resizes; `layout()` alone can lag a drag, leaving the video smaller
+        // than the window.
+        updateMetalLayerGeometry()
     }
 
     override func layout() {
         super.layout()
+        updateMetalLayerGeometry()
+    }
+
+    private func updateMetalLayerGeometry() {
         let bounds = self.bounds
         guard bounds.width > 1, bounds.height > 1 else { return }
 

@@ -204,8 +204,9 @@ struct MacDetailView: View {
         }
         .task(id: metaRepo.detail?.id) {
             resolvedBackdrop = nil
-            guard let detail = metaRepo.detail,
-                  detail.background == nil || detail.background?.isEmpty == true else { return }
+            guard let detail = metaRepo.detail else { return }
+            // Always resolve the same top-voted TMDB backdrop the home hero uses,
+            // so the detail hero matches the artwork shown on the home page.
             let preview = MetaPreview(id: detail.id, type: MediaType(rawValue: type) ?? .movie, name: detail.name)
             MacHeroArtworkProvider.shared.prefetch(items: [preview])
         }
@@ -226,7 +227,7 @@ struct MacDetailView: View {
 
     private func updateAmbientColorIfNeeded() async {
         guard cinematicModeEnabled,
-              let urlString = metaRepo.detail?.background ?? resolvedBackdrop,
+              let urlString = resolvedBackdrop ?? metaRepo.detail?.background,
               let url = URL(string: urlString) else {
             ambientColor = .clear
             ambientColor2 = .clear
@@ -247,7 +248,7 @@ struct MacDetailView: View {
 
     private func hero(for detail: MetaDetail) -> some View {
         ZStack(alignment: .bottomLeading) {
-            backdrop(for: detail.background ?? resolvedBackdrop)
+            backdrop(for: resolvedBackdrop ?? detail.background)
 
             contentRail {
                 VStack(alignment: .leading, spacing: 22) {

@@ -781,12 +781,14 @@ struct MacPlayerView: View {
         engine.setVolume(engine.volume + delta)
     }
 
-    private func cyclePlaybackSpeed() {
-        let rates: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0]
-        if let idx = rates.firstIndex(of: engine.playbackSpeed), idx + 1 < rates.count {
-            engine.setPlaybackSpeed(rates[idx + 1])
-        } else {
-            engine.setPlaybackSpeed(rates[0])
+    private func toggleSubtitles() {
+        showControls()
+        if selectedExternalSubtitle != nil {
+            selectedExternalSubtitle = nil
+            externalSubtitleCues = []
+            subtitleError = nil
+        } else if let first = subtitleChoices.first {
+            Task { await selectExternalSubtitle(first) }
         }
     }
 
@@ -809,7 +811,7 @@ struct MacPlayerView: View {
             switch event.charactersIgnoringModifiers?.lowercased() {
             case "f": NSApp.keyWindow?.toggleFullScreen(nil); return nil
             case "m": engine.toggleMute(); return nil
-            case "s": cyclePlaybackSpeed(); return nil
+            case "c": toggleSubtitles(); return nil
             default: return event
             }
         }
@@ -853,6 +855,19 @@ struct MacPlayerView: View {
         subtitleChoices = (embedded + addonSubtitles).filter { subtitle in
             seen.insert(subtitle.url).inserted
         }
+        preselectPreferredSubtitleIfNeeded()
+    }
+
+    /// Preselects an already-loaded external subtitle matching the preferred
+    /// subtitle language. Does NOT scan or download — only picks from the list
+    /// we already fetched. Embedded-track selection is handled by mpv (slang).
+    private func preselectPreferredSubtitleIfNeeded() {
+        guard selectedExternalSubtitle == nil,
+              let code = videoPrefs.preferredSubtitleLanguage,
+              let language = PlaybackLanguage.named(code) else { return }
+        let tokens = Set(language.matchTokens)
+        guard let match = subtitleChoices.first(where: { tokens.contains($0.lang.lowercased()) }) else { return }
+        Task { await selectExternalSubtitle(match) }
     }
 
     private func fetchAutoPlayCandidates() async {
@@ -867,7 +882,8 @@ struct MacPlayerView: View {
         let allSources = StreamRepository.shared.streams
         let currentUrl = launch.sourceUrl
         autoPlayCandidates = StreamSourceSelector.candidatesForAutoPlay(
-            from: allSources, prefer4K: prefer4K, installOrder: installOrder
+            from: allSources, prefer4K: prefer4K, installOrder: installOrder,
+            preferredAudioLanguage: videoPrefs.preferredAudioLanguage
         ).filter { $0.url != currentUrl }
         if !currentUrl.isEmpty { triedUrls.insert(currentUrl) }
     }
@@ -1619,7 +1635,7 @@ private struct PlayerStartupLoadingOverlay: View {
             Color.black
 
             if let backdropURL {
-                CachedAsyncImage(url: backdropURL) { image in
+                CachedAsyncImage(url: backdropURL, maxDimension: 3000) { image in
                     image.resizable().scaledToFit()
                 } placeholder: {
                     Color.clear
