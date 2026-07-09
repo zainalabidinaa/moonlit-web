@@ -11,6 +11,7 @@ struct MacPlayerView: View {
     @Environment(\.dismiss) private var dismiss
     @EnvironmentObject var profileManager: ProfileManager
     @StateObject private var engine = MPVPlayerEngine()
+    @StateObject private var thumbnailer = PlayerThumbnailer()
     @StateObject private var addonRepo = AddonRepository.shared
     @StateObject private var videoPrefs = VideoPlayerPreferenceStore.shared
     @State private var visibility = PlayerControlVisibilityState()
@@ -88,6 +89,7 @@ struct MacPlayerView: View {
                     triedUrls = []
                     showStartupLoading = true
                     engine.launch(launch)
+                    thumbnailer.configure(launch: launch)
                     waitForFirstFrameThenHideOverlay()
                     Task { await fetchAutoPlayCandidates() }
                 } label: {
@@ -187,7 +189,8 @@ struct MacPlayerView: View {
                     onNextEp: { if let ep = adjacentEpisodes.next { Task { await goToEpisode(ep) } } },
                     isPipActive: isPipActive,
                     onTogglePip: togglePip,
-                    onDismiss: { dismiss() }
+                    onDismiss: { dismiss() },
+                    thumbnailer: thumbnailer
                 )
             }
             .opacity(visibility.controlsVisible ? 1 : 0)
@@ -320,6 +323,7 @@ struct MacPlayerView: View {
             showControls()
             upNextSeasonNumber = launch.seasonNumber ?? 1
             engine.launch(launch)
+            thumbnailer.configure(launch: launch)
             applyAnime4KIfNeeded()
             waitForFirstFrameThenHideOverlay()
             Task { await loadAvailableSubtitles() }
@@ -341,15 +345,28 @@ struct MacPlayerView: View {
             checkAutoSkipIntro(at: pos)
             checkAutoShowUpNext(at: pos)
         }
+        .onChange(of: engine.bufferedPosition) { _, buffered in
+            thumbnailer.updateBuffered(buffered)
+        }
         .onChange(of: engine.hasRenderedFrame) { _, rendered in
             if rendered { handleFirstFrame() }
         }
         .onChange(of: videoPrefs.anime4KEnabled) { _, _ in
             applyAnime4KIfNeeded()
         }
+        .onChange(of: engine.isPlaying) { _, playing in
+            visibility.setPlayback(isPlaying: playing)
+            if playing {
+                scheduleAutoHideIfNeeded()
+            } else {
+                hideTask?.cancel()
+            }
+        }
         .onDisappear {
             hideTask?.cancel()
             engine.stop()
+            thumbnailer.stop()
+            NSCursor.unhide()
         }
         .onTapGesture {
             if visibility.controlsVisible {
@@ -659,6 +676,16 @@ struct MacPlayerView: View {
 
     /// Switches the currently-playing stream to a new source picked from the
     /// in-player source picker, keeping the same window and playback position.
+    /// Keep the seek-preview shadow pointed at whatever source is now playing.
+    /// Live-ness comes from the media, which doesn't change across source switches.
+    private func reconfigureThumbnailer(url: String, headers: [String: String]) {
+        thumbnailer.configure(
+            url: url,
+            headers: headers,
+            isLive: launch.contentType == .tv || launch.contentType == .channel
+        )
+    }
+
     private func switchToSource(_ newLaunch: PlayerLaunch) {
         guard !newLaunch.sourceUrl.isEmpty else { return }
         let resumeAt = engine.currentPosition
@@ -667,6 +694,7 @@ struct MacPlayerView: View {
         isTryingNextSource = false
         showStartupLoading = true
         engine.loadURL(newLaunch.sourceUrl, headers: newLaunch.sourceHeaders ?? [:])
+        reconfigureThumbnailer(url: newLaunch.sourceUrl, headers: newLaunch.sourceHeaders ?? [:])
         waitForFirstFrameThenHideOverlay {
             if resumeAt > 5 { engine.seek(to: resumeAt) }
         }
@@ -687,6 +715,7 @@ struct MacPlayerView: View {
         isTryingNextSource = false
         showStartupLoading = true
         engine.loadURL(url, headers: headers)
+        reconfigureThumbnailer(url: url, headers: headers)
         waitForFirstFrameThenHideOverlay {
             if resumeAt > 5 { engine.seek(to: resumeAt) }
         }
@@ -694,6 +723,7 @@ struct MacPlayerView: View {
     }
 
     private func showControls() {
+        NSCursor.unhide()
         visibility.registerInteraction()
         scheduleAutoHideIfNeeded()
     }
@@ -712,6 +742,7 @@ struct MacPlayerView: View {
     private func hideControlsIfAllowed() {
         guard !isSeeking else { return }
         visibility.hideAfterInactivityIfAllowed()
+        if !visibility.controlsVisible { NSCursor.hide() }
     }
 
     private func togglePlayback() {
@@ -799,6 +830,7 @@ struct MacPlayerView: View {
                 }
                 triedUrls.insert(url)
                 engine.loadURL(url, headers: headers)
+                reconfigureThumbnailer(url: url, headers: headers)
                 showStartupLoading = true
                 waitForFirstFrameThenHideOverlay()
                 return
@@ -847,6 +879,7 @@ struct MacPlayerView: View {
         }
 
         engine.launch(newLaunch)
+        thumbnailer.configure(launch: newLaunch)
         selectedExternalSubtitle = nil
         externalSubtitleCues = []
         subtitleError = nil
@@ -1075,6 +1108,7 @@ private struct NativeLikePlayerControls: View {
     let isPipActive: Bool
     let onTogglePip: () -> Void
     let onDismiss: () -> Void
+    var thumbnailer: PlayerThumbnailer? = nil
 
     @State private var showSubtitlePanel = false
     @State private var showAudioPanel = false
@@ -1099,7 +1133,8 @@ private struct NativeLikePlayerControls: View {
                     range: 0 ... totalTime,
                     isEditing: $isSeeking,
                     onInteraction: onInteraction,
-                    onCommit: { engine.seek(to: pendingSeekTime) }
+                    onCommit: { engine.seek(to: pendingSeekTime) },
+                    thumbnailer: thumbnailer
                 )
 
                 Text(formatTime(totalTime))
@@ -1294,10 +1329,19 @@ private struct PlayerScrubber: View {
     @Binding var isEditing: Bool
     let onInteraction: () -> Void
     let onCommit: () -> Void
+    var thumbnailer: PlayerThumbnailer? = nil
+
+    // Cursor position over the bar while hovering (0...1), nil when not hovering.
+    @State private var hoverRatio: CGFloat? = nil
+
+    private let cardWidth: CGFloat = 256
 
     var body: some View {
         GeometryReader { geo in
             let width = geo.size.width
+            let upper = max(range.upperBound, 0.0001)
+            // While dragging, preview tracks the drag knob; otherwise the cursor.
+            let previewRatio: CGFloat? = isEditing ? CGFloat(value / upper) : hoverRatio
             ZStack(alignment: .leading) {
                 Capsule()
                     .fill(.white.opacity(0.2))
@@ -1309,6 +1353,8 @@ private struct PlayerScrubber: View {
                         .frame(width: max(0, min(width, width * CGFloat(value / range.upperBound))), height: 6)
                 }
             }
+            .frame(width: width, height: geo.size.height, alignment: .leading)
+            .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
                     .onChanged { g in
@@ -1322,9 +1368,93 @@ private struct PlayerScrubber: View {
                         onCommit()
                     }
             )
+            .onContinuousHover { phase in
+                switch phase {
+                case .active(let location):
+                    onInteraction()
+                    hoverRatio = min(max(location.x / max(width, 1), 0), 1)
+                case .ended:
+                    hoverRatio = nil
+                }
+            }
+            .overlay(alignment: .topLeading) {
+                if let thumbnailer, let ratio = previewRatio {
+                    let center = min(max(ratio * width, cardWidth / 2), width - cardWidth / 2)
+                    SeekPreviewCard(
+                        thumbnailer: thumbnailer,
+                        time: Double(ratio) * upper,
+                        cardWidth: cardWidth
+                    )
+                    .offset(x: center - cardWidth / 2, y: -176)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+                }
+            }
         }
         .frame(height: 18)
-        .contentShape(Rectangle())
+    }
+}
+
+/// Floating frame preview shown above the scrubber while hovering or dragging.
+/// Reads `thumbnailer.frame(at:)` (which also schedules generation for that time)
+/// and re-renders whenever `revision` bumps as new frames land.
+private struct SeekPreviewCard: View {
+    @ObservedObject var thumbnailer: PlayerThumbnailer
+    let time: Double
+    let cardWidth: CGFloat
+
+    private var frameHeight: CGFloat { cardWidth * 9 / 16 }
+
+    var body: some View {
+        // Touch `revision` so SwiftUI re-invalidates this view when frames arrive.
+        let _ = thumbnailer.revision
+        let result = thumbnailer.frame(at: time)
+        let gated = thumbnailer.isGatedOut(at: time)
+
+        VStack(spacing: 5) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7).fill(Color.black)
+
+                if let image = result.image {
+                    Image(nsImage: image)
+                        .resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: cardWidth, height: frameHeight)
+                        .opacity(result.isExact ? 1 : 0.55)
+                }
+
+                if result.image == nil || !result.isExact {
+                    if gated {
+                        Image(systemName: "film")
+                            .font(.system(size: 22))
+                            .foregroundStyle(.white.opacity(0.28))
+                    } else {
+                        ProgressView()
+                            .controlSize(.small)
+                            .tint(.white)
+                    }
+                }
+            }
+            .frame(width: cardWidth, height: frameHeight)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .overlay(
+                RoundedRectangle(cornerRadius: 7)
+                    .strokeBorder(.white.opacity(0.18), lineWidth: 1)
+            )
+
+            Text(Self.timeLabel(time))
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(.white)
+        }
+        .frame(width: cardWidth)
+        .shadow(color: .black.opacity(0.5), radius: 12, y: 4)
+    }
+
+    private static func timeLabel(_ seconds: Double) -> String {
+        guard seconds.isFinite else { return "0:00" }
+        let clamped = max(Int(seconds), 0)
+        let h = clamped / 3600, m = (clamped % 3600) / 60, s = clamped % 60
+        return h > 0 ? String(format: "%d:%02d:%02d", h, m, s) : String(format: "%d:%02d", m, s)
     }
 }
 
