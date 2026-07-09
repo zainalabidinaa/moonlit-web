@@ -101,7 +101,10 @@ public class ProfileManager: ObservableObject {
         self.currentSession = session
         SessionStore.save(session)
         try? await loadProfiles(userId: session.userId)
+        NSLog("[Moonlit][AppleSignIn] resolved userId=%@ email=%@ profiles=%ld",
+              session.userId, session.email ?? "nil", profiles.count)
         if profiles.isEmpty {
+            NSLog("[Moonlit][AppleSignIn] no profiles for this user — this is a NEW/different Supabase account")
             try? await createProfile(name: "Profile")
         }
         self.isAuthenticated = true
