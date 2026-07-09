@@ -50,6 +50,12 @@ final class MacAppleSignInCoordinator: NSObject, ObservableObject,
 
     func authorizationController(controller: ASAuthorizationController, didCompleteWithError error: Error) {
         if (error as? ASAuthorizationError)?.code == .canceled { return }
+        if let authErr = error as? ASAuthorizationError {
+            NSLog("[Moonlit][AppleSignIn] ASAuthorizationError code=%ld domain=%@ desc=%@",
+                  authErr.code.rawValue, (error as NSError).domain, error.localizedDescription)
+        } else {
+            NSLog("[Moonlit][AppleSignIn] authorization error: %@", String(describing: error))
+        }
         onResult?(.failure(error))
     }
 
