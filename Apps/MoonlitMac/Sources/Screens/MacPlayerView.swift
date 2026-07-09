@@ -59,6 +59,7 @@ struct MacPlayerView: View {
     @State private var showResumePrompt = false
     @State private var didOfferResume = false
     @State private var screenshotToast: String?
+    @State private var keyMonitor: Any?
 
     var body: some View {
         ZStack {
@@ -326,6 +327,7 @@ struct MacPlayerView: View {
             thumbnailer.configure(launch: launch)
             applyAnime4KIfNeeded()
             waitForFirstFrameThenHideOverlay()
+            installKeyMonitor()
             Task { await loadAvailableSubtitles() }
             Task { await fetchAutoPlayCandidates() }
             Task { await fetchIntroTimestamps() }
@@ -351,6 +353,9 @@ struct MacPlayerView: View {
         .onChange(of: engine.hasRenderedFrame) { _, rendered in
             if rendered { handleFirstFrame() }
         }
+        .onChange(of: engine.videoAspectRatio) { _, aspect in
+            if let aspect { resizeWindowToVideo(aspectRatio: aspect) }
+        }
         .onChange(of: videoPrefs.anime4KEnabled) { _, _ in
             applyAnime4KIfNeeded()
         }
@@ -366,6 +371,7 @@ struct MacPlayerView: View {
             hideTask?.cancel()
             engine.stop()
             thumbnailer.stop()
+            removeKeyMonitor()
             NSCursor.unhide()
         }
         .onTapGesture {
@@ -374,43 +380,6 @@ struct MacPlayerView: View {
             } else {
                 showControls()
             }
-        }
-        .onKeyPress(.space) {
-            togglePlayback()
-            return .handled
-        }
-        .onKeyPress(.leftArrow) {
-            seekBy(-5)
-            return .handled
-        }
-        .onKeyPress(.rightArrow) {
-            seekBy(5)
-            return .handled
-        }
-        .onKeyPress(.upArrow) {
-            adjustVolume(by: 0.05)
-            return .handled
-        }
-        .onKeyPress(.downArrow) {
-            adjustVolume(by: -0.05)
-            return .handled
-        }
-        .onKeyPress(KeyEquivalent("f")) {
-            NSApp.keyWindow?.toggleFullScreen(nil)
-            return .handled
-        }
-        .onKeyPress(KeyEquivalent("m")) {
-            engine.toggleMute()
-            return .handled
-        }
-        .onKeyPress(KeyEquivalent("s")) {
-            let rates: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0]
-            if let idx = rates.firstIndex(of: engine.playbackSpeed), idx + 1 < rates.count {
-                engine.setPlaybackSpeed(rates[idx + 1])
-            } else {
-                engine.setPlaybackSpeed(rates[0])
-            }
-            return .handled
         }
     }
 
@@ -654,6 +623,55 @@ struct MacPlayerView: View {
         }
     }
 
+    /// Resizes the player window to match the video's aspect ratio, and locks the
+    /// window's aspect ratio so manual resizing keeps the video's proportions.
+    /// Keeps the window centered on its current center and clamped to the visible
+    /// screen frame so it never grows off-screen.
+    private func resizeWindowToVideo(aspectRatio: CGFloat) {
+        guard aspectRatio > 0, let window = playerWindow else { return }
+        guard !window.styleMask.contains(.fullScreen) else { return }
+
+        // Lock the content aspect ratio so live user resizing stays proportional.
+        window.contentAspectRatio = NSSize(width: aspectRatio, height: 1)
+
+        let screen = window.screen ?? NSScreen.main
+        let visible = screen?.visibleFrame ?? window.frame
+
+        // Target a comfortable size: match the current content width, then derive
+        // height from the video aspect. Clamp to the visible screen area.
+        let currentContent = window.contentRect(forFrameRect: window.frame)
+        var contentWidth = currentContent.width
+        var contentHeight = contentWidth / aspectRatio
+
+        let maxWidth = visible.width * 0.95
+        let maxHeight = visible.height * 0.95
+        if contentWidth > maxWidth {
+            contentWidth = maxWidth
+            contentHeight = contentWidth / aspectRatio
+        }
+        if contentHeight > maxHeight {
+            contentHeight = maxHeight
+            contentWidth = contentHeight * aspectRatio
+        }
+
+        let newContent = NSSize(width: contentWidth.rounded(), height: contentHeight.rounded())
+        let newFrame = window.frameRect(forContentRect: NSRect(origin: .zero, size: newContent))
+
+        // Keep the window centered on its existing center.
+        let oldFrame = window.frame
+        let centerX = oldFrame.midX
+        let centerY = oldFrame.midY
+        var originX = centerX - newFrame.width / 2
+        var originY = centerY - newFrame.height / 2
+
+        // Clamp inside the visible screen frame.
+        originX = min(max(originX, visible.minX), visible.maxX - newFrame.width)
+        originY = min(max(originY, visible.minY), visible.maxY - newFrame.height)
+
+        let finalFrame = NSRect(x: originX, y: originY, width: newFrame.width, height: newFrame.height)
+        window.setFrame(finalFrame, display: true, animate: true)
+    }
+
     private var sourcePickerSheet: some View {
         MacSourcePickerView(
             mediaType: launch.contentType == .movie ? .movie : .series,
@@ -760,6 +778,48 @@ struct MacPlayerView: View {
         if engine.isMuted {
             engine.toggleMute()
         }
+        engine.setVolume(engine.volume + delta)
+    }
+
+    private func cyclePlaybackSpeed() {
+        let rates: [Float] = [0.75, 1.0, 1.25, 1.5, 2.0]
+        if let idx = rates.firstIndex(of: engine.playbackSpeed), idx + 1 < rates.count {
+            engine.setPlaybackSpeed(rates[idx + 1])
+        } else {
+            engine.setPlaybackSpeed(rates[0])
+        }
+    }
+
+    private func installKeyMonitor() {
+        guard keyMonitor == nil else { return }
+        keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
+            guard event.window === playerWindow,
+                  event.modifierFlags.intersection([.command, .control, .option]).isEmpty
+            else { return event }
+
+            switch event.keyCode {
+            case 49: togglePlayback(); return nil          // space
+            case 123: seekBy(-5); return nil               // left arrow
+            case 124: seekBy(5); return nil                // right arrow
+            case 126: adjustVolume(by: 0.05); return nil   // up arrow
+            case 125: adjustVolume(by: -0.05); return nil  // down arrow
+            default: break
+            }
+
+            switch event.charactersIgnoringModifiers?.lowercased() {
+            case "f": NSApp.keyWindow?.toggleFullScreen(nil); return nil
+            case "m": engine.toggleMute(); return nil
+            case "s": cyclePlaybackSpeed(); return nil
+            default: return event
+            }
+        }
+    }
+
+    private func removeKeyMonitor() {
+        if let keyMonitor {
+            NSEvent.removeMonitor(keyMonitor)
+        }
+        keyMonitor = nil
     }
 
     private func applyAnime4KIfNeeded() {

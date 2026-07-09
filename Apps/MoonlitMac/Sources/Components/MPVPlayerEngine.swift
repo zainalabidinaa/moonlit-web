@@ -50,6 +50,10 @@ public class MPVPlayerEngine: ObservableObject {
     @Published public var loadedCues: [SubtitleCue] = []
     @Published public var isFillingVideo = false
     @Published public var didEncounterError = false
+    /// Display aspect ratio of the current video (width / height), accounting for
+    /// anamorphic pixel aspect and rotation. `nil` until the first video params
+    /// arrive. Used to size the player window to the video's dimensions.
+    @Published public var videoAspectRatio: CGFloat?
 
     public let positionPublisher = PassthroughSubject<Double, Never>()
     public let bufferedPositionPublisher = PassthroughSubject<Double, Never>()
@@ -122,6 +126,7 @@ public class MPVPlayerEngine: ObservableObject {
         didReachReadyToPlay = false
         didScheduleFirstFrameReveal = false
         wasUserPaused = false
+        videoAspectRatio = nil
         launchToken += 1
         setFlag("pause", true)
         applyRequestHeaders(headers)
@@ -398,6 +403,7 @@ public class MPVPlayerEngine: ObservableObject {
         mpv_observe_property(mpv, 0, "eof-reached", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "track-list/count", MPV_FORMAT_INT64)
         mpv_observe_property(mpv, 0, "vo-configured", MPV_FORMAT_FLAG)
+        mpv_observe_property(mpv, 0, "video-params/aspect", MPV_FORMAT_DOUBLE)
 
         mpv_set_wakeup_callback(mpv, { ctx in
             let client = Unmanaged<MPVPlayerEngine>.fromOpaque(ctx!).takeUnretainedValue()
@@ -490,6 +496,13 @@ public class MPVPlayerEngine: ObservableObject {
                     if flag { DispatchQueue.main.async { [weak self] in self?.markVideoReady() } }
                 case "track-list/count":
                     DispatchQueue.main.async { [weak self] in self?.refreshTracks() }
+                case "video-params/aspect":
+                    let aspect = prop.data?.load(as: Double.self) ?? 0
+                    if aspect > 0 {
+                        DispatchQueue.main.async { [weak self] in
+                            self?.videoAspectRatio = CGFloat(aspect)
+                        }
+                    }
                 default:
                     break
                 }
