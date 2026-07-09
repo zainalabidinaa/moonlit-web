@@ -77,12 +77,9 @@ struct MacMainView: View {
                 detailItem = DetailItem(id: item.id, type: item.type.rawValue, name: item.name)
             })
         case .downloads:
-            // TODO: replace with MacDownloadsView once Task 5.3 lands
-            Text("Downloads")
-                .font(.system(size: 22, weight: .bold))
-                .foregroundColor(MoonlitTheme.textSecondary)
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(MoonlitTheme.background)
+            MacDownloadsView(onSelectMedia: { item in
+                detailItem = DetailItem(id: item.id, type: item.type.rawValue, name: item.name)
+            })
         case .settings: MacSettingsView()
         case .admin: MacSettingsView()
         }

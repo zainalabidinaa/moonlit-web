@@ -31,6 +31,7 @@
 		38BA50E2986D20EEA4B5F1A9 /* HomeHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D2D82C47F098486AA781F81 /* HomeHero.swift */; };
 		39BE4DABC68A721261025B9C /* home-organizer.json in Resources */ = {isa = PBXBuildFile; fileRef = 52F3EFA6F297A4AF855EBD5C /* home-organizer.json */; };
 		3CE8F26ED8AE7DFB216FBF77 /* Moonlit.icns in Resources */ = {isa = PBXBuildFile; fileRef = A7A92444BA2DF9718F44ED60 /* Moonlit.icns */; };
+		3DD4500AC9971A50939D9C2B /* MacDownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9757A7AE33E735FFD22728BB /* MacDownloadsView.swift */; };
 		443F817AF38DE8B6B4FE9F5B /* MacSubtitleAppearanceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 969309521BF6039E67B1E940 /* MacSubtitleAppearanceView.swift */; };
 		461043F5FC48B9AA4AF85DDB /* MacPillButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9261CB397B894229B7695434 /* MacPillButton.swift */; };
 		4CD29CF08FF71B5826D44643 /* MacGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC888E52897BC1B355CC6713 /* MacGlass.swift */; };
@@ -160,6 +161,7 @@
 		9261CB397B894229B7695434 /* MacPillButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacPillButton.swift; sourceTree = "<group>"; };
 		94B6903286BA940F4A67FF30 /* PlayerControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerControls.swift; sourceTree = "<group>"; };
 		969309521BF6039E67B1E940 /* MacSubtitleAppearanceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacSubtitleAppearanceView.swift; sourceTree = "<group>"; };
+		9757A7AE33E735FFD22728BB /* MacDownloadsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacDownloadsView.swift; sourceTree = "<group>"; };
 		984B4242D0F7837F2EAE9D1D /* AudioTrackPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioTrackPanel.swift; sourceTree = "<group>"; };
 		9BEA6021AB3614622579AC7C /* MacContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacContentView.swift; sourceTree = "<group>"; };
 		A1D58107BDC750E491BA9E1D /* MacCrewInfoGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacCrewInfoGrid.swift; sourceTree = "<group>"; };
@@ -318,6 +320,7 @@
 				917796194D88F9B3EE550178 /* MacAuthView.swift */,
 				144FABD23176AE8CF9594243 /* MacAwardHubView.swift */,
 				052473F49CB95FBD1F8838AF /* MacDetailView.swift */,
+				9757A7AE33E735FFD22728BB /* MacDownloadsView.swift */,
 				589D73729F6E2881FD799CB2 /* MacFolderView.swift */,
 				1EEF7F4695C9CE42ADAD9674 /* MacGenreHubView.swift */,
 				24B07B6B0246B63C0EC9BB03 /* MacHomeView.swift */,
@@ -536,6 +539,7 @@
 				2743A2A4DE6BB939F0E866E4 /* MacCreditCardRow.swift in Sources */,
 				31C7FBA4F00E4B3C2602A3D1 /* MacCrewInfoGrid.swift in Sources */,
 				2CF12E193DCD9262B9C471AA /* MacDetailView.swift in Sources */,
+				3DD4500AC9971A50939D9C2B /* MacDownloadsView.swift in Sources */,
 				CA2E5E9B90419172A61BAFF3 /* MacFolderView.swift in Sources */,
 				6C09604220FE022924DE2F5E /* MacFusionAmbientBackground.swift in Sources */,
 				EA0468191A8A70DAF94C5D70 /* MacGenreHubView.swift in Sources */,
