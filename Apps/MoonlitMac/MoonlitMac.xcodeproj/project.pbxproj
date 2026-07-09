@@ -45,6 +45,7 @@
 		68516177FCB90B9BE51E70BD /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = CA508899867E4C60AADB62B5 /* Assets.xcassets */; };
 		6C09604220FE022924DE2F5E /* MacFusionAmbientBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51B50C5C6AF0004BD755911D /* MacFusionAmbientBackground.swift */; };
 		7806A82AD86D830C13022008 /* MediaCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8855ACA248C766D43DB9144D /* MediaCard.swift */; };
+		D95BDAE1F114EB7F1F2E58BC /* LibraryToggleButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA4DD450E9B48B199E762534 /* LibraryToggleButton.swift */; };
 		78D7B2DC74F7AC9F175738FF /* MacLottieLoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D4571A3350E71D289B912DB /* MacLottieLoadingView.swift */; };
 		7E14037911AD9B23D6978970 /* ContinueWatchingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0811B21A932A30DC1D1B55 /* ContinueWatchingCard.swift */; };
 		80EB74B7405EE61303DFE544 /* Mac4KButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3AFAA82AC30101B7542D16E /* Mac4KButton.swift */; };
@@ -152,6 +153,7 @@
 		855BD155F1294A6AEF4F4453 /* loading-animation-gradient-line-2-colors-1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "loading-animation-gradient-line-2-colors-1.json"; sourceTree = "<group>"; };
 		883881EE0381F26CCAF5B13D /* MacLoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacLoadingView.swift; sourceTree = "<group>"; };
 		8855ACA248C766D43DB9144D /* MediaCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaCard.swift; sourceTree = "<group>"; };
+		CA4DD450E9B48B199E762534 /* LibraryToggleButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryToggleButton.swift; sourceTree = "<group>"; };
 		8ACB3E6C35FC5065B77C8D82 /* PipChrome.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipChrome.swift; sourceTree = "<group>"; };
 		8D082A9ED5729006FED56FB9 /* MacMediaBrowseView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacMediaBrowseView.swift; sourceTree = "<group>"; };
 		917796194D88F9B3EE550178 /* MacAuthView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacAuthView.swift; sourceTree = "<group>"; };
@@ -260,6 +262,7 @@
 				0EB141CA029E24F57413AFA9 /* MacPipWindowController.swift */,
 				43E67C0D3499769EEAFAFDAB /* MacTopTenRow.swift */,
 				8855ACA248C766D43DB9144D /* MediaCard.swift */,
+				CA4DD450E9B48B199E762534 /* LibraryToggleButton.swift */,
 				1F42FDB4DC3EDA9710A34C1A /* MediaRow.swift */,
 				14426D01C4C6E3EF23822635 /* MetalLayer.swift */,
 				20E6C311A3EC118D7BCB9A9F /* MoonlitAvatars.swift */,
@@ -555,6 +558,7 @@
 				E85F56DDD5EBF17A06BB8506 /* MacTopTenRow.swift in Sources */,
 				2C15D148DA38303A1C7FE51B /* MacVideoPlayerSettingsView.swift in Sources */,
 				7806A82AD86D830C13022008 /* MediaCard.swift in Sources */,
+				D95BDAE1F114EB7F1F2E58BC /* LibraryToggleButton.swift in Sources */,
 				B9FBC76B0331FC8BA2D12C53 /* MediaRow.swift in Sources */,
 				AD682F7FE08247D8F97E86E5 /* MetalLayer.swift in Sources */,
 				BB6050FD6049668171D88419 /* MoonlitAvatars.swift in Sources */,
