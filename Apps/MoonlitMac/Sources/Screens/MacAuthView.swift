@@ -181,9 +181,11 @@ struct MacAuthView: View {
                     do {
                         try await profileManager.signInWithApple(idToken: creds.idToken, nonce: creds.nonce)
                     } catch {
+                        NSLog("[Moonlit][AppleSignIn] sign-in failed: %@", String(describing: error))
                         errorMessage = formatError(error)
                     }
                 case .failure(let error):
+                    NSLog("[Moonlit][AppleSignIn] authorization failed: %@", String(describing: error))
                     errorMessage = formatError(error)
                 }
                 isLoading = false
