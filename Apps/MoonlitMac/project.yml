@@ -36,7 +36,7 @@ targets:
       - package: Lottie
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "com.moonlit.mac"
+        PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit"
         DEVELOPMENT_TEAM: 5TWS8P597N
         CODE_SIGN_STYLE: Automatic
         CODE_SIGN_ENTITLEMENTS: MoonlitMac.entitlements
@@ -59,4 +59,4 @@ targets:
       - target: MoonlitMac
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "com.moonlit.mac.tests"
+        PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit.tests"

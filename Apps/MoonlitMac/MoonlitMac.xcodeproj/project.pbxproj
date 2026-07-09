@@ -614,7 +614,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.mac;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit;
 				SDKROOT = macosx;
 			};
 			name = Debug;
@@ -690,7 +690,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.mac.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MoonlitMac.app/Contents/MacOS/MoonlitMac";
 			};
@@ -711,7 +711,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.mac;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -726,7 +726,7 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.mac.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit.tests;
 				SDKROOT = macosx;
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MoonlitMac.app/Contents/MacOS/MoonlitMac";
 			};
@@ -857,6 +857,7 @@
 /* Begin XCSwiftPackageProductDependency section */
 		0AFBE70E521A5ED1A84BD1E0 /* MPVKit */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = E8EF178C15ABF2F766CE2F42 /* XCLocalSwiftPackageReference */;
 			productName = MPVKit;
 		};
 		714A04614BD4900CFC05BE8C /* Lottie */ = {
@@ -866,6 +867,7 @@
 		};
 		7EE300B52893BDFEB6E4CD8A /* MoonlitCore */ = {
 			isa = XCSwiftPackageProductDependency;
+			package = 8F29A142C73F53CAC0CD23BF /* XCLocalSwiftPackageReference */;
 			productName = MoonlitCore;
 		};
 /* End XCSwiftPackageProductDependency section */
