@@ -5,6 +5,7 @@ public enum RowDisplayStyle: String, Codable, CaseIterable, Identifiable, Sendab
     case heroBanner
     case cardStack
     case carouselCinematic
+    case topTen
 
     public var id: String { rawValue }
 
@@ -14,6 +15,7 @@ public enum RowDisplayStyle: String, Codable, CaseIterable, Identifiable, Sendab
         case .heroBanner: return "Hero Banner"
         case .cardStack: return "Card Stack"
         case .carouselCinematic: return "Carousel Cinematic"
+        case .topTen: return "Top 10"
         }
     }
 }

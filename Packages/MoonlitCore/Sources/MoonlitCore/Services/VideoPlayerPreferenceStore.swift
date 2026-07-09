@@ -122,6 +122,12 @@ public final class VideoPlayerPreferenceStore: ObservableObject {
         set { objectWillChange.send(); defaults.set(newValue, forKey: "\(prefix).playPreviewSound") }
     }
 
+    // MARK: - Upscaling
+    public var anime4KEnabled: Bool {
+        get { defaults.object(forKey: "\(prefix).anime4KEnabled") as? Bool ?? false }
+        set { objectWillChange.send(); defaults.set(newValue, forKey: "\(prefix).anime4KEnabled") }
+    }
+
     // MARK: - Compatibility
     public var showOnlyCompatibleFormats: Bool {
         get { defaults.object(forKey: "\(prefix).showOnlyCompatible") as? Bool ?? false }

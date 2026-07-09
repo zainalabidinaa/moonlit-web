@@ -37,8 +37,10 @@ public class CollectionRepository: ObservableObject {
         isLoading = true
         defer { isLoading = false }
 
+        var bundled: OrganizedCollections?
         do {
             let layout = try store.cachedOrBundledLayout(bundledData: bundledData)
+            bundled = layout
             apply(layout)
         } catch {
             collections = []
@@ -48,7 +50,9 @@ public class CollectionRepository: ObservableObject {
         }
 
         if let refreshed = await store.refresh(remoteURL: remoteURL) {
-            apply(refreshed)
+            // Merge remote on top of the complete bundled layout so a partial remote
+            // can't drop bundle-only collections. Falls back to remote if no bundle.
+            apply(bundled.map { Self.mergeByName(base: $0, overlay: refreshed) } ?? refreshed)
         }
     }
 
@@ -211,7 +215,7 @@ public class CollectionRepository: ObservableObject {
 
     public func folders(for collection: DBCollection) -> [DBFolder] {
         folders
-            .filter { $0.collectionId == collection.id && ($0.enabled ?? true) }
+            .filter { $0.collectionId == collection.id }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
 

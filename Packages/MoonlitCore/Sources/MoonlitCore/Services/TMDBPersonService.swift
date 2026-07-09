@@ -71,7 +71,7 @@ public final class TMDBPersonService {
 
     private func mapCredit(_ raw: TMDBCreditResponse, mediaType: String) -> PersonCredit {
         PersonCredit(id: raw.id, title: raw.title ?? raw.name ?? "Unknown", mediaType: mediaType,
-                     character: raw.character, job: raw.job,
+                     character: raw.character, job: raw.job, department: raw.department,
                      releaseDate: raw.releaseDate ?? raw.firstAirDate,
                      posterPath: raw.posterPath, backdropPath: nil,
                      voteAverage: raw.voteAverage, voteCount: raw.voteCount,
@@ -128,6 +128,7 @@ private struct TMDBCreditResponse: Decodable {
     let name: String?
     let character: String?
     let job: String?
+    let department: String?
     let mediaType: String?
     let releaseDate: String?
     let firstAirDate: String?
@@ -137,7 +138,7 @@ private struct TMDBCreditResponse: Decodable {
     let episodeCount: Int?
     let popularity: Double?
     enum CodingKeys: String, CodingKey {
-        case id, title, name, character, job, popularity
+        case id, title, name, character, job, department, popularity
         case mediaType = "media_type"
         case releaseDate = "release_date"
         case firstAirDate = "first_air_date"

@@ -6,6 +6,11 @@ public struct MoonlitTheme {
     public static var secondary: Color { .white.opacity(0.82) }
     public static var accent: Color { ThemeManager.shared.accent }
 
+    /// Warm gold used for ratings, laurel badges, and other "Harbor" accents.
+    /// Kept separate from `accent` (which stays white by design) so gold usage
+    /// is opt-in per element instead of recoloring the whole app.
+    public static let harborGold = Color(red: 0.831, green: 0.686, blue: 0.216)
+
     public static var background: Color { ThemeManager.shared.background }
     public static var surface: Color { ThemeManager.shared.surface }
     public static var surfaceElevated: Color { ThemeManager.shared.surfaceElevated }
@@ -18,8 +23,15 @@ public struct MoonlitTheme {
     public static var focusRing: Color { .white.opacity(0.9) }
     public static var focusBackground: Color { .white.opacity(0.12) }
 
-    /// Top clearance for content sitting beneath the floating pill navbar.
-    public static let navBarTopInset: CGFloat = 64
+    /// Top clearance for content sitting beneath the floating top navbar.
+    public static let navBarTopInset: CGFloat = 60
+
+    /// Corner radius scale — snap new UI to one of these instead of picking an
+    /// arbitrary value, so the app doesn't accumulate a dozen near-identical radii.
+    public static let radiusSmall: CGFloat = 6
+    public static let radiusControl: CGFloat = 10
+    public static let radiusCard: CGFloat = 14
+    public static let radiusLarge: CGFloat = 18
 }
 
 public extension Color {

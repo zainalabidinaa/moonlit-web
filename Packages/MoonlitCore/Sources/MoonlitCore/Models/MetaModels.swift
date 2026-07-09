@@ -138,8 +138,30 @@ public struct MetaDetail: Codable, Sendable, Identifiable {
     public let videos: [MetaVideo]?
     public let seasons: [Season]?
     public let links: [MetaLink]?
+    /// TMDB `/similar` — content/genre-based recommendations. Row title "You Might Also Like".
     public let moreLikeThis: [MetaPreview]?
     public let collectionItems: [MetaPreview]?
+    /// TMDB `/recommendations` — collaborative-filtering picks. Row title "More Like This".
+    public let recommendations: [MetaPreview]?
+    public let creators: [Person]?
+    public let producers: [Person]?
+    public let cinematographers: [Person]?
+    public let composers: [Person]?
+    public let editors: [Person]?
+    public let backdropGallery: [String]?
+    public let posterGallery: [String]?
+    public let logoGallery: [String]?
+    public let firstAirDate: String?
+    public let lastAirDate: String?
+    public let networks: [String]?
+    public let studios: [String]?
+    public let countries: [String]?
+    public let originalLanguage: String?
+    public let voteCount: Int?
+    public let tagline: String?
+    public let budget: Int?
+    public let revenue: Int?
+    public let videoClips: [TMDBVideoClip]?
 
     public init(
         id: String,
@@ -165,7 +187,27 @@ public struct MetaDetail: Codable, Sendable, Identifiable {
         seasons: [Season]? = nil,
         links: [MetaLink]? = nil,
         moreLikeThis: [MetaPreview]? = nil,
-        collectionItems: [MetaPreview]? = nil
+        collectionItems: [MetaPreview]? = nil,
+        recommendations: [MetaPreview]? = nil,
+        creators: [Person]? = nil,
+        producers: [Person]? = nil,
+        cinematographers: [Person]? = nil,
+        composers: [Person]? = nil,
+        editors: [Person]? = nil,
+        backdropGallery: [String]? = nil,
+        posterGallery: [String]? = nil,
+        logoGallery: [String]? = nil,
+        firstAirDate: String? = nil,
+        lastAirDate: String? = nil,
+        networks: [String]? = nil,
+        studios: [String]? = nil,
+        countries: [String]? = nil,
+        originalLanguage: String? = nil,
+        voteCount: Int? = nil,
+        tagline: String? = nil,
+        budget: Int? = nil,
+        revenue: Int? = nil,
+        videoClips: [TMDBVideoClip]? = nil
     ) {
         self.id = id
         self.type = type
@@ -191,6 +233,26 @@ public struct MetaDetail: Codable, Sendable, Identifiable {
         self.links = links
         self.moreLikeThis = moreLikeThis
         self.collectionItems = collectionItems
+        self.recommendations = recommendations
+        self.creators = creators
+        self.producers = producers
+        self.cinematographers = cinematographers
+        self.composers = composers
+        self.editors = editors
+        self.backdropGallery = backdropGallery
+        self.posterGallery = posterGallery
+        self.logoGallery = logoGallery
+        self.firstAirDate = firstAirDate
+        self.lastAirDate = lastAirDate
+        self.networks = networks
+        self.studios = studios
+        self.countries = countries
+        self.originalLanguage = originalLanguage
+        self.voteCount = voteCount
+        self.tagline = tagline
+        self.budget = budget
+        self.revenue = revenue
+        self.videoClips = videoClips
     }
 
     enum CodingKeys: String, CodingKey {
@@ -198,6 +260,9 @@ public struct MetaDetail: Codable, Sendable, Identifiable {
         case status, imdbRating, ageRating, runtime, genres, director, writer, cast
         case trailers, trailerStreams, videos, seasons, links, moreLikeThis, collectionItems
         case rawPosterUrl = "_rawPosterUrl"
+        case recommendations, creators, producers, cinematographers, composers, editors
+        case backdropGallery, posterGallery, logoGallery
+        case firstAirDate, lastAirDate, networks, studios, countries, originalLanguage, voteCount, tagline, budget, revenue, videoClips
     }
 }
 
@@ -234,6 +299,10 @@ public struct MetaVideo: Codable, Sendable, Identifiable {
     public let runtime: String?
     public let streams: [StreamItem]?
     public let trailerStreams: [StreamItem]?
+    /// TMDB episode rating (0–10), captured alongside the still image fetch.
+    public let voteAverage: Double?
+    /// TMDB per-episode cast + guest stars, fetched lazily by the episode info panel.
+    public let guestStars: [Person]?
 
     public init(
         id: String,
@@ -245,7 +314,9 @@ public struct MetaVideo: Codable, Sendable, Identifiable {
         overview: String? = nil,
         runtime: String? = nil,
         streams: [StreamItem]? = nil,
-        trailerStreams: [StreamItem]? = nil
+        trailerStreams: [StreamItem]? = nil,
+        voteAverage: Double? = nil,
+        guestStars: [Person]? = nil
     ) {
         self.id = id
         self.title = title
@@ -257,6 +328,32 @@ public struct MetaVideo: Codable, Sendable, Identifiable {
         self.runtime = runtime
         self.streams = streams
         self.trailerStreams = trailerStreams
+        self.voteAverage = voteAverage
+        self.guestStars = guestStars
+    }
+}
+
+/// A TMDB video entry (trailer, teaser, featurette, clip) for the Media
+/// section's "Videos" tab — distinct from `MetaVideo`, which is an episode.
+public struct TMDBVideoClip: Codable, Sendable, Identifiable, Hashable {
+    public let id: String
+    public let name: String
+    public let type: String
+    public let youtubeKey: String
+
+    public init(id: String, name: String, type: String, youtubeKey: String) {
+        self.id = id
+        self.name = name
+        self.type = type
+        self.youtubeKey = youtubeKey
+    }
+
+    public var youtubeThumbnailURL: URL? {
+        URL(string: "https://img.youtube.com/vi/\(youtubeKey)/hqdefault.jpg")
+    }
+
+    public var youtubeWatchURL: URL? {
+        URL(string: "https://www.youtube.com/watch?v=\(youtubeKey)")
     }
 }
 

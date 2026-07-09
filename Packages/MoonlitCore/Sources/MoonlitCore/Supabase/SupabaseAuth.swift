@@ -25,6 +25,12 @@ public actor SupabaseAuth {
     private struct AuthUser: Codable {
         let id: String
         let email: String?
+        let identities: [AuthIdentity]?
+    }
+
+    private struct AuthIdentity: Codable {
+        let id: String
+        let provider: String
     }
 
     public func signIn(email: String, password: String) async throws -> UserSession {
@@ -174,6 +180,101 @@ public actor SupabaseAuth {
             let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
             throw SupabaseError.authFailed(errorBody)
         }
+    }
+
+    public func signInWithApple(idToken: String, nonce: String) async throws -> UserSession {
+        let url = URL(string: "\(baseURL)/auth/v1/token?grant_type=id_token")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.assumesHTTP3Capable = false
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        let body: [String: String] = ["provider": "apple", "id_token": idToken, "nonce": nonce]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+        let (data, response) = try await session.data(for: request)
+
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(code) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SupabaseError.authFailed(errorBody)
+        }
+
+        let decoder = JSONDecoder()
+        let authResp = try decoder.decode(AuthResponse.self, from: data)
+        let sess = UserSession(
+            accessToken: authResp.access_token,
+            refreshToken: authResp.refresh_token,
+            expiresAt: Date().addingTimeInterval(TimeInterval(authResp.expires_in)),
+            userId: authResp.user.id,
+            email: authResp.user.email
+        )
+        await client.setAccessToken(sess.accessToken)
+        return sess
+    }
+
+    public func linkAppleAccount(idToken: String, nonce: String, accessToken: String) async throws {
+        let url = URL(string: "\(baseURL)/functions/v1/link-apple")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.assumesHTTP3Capable = false
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let body: [String: String] = ["id_token": idToken]
+        request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        let (data, response) = try await session.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(code) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SupabaseError.authFailed(errorBody)
+        }
+    }
+
+    public func fetchAppleIdentityId(accessToken: String) async throws -> String? {
+        let url = URL(string: "\(baseURL)/auth/v1/user")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.assumesHTTP3Capable = false
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(code) else { return nil }
+        let user = try JSONDecoder().decode(AuthUser.self, from: data)
+        return user.identities?.first(where: { $0.provider == "apple" })?.id
+    }
+
+    public func unlinkAppleAccount(identityId: String, accessToken: String) async throws {
+        let url = URL(string: "\(baseURL)/auth/v1/user/identities/\(identityId)")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "DELETE"
+        request.assumesHTTP3Capable = false
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        let (data, response) = try await session.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(code) else {
+            let errorBody = String(data: data, encoding: .utf8) ?? "Unknown error"
+            throw SupabaseError.authFailed(errorBody)
+        }
+    }
+
+    public func deleteAccount(accessToken: String) async throws {
+        let url = URL(string: "\(baseURL)/functions/v1/delete-user")!
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.assumesHTTP3Capable = false
+        request.setValue("Bearer \(accessToken)", forHTTPHeaderField: "Authorization")
+        request.setValue(anonKey, forHTTPHeaderField: "apikey")
+
+        let (_, response) = try await session.data(for: request)
+        let code = (response as? HTTPURLResponse)?.statusCode ?? 0
+        guard (200...299).contains(code) else {
+            throw SupabaseError.authFailed("Account deletion failed")
+        }
+        await client.setAccessToken(nil)
     }
 
     private func validateInviteCode(_ code: String) async throws -> Bool {

@@ -110,13 +110,55 @@ public class WatchProgressRepository: ObservableObject {
         try? await syncService.pushWatchedItem(item: item)
     }
 
+    /// Marks every episode of a season as watched in one batch — used by the
+    /// season menu's "Mark Season N as Watched" action. Skips episodes already
+    /// marked, appends all new entries in a single `@Published` mutation so the
+    /// UI updates instantly, then pushes each to sync sequentially.
+    public func markSeasonWatched(
+        profileId: String,
+        seriesId: String,
+        mediaType: String,
+        season: Int,
+        episodes: [(mediaId: String, episode: Int?)],
+        name: String? = nil,
+        poster: String? = nil
+    ) async {
+        let newItems: [WatchedItem] = episodes
+            .filter { !isEpisodeWatched(parentMediaId: seriesId, season: season, episode: $0.episode) }
+            .map { ep in
+                WatchedItem(
+                    id: UUID().uuidString,
+                    profileId: profileId,
+                    mediaId: ep.mediaId,
+                    mediaType: mediaType,
+                    name: name,
+                    poster: poster,
+                    season: season,
+                    episode: ep.episode,
+                    markedAt: Date()
+                )
+            }
+        guard !newItems.isEmpty else { return }
+        watchedItems.append(contentsOf: newItems)
+        for item in newItems {
+            try? await syncService.pushWatchedItem(item: item)
+        }
+    }
+
     public func markUnwatched(mediaId: String) async {
-        guard let item = watchedItems.first(where: { $0.mediaId == mediaId }) else { return }
+        let decodedId = mediaId.removingPercentEncoding ?? mediaId
+        guard let item = watchedItems.first(where: {
+            let decodedWatchedId = $0.mediaId.removingPercentEncoding ?? $0.mediaId
+            return decodedWatchedId == decodedId
+        }) else { return }
         try? await SupabaseClient.shared.delete(
             from: "watched_items",
             where: ["id": item.id]
         )
-        watchedItems.removeAll { $0.mediaId == mediaId }
+        watchedItems.removeAll {
+            let decodedWatchedId = $0.mediaId.removingPercentEncoding ?? $0.mediaId
+            return decodedWatchedId == decodedId
+        }
     }
 
     public func isWatched(mediaId: String) -> Bool {

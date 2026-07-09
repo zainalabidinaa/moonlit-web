@@ -30,3 +30,7 @@ build/
 # Xcode / runtime artifacts
 *.profraw
 *.httpcache/
+
+# Swift Package Manager build artifacts
+.build/
+.swiftpm/

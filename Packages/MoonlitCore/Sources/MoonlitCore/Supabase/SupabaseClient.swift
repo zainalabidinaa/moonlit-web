@@ -48,7 +48,8 @@ public actor SupabaseClient {
         path: String,
         method: String = "GET",
         body: Data? = nil,
-        prefer: String? = nil
+        prefer: String? = nil,
+        range: (lower: Int, upper: Int)? = nil
     ) -> URLRequest {
         let url = URL(string: "\(baseURL)/rest/v1\(path)")!
         var request = URLRequest(url: url)
@@ -61,6 +62,11 @@ public actor SupabaseClient {
         }
         if let prefer = prefer {
             request.setValue(prefer, forHTTPHeaderField: "Prefer")
+        }
+        if let range = range {
+            // PostgREST range pagination: `Range: lower-upper` (inclusive, 0-based).
+            request.setValue("items", forHTTPHeaderField: "Range-Unit")
+            request.setValue("\(range.lower)-\(range.upper)", forHTTPHeaderField: "Range")
         }
         if let body = body {
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -80,14 +86,45 @@ public actor SupabaseClient {
         for (key, value) in query {
             path += "&\(key)=eq.\(value)"
         }
-        if let order = order {
-            path += "&order=\(order)"
-        }
+
+        // Explicit-limit callers keep single-request semantics.
         if let limit = limit {
+            if let order = order {
+                path += "&order=\(order)"
+            }
             path += "&limit=\(limit)"
+            return try await decodePage(path: path, range: nil)
         }
 
-        let request = makeRequest(path: path, prefer: "return=representation")
+        // No explicit limit: page through ALL rows. Hosted Supabase's PostgREST
+        // caps a single response at `max-rows` (1000), so an unpaginated fetch
+        // silently drops everything past row 1000 (this is what left ~40% of
+        // folders with no catalogs). Range pagination needs a STABLE, unique sort
+        // key or page boundaries can dupe/skip rows, so always end the sort on
+        // `id` (unique). Every no-limit caller's table has an `id` column.
+        let effectiveOrder = order.map { "\($0),id" } ?? "id"
+        path += "&order=\(effectiveOrder)"
+
+        let pageSize = 1000
+        var offset = 0
+        var all: [T] = []
+        while true {
+            let page: [T] = try await decodePage(
+                path: path,
+                range: (lower: offset, upper: offset + pageSize - 1)
+            )
+            all.append(contentsOf: page)
+            if page.count < pageSize { break }
+            offset += pageSize
+        }
+        return all
+    }
+
+    private func decodePage<T: Decodable>(
+        path: String,
+        range: (lower: Int, upper: Int)?
+    ) async throws -> [T] {
+        let request = makeRequest(path: path, prefer: "return=representation", range: range)
         let (data, response) = try await session.data(for: request)
 
         guard let httpResponse = response as? HTTPURLResponse,

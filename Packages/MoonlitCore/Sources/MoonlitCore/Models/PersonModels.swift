@@ -32,7 +32,12 @@ public struct PersonCredit: Identifiable, Sendable {
     public let title: String
     public let mediaType: String
     public let character: String?
-    public let job: String?
+    /// Mutable so same-title crew rows can be merged into one row with jobs
+    /// joined ("Producer, Director") — see `PersonCredits.filtered(media:department:)`.
+    public var job: String?
+    /// TMDB crew department (e.g. "Directing", "Production"). `nil` for cast credits —
+    /// those are treated as the synthetic "Acting" department.
+    public let department: String?
     public let releaseDate: String?
     public let posterPath: String?
     public var backdropPath: String?

@@ -185,7 +185,7 @@ public class ProfileManager: ObservableObject {
         UserDefaults.standard.set(profile.id, forKey: "moonlit.currentProfileId")
     }
 
-    public func createProfile(name: String) async throws {
+    public func createProfile(name: String, avatarId: Int? = nil) async throws {
         guard let session = currentSession else { throw SupabaseError.notAuthenticated }
 
         let nextIndex = (profiles.map { $0.profileIndex }.max() ?? -1) + 1
@@ -194,7 +194,7 @@ public class ProfileManager: ObservableObject {
             userId: session.userId,
             name: name,
             avatarColor: randomColor(),
-            avatarId: Int.random(in: 0...30),
+            avatarId: avatarId ?? Int.random(in: 0...30),
             profileIndex: nextIndex,
             role: "user"
         )
