@@ -109,7 +109,7 @@ function buildFallbackRows(
       seenRowIds.add(rowId);
       rows.push({
         id: rowId,
-        title: catalog.name!,
+        title: catalog.name ?? catalog.id,
         items: [],
         addonName: addon.name,
         page: 0,

@@ -210,7 +210,7 @@ function supplementWithAddonCatalogs(
       // but marks it for lazy loading
       result.push({
         id: rowId,
-        title: catalog.name!,
+        title: catalog.name ?? catalog.id,
         items: [],
         addonName: addon.name,
         page: 0,
