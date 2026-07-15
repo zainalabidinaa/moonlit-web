@@ -1,4 +1,5 @@
 import { OrganizedCollections, CatalogRow, AddonManifest } from './types';
+export type { CatalogRow };
 import { parseOrganizerJSON } from './parser';
 import { mergeOrganizedCollections } from './merge';
 import { buildCollectionRows } from './builder';
@@ -108,7 +109,7 @@ function buildFallbackRows(
       seenRowIds.add(rowId);
       rows.push({
         id: rowId,
-        title: catalog.name,
+        title: catalog.name!,
         items: [],
         addonName: addon.name,
         page: 0,

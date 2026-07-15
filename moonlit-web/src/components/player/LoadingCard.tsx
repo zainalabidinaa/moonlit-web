@@ -14,7 +14,7 @@ export function LoadingCard({
   minVisibleMs = 800, onMinElapsed,
 }: LoadingCardProps) {
   const [minElapsed, setMinElapsed] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   useEffect(() => {
     timerRef.current = setTimeout(() => {

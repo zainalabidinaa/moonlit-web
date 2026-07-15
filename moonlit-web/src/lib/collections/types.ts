@@ -9,6 +9,7 @@ export interface DBCollection {
   showAllTab?: boolean;
   focusGlowEnabled?: boolean;
   pinToTop?: boolean;
+  showOnHome?: boolean;
 }
 
 export interface DBFolder {
@@ -65,6 +66,7 @@ export interface NuvioCollection {
   showAllTab?: boolean;
   backdropImageUrl?: string;
   focusGlowEnabled?: boolean;
+  showOnHome?: boolean;
 }
 
 export interface NuvioFolder {
@@ -123,6 +125,7 @@ export interface BESTCollection {
   focus_glow_enabled?: boolean;
   pin_to_top?: boolean;
   backdrop_image?: string;
+  show_on_home?: boolean;
 }
 
 export interface BESTFolder {
@@ -166,6 +169,7 @@ export interface CatalogRow {
   focusGifEnabled?: boolean;
   titleLogo?: string;
   heroBackdrop?: string;
+  heroVideoUrl?: string;
   hideTitle?: boolean;
   focusGlowEnabled?: boolean;
   viewMode?: string;
@@ -194,19 +198,4 @@ export interface StremioCatalogQuery {
   extras?: Record<string, string>;
 }
 
-export interface AddonManifest {
-  id: string;
-  name: string;
-  version: string;
-  transportUrl: string;
-  logo?: string;
-  catalogs: AddonCatalog[];
-  resources?: (string | { name: string })[] | { name: string }[];
-}
-
-export interface AddonCatalog {
-  id: string;
-  name: string;
-  type: string;
-  extra?: { name: string; options?: string[] }[];
-}
+export type { AddonManifest } from '@/lib/types';

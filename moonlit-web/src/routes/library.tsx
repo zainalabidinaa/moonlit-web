@@ -20,7 +20,7 @@ function PosterCard({
   onRemove?: (e: React.MouseEvent) => void;
 }) {
   return (
-    <Link to={to as any} params={params} className="group cursor-pointer block">
+    <Link to={to as any} params={params as any} className="group cursor-pointer block">
       <div className="relative rounded-xl overflow-hidden bg-moonlit-elevated mb-2" style={{ aspectRatio: '2/3' }}>
         {poster
           ? <img src={poster} alt={name} loading="lazy"

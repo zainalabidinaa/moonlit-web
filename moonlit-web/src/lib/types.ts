@@ -201,6 +201,9 @@ export interface Folder {
   cover_image: string | null;
   focus_gif: string | null;
   focus_gif_enabled?: boolean;
+  title_logo?: string | null;
+  hero_backdrop?: string | null;
+  hide_title?: boolean;
   tile_shape: 'LANDSCAPE' | 'PORTRAIT' | null;
   sort_order: number;
   created_at: string;

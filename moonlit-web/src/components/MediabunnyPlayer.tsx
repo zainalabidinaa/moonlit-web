@@ -338,7 +338,7 @@ function appendToSourceBuffer(sb: SourceBuffer, data: Uint8Array) {
   // SourceBuffer.appendBuffer calls must be serialized
   appendChain = appendChain.then(() => new Promise<void>((resolve) => {
     function doAppend() {
-      try { sb.appendBuffer(data); } catch (e) { /* buffer full — drop */ }
+      try { sb.appendBuffer(data as BufferSource); } catch (e) { /* buffer full — drop */ }
       sb.addEventListener('updateend', () => resolve(), { once: true });
     }
     if (sb.updating) {

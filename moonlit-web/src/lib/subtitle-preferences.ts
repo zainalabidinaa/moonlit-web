@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 export type SubtitleSize = 'small' | 'medium' | 'large' | 'xlarge';
 export type SubtitleColor = 'white' | 'yellow' | 'cyan' | 'green';
 export type SubtitlePosition = 'low' | 'medium' | 'high';
@@ -67,7 +69,7 @@ export function saveSubtitlePreferences(preferences: SubtitlePreferences): void 
   }
 }
 
-export function getSubtitlePreferenceStyle(preferences: SubtitlePreferences): CSSProperties {
+export function getSubtitlePreferenceStyle(preferences: SubtitlePreferences): CSSProperties & Record<`--${string}`, string | number> {
   const normalized = normalizePreferences(preferences);
   const opacity = normalized.backgroundOpacity / 100;
   return {
@@ -75,6 +77,5 @@ export function getSubtitlePreferenceStyle(preferences: SubtitlePreferences): CS
     '--moonlit-subtitle-color': COLORS[normalized.color],
     '--moonlit-subtitle-bg': `rgba(0, 0, 0, ${opacity})`,
     '--moonlit-subtitle-bottom': `${BOTTOM_PX[normalized.position]}px`,
-  } as CSSProperties;
+  };
 }
-import type { CSSProperties } from 'react';

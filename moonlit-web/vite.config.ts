@@ -109,7 +109,7 @@ function mediaProxyDevProxy() {
           return;
         }
 
-        const headers: HeadersInit = {};
+        const headers: Record<string, string> = {};
         const range = req.headers.range;
         if (range) headers.Range = range;
 
