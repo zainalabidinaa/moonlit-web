@@ -9,6 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/app/AuthProvider';
 import { PlayerProvider } from '@/app/PlayerProvider';
 import { PlayerOverlay } from '@/components/PlayerOverlay';
+import { WindowControls } from '@/components/WindowControls';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -57,6 +58,7 @@ const rootRoute = createRootRoute({
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <PlayerProvider>
+          <WindowControls />
           <Outlet />
           <PlayerOverlay />
         </PlayerProvider>
