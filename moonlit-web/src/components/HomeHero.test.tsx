@@ -65,7 +65,8 @@ describe('HomeHero', () => {
     renderHero([featured], { tt000: mockMeta });
 
     expect(screen.getByText('Test Movie Full Name')).toBeInTheDocument();
-    expect(screen.getByText(/Action · Drama/)).toBeInTheDocument();
+    expect(screen.getByText('Action')).toBeInTheDocument();
+    expect(screen.getByText('Drama')).toBeInTheDocument();
     expect(screen.getByText('A longer meta description with more detail.')).toBeInTheDocument();
     expect(screen.getByText('Watch Now')).toBeInTheDocument();
   });
@@ -95,7 +96,7 @@ describe('HomeHero', () => {
     expect(img).toHaveAttribute('src', 'https://example.com/banner.jpg');
   });
 
-  it('falls back to poster when background and banner are unavailable', () => {
+  it('renders no background image when background and banner are unavailable (poster not used for hero)', () => {
     const metaNoBg: MetaDetail = { ...mockMeta, background: undefined };
     const realItemNoBgNoBanner: MetaPreview = {
       ...mockItem,
@@ -107,9 +108,8 @@ describe('HomeHero', () => {
       { tt000: metaNoBg },
     );
 
-    const img = container.querySelector('img');
-    expect(img).not.toBeNull();
-    expect(img).toHaveAttribute('src', 'https://example.com/poster.jpg');
+    expect(container.querySelector('img')).toBeNull();
+    expect(screen.getByText(metaNoBg.name!)).toBeInTheDocument();
   });
 
   it('renders without an image tag when no background, banner, or poster is available', () => {
@@ -131,10 +131,10 @@ describe('HomeHero', () => {
     expect(screen.getByText('A short item description.')).toBeInTheDocument();
   });
 
-  it('renders the row title as the category label', () => {
+  it('renders the item type label (e.g. Movie) in the metadata row', () => {
     renderHero([featured], { tt000: mockMeta });
 
-    expect(screen.getByText('Trending Movies')).toBeInTheDocument();
+    expect(screen.getByText('Movie')).toBeInTheDocument();
   });
 
   it('returns null when featuredItems is empty', () => {

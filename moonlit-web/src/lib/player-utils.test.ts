@@ -21,9 +21,9 @@ describe('player utils', () => {
     expect(getInitialSourceType('https://example.com/cache/movie.mkv')).toBe('video/mp4');
   });
 
-  it('starts known debrid/CDN domains as HLS because they often hide HLS behind signed URLs', () => {
-    expect(getInitialSourceType('https://real-debrid.com/cache/movie.mp4?token=abc')).toBe('application/x-mpegurl');
-    expect(getInitialSourceType('https://alldebrid.com/stream/xyz')).toBe('application/x-mpegurl');
+  it('no longer forces HLS for debrid/CDN domains — only URL patterns determine type', () => {
+    expect(getInitialSourceType('https://real-debrid.com/cache/movie.mp4?token=abc')).toBe('video/mp4');
+    expect(getInitialSourceType('https://alldebrid.com/stream/xyz')).toBe('video/mp4');
   });
 
   it('detects HLS from URL path patterns regardless of domain', () => {
@@ -33,8 +33,14 @@ describe('player utils', () => {
     expect(getInitialSourceType('https://unknown-cdn.example.com/live/hls/stream')).toBe('application/x-mpegurl');
   });
 
-  it('starts streams with proxyHeaders as HLS regardless of URL', () => {
+  it('treats proxyHeaders streams with direct video extensions as video/mp4, non-video paths as HLS', () => {
     expect(getInitialSourceType('https://unknown-cdn.example.com/movie.mp4', {
+      behaviorHints: { proxyHeaders: { request: { 'Origin': 'https://example.com' } } }
+    })).toBe('video/mp4');
+    expect(getInitialSourceType('https://unknown-cdn.example.com/movie.mkv', {
+      behaviorHints: { proxyHeaders: { request: { 'Origin': 'https://example.com' } } }
+    })).toBe('video/mp4');
+    expect(getInitialSourceType('https://unknown-cdn.example.com/playback/something', {
       behaviorHints: { proxyHeaders: { request: { 'Origin': 'https://example.com' } } }
     })).toBe('application/x-mpegurl');
   });
@@ -43,9 +49,9 @@ describe('player utils', () => {
     expect(getInitialSourceType('https://example.com/playback/token', { behaviorHints: { webPlayableType: 'video/mp4' } })).toBe('video/mp4');
   });
 
-  it('falls back from HLS to direct video after provider error', () => {
+  it('cycles fallback type bidirectionally — HLS ↔ video/mp4', () => {
     expect(getFallbackSourceType('application/x-mpegurl')).toBe('video/mp4');
-    expect(getFallbackSourceType('video/mp4')).toBeNull();
+    expect(getFallbackSourceType('video/mp4')).toBe('application/x-mpegurl');
   });
 
   it('reads a playable stream URL from url or externalUrl', () => {
