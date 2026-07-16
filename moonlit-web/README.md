@@ -92,6 +92,15 @@ Vercel are unaffected; desktop-only behavior is gated by `isDesktop()`
 ### Commands
 - `npm run tauri dev` — run the desktop shell (starts Vite automatically)
 - `npm run tauri build` — production bundle (NSIS on Windows)
+- `npm run setup:desktop` — fetch playback sidecars (libmpv DLL + Anime4K shaders)
 - `cargo test --manifest-path src-tauri/Cargo.toml` — Rust tests
 - `npm run typecheck` — TypeScript project check (also used in CI)
+
+### Player (Windows)
+Video plays through libmpv embedded beneath the WebView (`wid` child window;
+WebView2 background is transparent so the React UI draws over the video).
+Before building on Windows run `npm run setup:desktop` — it fetches
+`libmpv-2.dll`, generates `mpv.lib` from `mpv.def`, and downloads the Anime4K
+shaders. Requires 7-Zip (`7z`) and LLVM (`llvm-dlltool`) or VS `lib.exe` on
+PATH. On macOS the web player is used (mpv probe reports unavailable).
 ```
