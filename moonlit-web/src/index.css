@@ -4,16 +4,49 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Montserrat ExtraBold — same file the Mac app bundles (wordmark/branding) */
+@font-face {
+  font-family: 'Montserrat';
+  src: url('/fonts/Montserrat-ExtraBold.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
-  --bg: #080808;
-  --surface: #111111;
-  --elevated: #1c1c1e;
-  --border: #2a2a2a;
-  --accent: #FF8A35;
-  --accent-dim: #E07620;
-  --accent-glow: rgba(255, 138, 53, 0.3);
-  --text: #fafafa;
-  --muted: #71717a;
+  /* Mac palette (MoonlitTheme) */
+  --bg: #0D0D0D;
+  --surface: #1A1A1A;
+  --elevated: #242424;
+  --border: rgba(255, 255, 255, 0.08);
+  /* White accent system; gold reserved for ratings/badges/selected pills */
+  --accent: #FFFFFF;
+  --accent-dim: rgba(255, 255, 255, 0.70);
+  --accent-glow: rgba(255, 255, 255, 0.12);
+  --gold: #D4AF37;
+  --text: #FFFFFF;
+  --text-secondary: rgba(255, 255, 255, 0.70);
+  --text-tertiary: rgba(255, 255, 255, 0.50);
+  --muted: rgba(255, 255, 255, 0.50);
+
+  /* Oklch genre gradients (OklchPalette) — from/to pairs */
+  --genre-action-from: oklch(0.40 0.18 25);      --genre-action-to: oklch(0.18 0.10 20);
+  --genre-adventure-from: oklch(0.42 0.14 90);   --genre-adventure-to: oklch(0.20 0.08 85);
+  --genre-thriller-from: oklch(0.34 0.12 275);   --genre-thriller-to: oklch(0.16 0.06 270);
+  --genre-crime-from: oklch(0.36 0.10 250);      --genre-crime-to: oklch(0.16 0.05 245);
+  --genre-drama-from: oklch(0.40 0.12 55);       --genre-drama-to: oklch(0.18 0.07 50);
+  --genre-romance-from: oklch(0.44 0.16 350);    --genre-romance-to: oklch(0.20 0.09 345);
+  --genre-mystery-from: oklch(0.32 0.10 300);    --genre-mystery-to: oklch(0.14 0.05 295);
+  --genre-scifi-from: oklch(0.38 0.16 285);      --genre-scifi-to: oklch(0.18 0.10 280);
+  --genre-fantasy-from: oklch(0.40 0.15 310);    --genre-fantasy-to: oklch(0.18 0.09 305);
+  --genre-horror-from: oklch(0.30 0.10 15);      --genre-horror-to: oklch(0.10 0.04 20);
+  --genre-comedy-from: oklch(0.48 0.15 85);      --genre-comedy-to: oklch(0.22 0.09 80);
+  --genre-family-from: oklch(0.46 0.13 145);     --genre-family-to: oklch(0.20 0.08 140);
+  --genre-animation-from: oklch(0.46 0.15 200);  --genre-animation-to: oklch(0.20 0.09 195);
+  --genre-western-from: oklch(0.42 0.11 70);     --genre-western-to: oklch(0.18 0.07 65);
+  --genre-war-from: oklch(0.36 0.09 110);        --genre-war-to: oklch(0.16 0.05 105);
+  --genre-documentary-from: oklch(0.40 0.10 220);--genre-documentary-to: oklch(0.18 0.06 215);
+  --genre-default-from: oklch(0.36 0.06 260);    --genre-default-to: oklch(0.16 0.03 255);
 }
 
 body {
@@ -25,32 +58,99 @@ body {
 }
 
 @layer components {
-  .glass {
-    @apply backdrop-blur-xl bg-white/5 border border-white/10;
+  /* ── Glass vocabulary (MacGlass parity) ─────────────────────────────── */
+  .glass-card {
+    @apply backdrop-blur-xl bg-white/5 border border-white/10 rounded-ml-lg;
+  }
+  .glass-dark-card {
+    @apply backdrop-blur-xl bg-black/40 rounded-ml-lg;
+    border: 0.8px solid rgba(255, 255, 255, 0.16);
+  }
+  .glass-capsule {
+    @apply backdrop-blur-xl bg-white/10 rounded-full;
+    border: 0.8px solid rgba(255, 255, 255, 0.16);
+  }
+  .glass-dark-capsule {
+    @apply backdrop-blur-xl bg-black/40 rounded-full;
+    border: 0.8px solid rgba(255, 255, 255, 0.16);
+  }
+  .glass-liquid-capsule {
+    @apply rounded-full shadow-ml-glass;
+    background: rgba(0, 0, 0, 0.28);
+    backdrop-filter: blur(30px) saturate(1.8);
+    -webkit-backdrop-filter: blur(30px) saturate(1.8);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+  }
+  .glass-circle {
+    @apply backdrop-blur-xl bg-white/10 rounded-full border border-white/10;
+  }
+  .glass-icon-btn {
+    @apply glass-dark-capsule w-[46px] h-[46px] flex items-center justify-center text-white/85 hover:text-white transition-colors;
   }
 
-  .glass-dark {
-    @apply backdrop-blur-xl bg-black/60 border border-white/10;
-  }
+  /* Migration aliases */
+  .glass { @apply glass-card rounded-none; border-radius: inherit; }
+  .glass-dark { @apply backdrop-blur-xl bg-black/60 border border-white/10; }
 
+  /* ── Buttons (Mac: white primary, glass secondary) ──────────────────── */
   .btn-primary {
-    @apply px-6 py-2.5 bg-moonlit-accent hover:bg-moonlit-accent-dim text-white font-semibold rounded-full transition-all duration-200 cursor-pointer;
+    @apply px-6 py-2.5 bg-white hover:bg-white/90 text-black font-bold rounded-full transition-all duration-200 cursor-pointer active:scale-95;
+  }
+  .btn-secondary {
+    @apply px-6 py-2.5 glass-dark-capsule text-white font-semibold transition-all duration-200 cursor-pointer hover:bg-white/15;
   }
 
-  .btn-secondary {
-    @apply px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white font-semibold rounded-full transition-all duration-200 cursor-pointer;
+  /* ── Brand wordmark ──────────────────────────────────────────────────── */
+  .brand-wordmark {
+    @apply font-brand font-extrabold tracking-[2px] text-white;
+  }
+
+  /* ── Rating badge (HarborGold) ──────────────────────────────────────── */
+  .rating-badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold;
+    background: rgba(0, 0, 0, 0.45);
+    border: 1px solid rgba(212, 175, 55, 0.28);
+    color: var(--gold);
+  }
+
+  /* ── Shimmer skeleton (ShimmerCard parity: 1.5s sweep) ──────────────── */
+  .shimmer {
+    @apply bg-white/10 animate-shimmer;
+    background-image: linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0) 40%,
+      rgba(255, 255, 255, 0.18) 50%,
+      rgba(255, 255, 255, 0) 60%
+    );
+    background-size: 200% 100%;
   }
 
   .media-card {
     @apply relative flex-shrink-0 cursor-pointer;
   }
-
   .media-card-inner {
-    @apply relative rounded-xl overflow-hidden bg-moonlit-elevated;
+    @apply relative rounded-ml-card overflow-hidden bg-moonlit-elevated;
   }
-
   .media-card-overlay {
     @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 transition-opacity duration-300;
+  }
+
+  /* ── Category pills (gold selected) ─────────────────────────────────── */
+  .category-pill {
+    @apply rounded-full px-[15px] py-2 text-[13.5px] font-semibold transition-colors duration-[180ms] cursor-pointer;
+  }
+  .category-pill-idle {
+    @apply bg-white/[0.08] text-white/90 hover:bg-white/[0.12];
+  }
+  .category-pill-active {
+    background: var(--gold);
+    color: #000;
+  }
+
+  /* ── Row edge fade mask (genre rails) ───────────────────────────────── */
+  .fade-mask-r {
+    -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
+    mask-image: linear-gradient(to right, black 90%, transparent 100%);
   }
 }
 
@@ -63,11 +163,11 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--border);
+  background: rgba(255, 255, 255, 0.14);
   border-radius: 2px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--muted);
+  background: rgba(255, 255, 255, 0.28);
 }
 
 .scrollbar-hide {
@@ -80,7 +180,6 @@ body {
 
 /* ─── Moonlit Player — Custom Vidstack Layout ─── */
 
-/* Controls show/hide — Vidstack sets data-visible when active */
 .moonlit-controls {
   opacity: 0;
   transition: opacity 0.2s ease;
@@ -89,23 +188,19 @@ body {
   opacity: 1;
 }
 
-/* Shared button style */
 .player-btn {
   @apply w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95;
 }
 
-/* TimeSlider — pointer-events needed on the root */
 .moonlit-slider {
   @apply relative w-full flex items-center h-5 cursor-pointer;
   --slider-fill: 0%;
 }
 
-/* Slider preview tooltip */
 .moonlit-slider-preview {
   @apply absolute bottom-full left-0 -translate-x-1/2 mb-2 pointer-events-none;
 }
 
-/* Captions overlay */
 .moonlit-captions {
   @apply absolute bottom-24 left-0 right-0 z-10;
   --cue-bg: rgba(0, 0, 0, 0.8);
@@ -131,12 +226,10 @@ body {
   padding: 0.08em 0.35em !important;
 }
 
-/* Vidstack base resets */
 .moonlit-player media-player {
   display: contents;
 }
 
-/* Vidstack media state CSS helpers used by SFSymbol show/hide */
 .media-paused\:block[data-paused], [data-paused] .media-paused\:block { display: block !important; }
 .media-paused\:hidden[data-paused], [data-paused] .media-paused\:hidden { display: none !important; }
 .media-fullscreen\:hidden[data-fullscreen], [data-fullscreen] .media-fullscreen\:hidden { display: none !important; }
