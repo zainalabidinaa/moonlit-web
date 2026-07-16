@@ -1,7 +1,8 @@
 /// Windows: make the WebView2 transparent and position mpv's child window
 /// behind it using `wid` embedding (Harbor-proven pattern).
 use tauri::{AppHandle, Manager};
-use windows::Win32::Foundation::{BOOL, HWND, LPARAM, LRESULT, WPARAM};
+use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, WPARAM};
+use windows::core::BOOL;
 use windows::Win32::UI::Shell::{DefSubclassProc, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
     EnumChildWindows, GetClientRect, SetWindowLongW, SetWindowPos, GWL_EXSTYLE, GetWindowLongW,
@@ -91,7 +92,7 @@ pub fn position_mpv_child(app: &AppHandle, css: CssGeometry) -> Result<(), Strin
         let _ = SetWindowSubclass(target, Some(subclass_proc), MPC_SUBCLASS_ID, 0);
         SetWindowPos(
             target,
-            HWND_BOTTOM,
+            Some(HWND_BOTTOM),
             rect.x,
             rect.y,
             rect.w,

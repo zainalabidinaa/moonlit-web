@@ -69,25 +69,24 @@ fn j(data: libmpv2::events::PropertyData) -> Value {
     match data {
         P::Double(d) => json!(d),
         P::Flag(b) => json!(b),
-        P::String(s) => {
-            // try to parse as JSON (e.g. track-list is a JSON array)
-            serde_json::from_str::<Value>(s.as_ref()).unwrap_or_else(|_| json!(s.as_ref()))
+        P::Str(s) => {
+            serde_json::from_str::<Value>(s).unwrap_or_else(|_| json!(s))
         }
         P::Int64(i) => json!(i),
-        P::Node(n) => json!(format!("{:?}", n)),
+        P::OsdStr(s) => json!(s),
     }
 }
 
 fn end_reason_str(r: Option<libmpv2::EndFileReason>) -> String {
-    use libmpv2::EndFileReason as E;
     match r {
-        Some(E::Eof) => "Eof".into(),
-        Some(E::Stop) => "Stop".into(),
-        Some(E::Quit) => "Quit".into(),
-        Some(E::Error) => "Error".into(),
-        Some(E::Redirect) => "Redirect".into(),
-        Some(E::Abort) => "Abort".into(),
+        Some(0) => "Eof".into(),
+        Some(2) => "Stop".into(),
+        Some(3) => "Quit".into(),
+        Some(4) => "Error".into(),
+        Some(5) => "Redirect".into(),
+        Some(6) => "Abort".into(),
         None => "Unknown".into(),
+        Some(n) => format!("Unknown({n})"),
     }
 }
 
@@ -162,13 +161,11 @@ pub fn run(app: AppHandle, rx: Receiver<Cmd>) {
                                 } else if let Some(i) = n.as_i64() {
                                     m.set_property(&name, i)
                                 } else {
-                                    Err(libmpv2::Error::Generic(
-                                        "non-numeric number".into(),
-                                    ))
+                                    Err(libmpv2::Error::Null)
                                 }
                             }
                             Value::String(s) => m.set_property(&name, s.as_str()),
-                            _ => Err(libmpv2::Error::Generic("unsupported type".into())),
+                            _ => Err(libmpv2::Error::Null),
                         };
                         if let Err(e) = r {
                             emit(
@@ -184,7 +181,7 @@ pub fn run(app: AppHandle, rx: Receiver<Cmd>) {
                         .ok_or_else(|| "no player".to_string())
                         .and_then(|m| {
                             // Try String first (for track-list etc.), then f64, then Bool
-                            m.get_property::<libmpv2::String>(&name)
+                            m.get_property::<String>(&name)
                                 .map(|s| json!(s.as_ref()))
                                 .or_else(|_| {
                                     m.get_property::<f64>(&name).map(|v| json!(v))
@@ -259,7 +256,7 @@ pub fn run(app: AppHandle, rx: Receiver<Cmd>) {
                         E::EndFile(reason) => {
                             emit(
                                 &app,
-                                json!({"event":"end-file","reason": end_reason_str(reason)}),
+                                json!({"event":"end-file","reason": end_reason_str(Some(reason))}),
                             );
                         }
                         E::FileLoaded => {
