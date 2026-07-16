@@ -219,13 +219,6 @@
                 "title": "Top Rated",
                 "sources": [
                     {
-                        "type": "movie",
-                        "genre": "None",
-                        "addonId": "aio-metadata",
-                        "provider": "addon",
-                        "catalogId": "tmdb.top_rated_movie"
-                    },
-                    {
                         "type": "series",
                         "genre": "None",
                         "addonId": "aio-metadata",
@@ -248,12 +241,6 @@
                 "titleLogoUrl": "",
                 "coverImageUrl": "",
                 "catalogSources": [
-                    {
-                        "type": "movie",
-                        "genre": "None",
-                        "addonId": "aio-metadata",
-                        "catalogId": "tmdb.top_rated_movie"
-                    },
                     {
                         "type": "series",
                         "genre": "None",

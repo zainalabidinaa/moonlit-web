@@ -7,6 +7,18 @@ import { CollectionDisplayPreferencesStore } from './preferences';
 
 const BUNDLED_JSON_PATH = '/home-organizer.json';
 const CACHE_KEY = 'moonlit.organizedCollections';
+export const ORGANIZER_FUNCTION_URL = 'https://hvfsntdyowapjxobtyli.supabase.co/functions/v1/home-organizer';
+
+export async function fetchLiveOrganizer(): Promise<OrganizedCollections | null> {
+  try {
+    const res = await fetch(ORGANIZER_FUNCTION_URL);
+    if (!res.ok) return null;
+    const json = await res.json();
+    return parseOrganizerJSON(json);
+  } catch {
+    return null;
+  }
+}
 
 let currentOrganized: OrganizedCollections | null = null;
 let cachedRows: CatalogRow[] | null = null;
