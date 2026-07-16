@@ -29,6 +29,8 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
+      - uses: ilammy/msvc-dev-cmd@v1
+
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: moonlit-web/src-tauri
