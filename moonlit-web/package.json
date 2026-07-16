@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "test": "vitest",
     "tauri": "tauri",
-    "typecheck": "tsc -b"
+    "typecheck": "tsc -b",
+    "setup:desktop": "node scripts/fetch-libmpv.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.106.2",
