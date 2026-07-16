@@ -61,12 +61,12 @@ export default function AuthPage() {
       {/* Dark gradient background — matches iOS LinearGradient(#101114 → #050506) */}
       <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, #101114 0%, #050506 100%)' }} />
 
-      {/* Radial orange glow — matches iOS RadialGradient(#FF8A35 at 0.34 → 0.12 → clear) */}
+      {/* Radial glow — matches iOS RadialGradient(#FFF at 0.12 → 0.04 → clear) */}
       <div className="absolute top-[23%] left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
         style={{
           width: 380,
           height: 380,
-          background: 'radial-gradient(circle, rgba(255,138,53,0.34) 0%, rgba(255,138,53,0.12) 40%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.04) 40%, transparent 70%)',
         }}
       />
 
@@ -74,13 +74,13 @@ export default function AuthPage() {
         {/* App Icon — matches iOS Image("AppIconPreview") */}
         <div className="relative mb-6">
           <div className="absolute inset-0 rounded-[26px] blur-2xl opacity-40"
-            style={{ background: 'radial-gradient(circle, rgba(255,138,53,0.5), transparent)' }} />
+            style={{ background: 'radial-gradient(circle, rgba(255,255,255,0.15), transparent)' }} />
           <img
             src="/apple-touch-icon.png"
             alt="Moonlit"
             className="relative w-[104px] h-[104px] rounded-[26px]"
             style={{
-              boxShadow: '0 14px 34px rgba(255,138,53,0.34), 0 18px 28px rgba(0,0,0,0.5)',
+              boxShadow: '0 14px 34px rgba(255,255,255,0.08), 0 18px 28px rgba(0,0,0,0.5)',
             }}
           />
         </div>
@@ -100,7 +100,7 @@ export default function AuthPage() {
             placeholder="Email"
             value={email}
             onChange={e => setEmail(e.target.value)}
-            className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] focus:outline-none focus:border-orange-400/60 transition-colors"
+            className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] focus:outline-none focus:border-white/40 transition-colors"
             required
             autoComplete="email"
           />
@@ -109,7 +109,7 @@ export default function AuthPage() {
             placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
-            className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] focus:outline-none focus:border-orange-400/60 transition-colors"
+            className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] focus:outline-none focus:border-white/40 transition-colors"
             required
             autoComplete={isSignUp ? 'new-password' : 'current-password'}
           />
@@ -119,7 +119,7 @@ export default function AuthPage() {
               placeholder="Invite Code"
               value={inviteCode}
               onChange={e => setInviteCode(e.target.value.toUpperCase())}
-              className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] uppercase tracking-widest focus:outline-none focus:border-orange-400/60 transition-colors"
+              className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] uppercase tracking-widest focus:outline-none focus:border-white/40 transition-colors"
               maxLength={8}
             />
           )}
@@ -145,7 +145,7 @@ export default function AuthPage() {
                 placeholder="Email address"
                 value={_resetEmail}
                 onChange={e => setResetEmail(e.target.value)}
-                className="w-full px-4 py-[13px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[15px] focus:outline-none focus:border-orange-400/60 transition-colors"
+                className="w-full px-4 py-[13px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[15px] focus:outline-none focus:border-white/40 transition-colors"
                 autoComplete="email"
               />
               {resetSent && (
@@ -213,7 +213,7 @@ export default function AuthPage() {
           {isSignUp ? 'Already have an account?' : "Don't have an account?"}{' '}
           <button
             onClick={() => { setIsSignUp(!isSignUp); setError(''); setShowReset(false); }}
-            className="text-moonlit-accent hover:text-orange-400 underline underline-offset-2 transition-colors cursor-pointer"
+            className="text-white/70 hover:text-white underline underline-offset-2 transition-colors cursor-pointer"
           >
             {isSignUp ? 'Sign In' : 'Sign Up'}
           </button>

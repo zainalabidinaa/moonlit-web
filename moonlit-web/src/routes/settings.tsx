@@ -24,7 +24,7 @@ const CAPABILITY_LABELS: Record<string, { label: string; color: string }> = {
   stream:       { label: 'Streams',   color: 'text-emerald-400 bg-emerald-400/10 border-emerald-400/20' },
   meta:         { label: 'Metadata',  color: 'text-blue-400   bg-blue-400/10   border-blue-400/20'   },
   catalog:      { label: 'Catalog',   color: 'text-purple-400 bg-purple-400/10 border-purple-400/20' },
-  subtitles:    { label: 'Subtitles', color: 'text-yellow-400 bg-yellow-400/10 border-yellow-400/20' },
+  subtitles:    { label: 'Subtitles', color: 'text-moonlit-gold bg-moonlit-gold/10 border-moonlit-gold/20' },
   addon_catalog:{ label: 'Directory', color: 'text-slate-400  bg-slate-400/10  border-slate-400/20'  },
 };
 
@@ -213,7 +213,7 @@ export default function SettingsPage() {
             <SectionLabel>Admin</SectionLabel>
             <div className="rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
               <SettingsRow
-                iconBg="#FF8A35"
+                iconBg="#636366"
                 icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4zm0 6a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm-4 9a4 4 0 018 0H8z"/></svg>}
                 title="Admin Dashboard"
                 subtitle="Collections, invite codes & stats"
@@ -259,7 +259,7 @@ export default function SettingsPage() {
             <div className="border-t border-moonlit-border">
               {isLoading ? (
                 <div className="p-5 flex justify-center">
-                  <div className="animate-spin rounded-full h-5 w-5 border-2 border-moonlit-accent border-t-transparent" />
+                  <div className="w-5 h-5 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
                 </div>
               ) : (
                 <div className="divide-y divide-moonlit-border">
@@ -318,10 +318,10 @@ export default function SettingsPage() {
                   <button
                     onClick={handleInstall}
                     disabled={!newUrl.trim() || installing}
-                    className="px-4 py-2.5 bg-moonlit-accent rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-moonlit-accent/90 transition-colors min-w-[80px] flex items-center justify-center"
+                     className="px-4 py-2.5 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[80px] flex items-center justify-center"
                   >
                     {installing
-                      ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                      ? <div className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black animate-spin-arc" />
                       : 'Install'}
                   </button>
                 </div>
@@ -386,10 +386,10 @@ export default function SettingsPage() {
                 <button
                   onClick={handleSaveServer}
                   disabled={testing}
-                  className="px-4 py-2.5 bg-moonlit-accent rounded-xl text-sm font-semibold disabled:opacity-40 hover:bg-moonlit-accent/90 transition-colors min-w-[110px] flex items-center justify-center"
+                  className="px-4 py-2.5 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[110px] flex items-center justify-center"
                 >
                   {testing
-                    ? <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                    ? <div className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black animate-spin-arc" />
                     : 'Save & Test'}
                 </button>
               </div>

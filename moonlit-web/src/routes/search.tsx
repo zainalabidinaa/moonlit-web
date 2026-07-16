@@ -177,7 +177,7 @@ export default function SearchPage() {
                 <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }}>
                   {trending.map(item => (
                     <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }} className="group cursor-pointer">
-                      <div className="relative aspect-[2/3] rounded-xl overflow-hidden bg-moonlit-elevated mb-2">
+                      <div className="relative aspect-[2/3] rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2">
                         {item.poster ? <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs text-center px-2">{item.name}</div>}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
@@ -198,7 +198,7 @@ export default function SearchPage() {
 
         {loading && (
           <div className="flex items-center justify-center py-20">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-moonlit-accent border-t-transparent" />
+            <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
           </div>
         )}
 
@@ -225,7 +225,7 @@ export default function SearchPage() {
                       <p className="text-sm font-semibold text-white truncate">{item.name}</p>
                       <div className="flex items-center gap-2 mt-1 text-[11px] text-white/45">
                         <span className="px-1.5 py-0.5 rounded bg-white/8 font-medium text-white/60">{item.type === 'series' ? 'Series' : 'Movie'}</span>
-                        {item.imdbRating && <span className="text-yellow-400/80 font-semibold">★ {item.imdbRating}</span>}
+                        {item.imdbRating && <span className="text-moonlit-gold font-semibold">★ {item.imdbRating}</span>}
                         {item.releaseInfo && <span>{item.releaseInfo}</span>}
                       </div>
                     </div>

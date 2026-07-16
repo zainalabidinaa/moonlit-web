@@ -166,7 +166,7 @@ export default function AdminPage() {
     return (
       <Sidebar>
         <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-moonlit-accent border-t-transparent" />
+          <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
         </div>
       </Sidebar>
     );
@@ -198,7 +198,7 @@ export default function AdminPage() {
                   placeholder="https://your-addon.xyz/manifest.json"
                   className="flex-1 px-3 py-2 bg-moonlit-elevated rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-moonlit-accent" />
                 <button onClick={handleSaveAddon} disabled={addonSaving}
-                  className="px-4 py-2 bg-moonlit-accent rounded-xl text-sm disabled:opacity-50">
+                  className="px-4 py-2 bg-white text-black rounded-full text-sm disabled:opacity-50">
                   {addonSaving ? 'Saving...' : 'Save'}
                 </button>
               </div>
@@ -210,7 +210,7 @@ export default function AdminPage() {
                 onKeyDown={e => e.key === 'Enter' && handleAddRow()}
                 placeholder="New collection row name…"
                 className="flex-1 px-3 py-2 bg-moonlit-elevated rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-moonlit-accent" />
-              <button onClick={handleAddRow} className="px-4 py-2 bg-moonlit-accent rounded-xl text-sm">+ Add Row</button>
+              <button onClick={handleAddRow} className="px-4 py-2 bg-white text-black rounded-full text-sm">+ Add Row</button>
             </div>
 
             <div className="space-y-3">
@@ -240,7 +240,7 @@ export default function AdminPage() {
                           </div>
                         ))}
                         <button onClick={() => openAddFolder(col.id)}
-                          className="w-28 h-16 rounded-lg border-2 border-dashed border-moonlit-muted/30 hover:border-moonlit-accent flex items-center justify-center text-moonlit-muted hover:text-moonlit-accent transition-colors text-xs">
+                          className="w-28 h-16 rounded-lg border-2 border-dashed border-moonlit-muted/30 hover:border-white/60 flex items-center justify-center text-moonlit-muted hover:text-white transition-colors text-xs">
                           + Add Folder
                         </button>
                       </div>
@@ -262,7 +262,7 @@ export default function AdminPage() {
               <input type="datetime-local" value={newCodeExpiresAt} onChange={e => setNewCodeExpiresAt(e.target.value)}
                 className="px-3 py-2 bg-moonlit-elevated rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-moonlit-accent text-sm" />
               <button onClick={() => setNewCodeExpiresAt('')} className="text-xs text-moonlit-muted hover:text-white">Never</button>
-              <button onClick={handleGenerate} className="ml-auto px-4 py-2 bg-moonlit-accent rounded-xl text-sm">Generate Code</button>
+              <button onClick={handleGenerate} className="ml-auto px-4 py-2 bg-white text-black rounded-full text-sm">Generate Code</button>
             </div>
             <div className="space-y-2">
               <p className="text-sm text-moonlit-muted mb-2">Active: {codes.filter(c => c.is_active && !c.used_by && !isExpired(c)).length} | Total: {codes.length}</p>
@@ -344,7 +344,7 @@ export default function AdminPage() {
             <div className="flex gap-2 mt-5">
               <button onClick={() => setFolderModal({ open: false, collectionId: '', folder: null, catalogInput: '' })}
                 className="flex-1 py-2 bg-moonlit-elevated rounded-xl text-sm">Cancel</button>
-              <button onClick={handleSaveFolder} className="flex-1 py-2 bg-moonlit-accent rounded-xl text-sm">Save</button>
+              <button onClick={handleSaveFolder} className="flex-1 py-2 bg-white text-black rounded-full text-sm">Save</button>
             </div>
           </div>
         </div>

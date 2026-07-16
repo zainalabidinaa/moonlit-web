@@ -21,7 +21,7 @@ function PosterCard({
 }) {
   return (
     <Link to={to as any} params={params as any} className="group cursor-pointer block">
-      <div className="relative rounded-xl overflow-hidden bg-moonlit-elevated mb-2" style={{ aspectRatio: '2/3' }}>
+      <div className="relative rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2" style={{ aspectRatio: '2/3' }}>
         {poster
           ? <img src={poster} alt={name} loading="lazy"
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
@@ -170,14 +170,14 @@ export default function LibraryPage() {
                 return (
                   <Link key={item.id} to="/browse/$type/$id" params={{ type: item.mediaType, id: item.mediaId }}
                     className="group flex-shrink-0" style={{ width: 248 }}>
-                    <div className="relative rounded-xl overflow-hidden bg-moonlit-elevated" style={{ aspectRatio: '16/9' }}>
+                    <div className="relative rounded-ml-card overflow-hidden bg-moonlit-elevated" style={{ aspectRatio: '16/9' }}>
                       {img
                         ? <img src={img} alt={item.name} loading="lazy"
                             className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
                         : <div className="absolute inset-0 bg-white/5" />}
                       <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
                       {/* Release-date capsule (top-right) */}
-                      <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-moonlit-accent text-white text-[10px] font-bold shadow-lg max-w-[85%]">
+                      <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded-full bg-white text-black text-[10px] font-bold shadow-lg max-w-[85%]">
                         <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 shrink-0">
                           <path d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3a.75.75 0 011.5 0v1.5h.75a3 3 0 013 3v9.75a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zM18.75 9H5.25a1.5 1.5 0 00-1.5 1.5v.75h16.5V10.5a1.5 1.5 0 00-1.5-1.5z"/>
                         </svg>
@@ -209,7 +209,7 @@ export default function LibraryPage() {
 
         {isLoading ? (
           <div className="flex items-center justify-center py-16">
-            <div className="animate-spin rounded-full h-6 w-6 border-2 border-moonlit-accent border-t-transparent" />
+            <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
           </div>
         ) : watchlist.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-white/35">

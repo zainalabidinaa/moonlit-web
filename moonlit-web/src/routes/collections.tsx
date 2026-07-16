@@ -208,7 +208,7 @@ export default function FolderDetailPage() {
                   params={isFolderItem ? { folderId: item.id } : { type: item.type, id: item.id }}
                   className="group cursor-pointer"
                 >
-                  <div className="relative rounded-xl overflow-hidden bg-moonlit-elevated mb-1.5 transition-shadow duration-300 group-hover:shadow-lg group-hover:shadow-black/30 group-hover:ring-1 group-hover:ring-white/10"
+                  <div className="relative rounded-ml-card overflow-hidden bg-moonlit-elevated mb-1.5 transition-shadow duration-300 group-hover:shadow-lg group-hover:shadow-black/30 group-hover:ring-1 group-hover:ring-white/10"
                     style={{ aspectRatio }}
                   >
                     {(isFolderItem ? (item.banner || item.poster) : item.poster) && !imgError[item.id] ? (
@@ -225,7 +225,7 @@ export default function FolderDetailPage() {
                       </div>
                     )}
                     {item.imdbRating && (
-                      <span className="absolute top-1.5 right-1.5 bg-black/70 backdrop-blur-sm text-[10px] font-medium px-1.5 py-0.5 rounded text-white/90">
+                      <span className="rating-badge absolute top-1.5 right-1.5">
                         ★ {item.imdbRating}
                       </span>
                     )}
