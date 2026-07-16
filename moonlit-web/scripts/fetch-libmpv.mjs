@@ -70,7 +70,7 @@ const execOpts = process.platform === 'win32'
   ? { stdio: 'inherit', shell: 'powershell.exe' }
   : { stdio: 'inherit' };
 try {
-  execSync(`7z x -y -o"${libmpvDir}" "${archive}" libmpv-2.dll mpv.def`, execOpts);
+  execSync(`7z x -y -o"${libmpvDir}" "${archive}"`, execOpts);
 } catch (err) {
   console.error('7z extraction failed:', err.stderr?.toString() || err.stderr || err.message);
   process.exit(1);
