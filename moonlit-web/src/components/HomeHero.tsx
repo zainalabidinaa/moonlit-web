@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { FeaturedHomeItem, MetaDetail } from '@/lib/types';
 import { Link } from '@tanstack/react-router';
+import { motion } from 'framer-motion';
+import { useAmbientColors } from '@/lib/design/artwork-color';
+import { EASE, SPRING } from '@/lib/design/motion';
 
 interface HomeHeroProps {
   featuredItems: FeaturedHomeItem[];
@@ -47,13 +50,18 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
   const bgImage = meta?.background || backdrops?.[featured.item.id] || featured.item.banner || null;
   const logoSrc = logoFailed ? null : meta?.logo;
 
-  // Genre pills
-  const genres = (meta?.genres || featured.item.genres || []).slice(0, 3);
+  // Genre label (first genre, Mac style)
+  const genres = (meta?.genres || featured.item.genres || []);
+  const genreLabel = genres[0] || null;
   const releaseInfo = meta?.releaseInfo || featured.item.releaseInfo;
   const rating = meta?.imdbRating || featured.item.imdbRating;
   const typeLabel = featured.item.type
     ? featured.item.type.charAt(0).toUpperCase() + featured.item.type.slice(1)
     : null;
+
+  // Ambient colors from backdrop
+  const ambient = useAmbientColors(bgImage ?? undefined);
+  const [colorA, colorB] = ambient ?? [null, null];
 
   // Parallax transforms
   const heroHeight = typeof window !== 'undefined'
@@ -65,7 +73,34 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
 
   return (
     <div className="relative w-full overflow-hidden" style={{ height: heroHeight }}>
-      {/* Background image with parallax and crossfade */}
+      {/* Ambient radial gradients behind content */}
+      {(colorA || colorB) && (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{ transition: `opacity ${EASE.ambientColor.duration}s ${EASE.ambientColor.ease}` }}
+        >
+          {colorA && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `radial-gradient(ellipse at top, ${colorA}26, transparent 65%)`,
+                transition: `background ${EASE.ambientColor.duration}s ${EASE.ambientColor.ease}`,
+              }}
+            />
+          )}
+          {colorB && (
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `radial-gradient(ellipse at right, ${colorB}1f, transparent 65%)`,
+                transition: `background ${EASE.ambientColor.duration}s ${EASE.ambientColor.ease}`,
+              }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Background image with parallax, crossfade, and fade mask */}
       {bgImage ? (
         <img
           key={bgImage}
@@ -73,17 +108,19 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
           alt=""
           fetchPriority="high"
           className="absolute inset-0 w-full h-full object-cover object-[center_18%] animate-fade-in"
-          style={{ transform: `translateY(${parallaxBgY}px) scale(1.08)`, height: `calc(100% + 80px)` }}
+          style={{
+            transform: `translateY(${parallaxBgY}px) scale(1.08)`,
+            height: `calc(100% + 80px)`,
+            maskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.92), rgba(0,0,0,0.88) 30%, rgba(0,0,0,0.35) 75%, transparent)',
+            WebkitMaskImage: 'linear-gradient(to bottom, rgba(0,0,0,0.92), rgba(0,0,0,0.88) 30%, rgba(0,0,0,0.35) 75%, transparent)',
+          }}
         />
       ) : (
         <div className="absolute inset-0 bg-moonlit-elevated" />
       )}
 
-      {/* Gradients */}
       {/* Left heavy gradient for text legibility */}
-      <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/55 to-black/10 pointer-events-none" />
-      {/* Bottom fade into page */}
-      <div className="absolute bottom-0 left-0 right-0 h-56 bg-gradient-to-t from-[#080808] via-[#080808]/60 to-transparent pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-r from-black/95 via-black/55 to-transparent pointer-events-none" />
       {/* Top fade — hero goes behind navbar */}
       <div className="absolute top-0 left-0 right-0 h-36 bg-gradient-to-b from-[#080808]/80 to-transparent pointer-events-none" />
 
@@ -92,6 +129,11 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
         className="absolute bottom-0 left-0 right-0 px-8 md:px-14 pb-16"
         style={{ transform: `translateY(${parallaxContentY}px)`, opacity: heroOpacity }}
       >
+        {/* Genre label */}
+        {genreLabel && (
+          <p className="text-[12px] font-bold tracking-[2px] text-white mb-3 uppercase">{genreLabel}</p>
+        )}
+
         {/* Logo or title */}
         {logoSrc ? (
           <img
@@ -99,43 +141,40 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
             alt={title}
             onError={() => setLogoFailed(true)}
             className="mb-4 object-contain object-left"
-            style={{ maxHeight: 100, maxWidth: 380 }}
+            style={{ maxHeight: 120, maxWidth: 330, filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.55))' }}
           />
         ) : (
-          <h1 className="text-5xl md:text-6xl lg:text-7xl font-black text-white mb-4 max-w-2xl leading-[1.02] tracking-tight drop-shadow-2xl">
+          <h1 className="text-[46px] font-black text-white mb-4 max-w-2xl leading-[1.02] tracking-tight drop-shadow-2xl">
             {title}
           </h1>
         )}
 
         {/* Metadata pills row */}
-        <div className="flex flex-wrap items-center gap-2 mb-4">
+        <div className="flex flex-wrap items-center gap-1.5 mb-4">
           {typeLabel && (
             <span className="text-[11px] font-bold uppercase tracking-wider text-white/50">{typeLabel}</span>
           )}
-          {(typeLabel && genres.length > 0) && <span className="text-white/25 text-xs">·</span>}
-          {genres.map((g, i) => (
+          {(typeLabel && genres.length > 1) && <span className="text-white/25 text-xs">·</span>}
+          {genres.slice(1).map((g, i) => (
             <React.Fragment key={g}>
               <span className="text-[11px] font-semibold text-white/50">{g}</span>
-              {i < genres.length - 1 && <span className="text-white/25 text-xs">·</span>}
+              {i < genres.slice(1).length - 1 && <span className="text-white/25 text-xs">·</span>}
             </React.Fragment>
           ))}
           {releaseInfo && (
             <>
-              <span className="text-white/25 text-xs">·</span>
+              {(typeLabel || genres.length > 1) && <span className="text-white/25 text-xs">·</span>}
               <span className="text-[11px] font-semibold text-white/50">{releaseInfo}</span>
             </>
           )}
           {rating && (
-            <>
-              <span className="text-white/25 text-xs">·</span>
-              <span className="text-[11px] font-bold text-yellow-400/80">★ {rating}</span>
-            </>
+            <span className="rating-badge">★ {rating}</span>
           )}
         </div>
 
         {/* Description */}
         {description && (
-          <p className="max-w-md text-sm leading-relaxed text-white/55 mb-7 line-clamp-2">
+          <p className="max-w-[480px] text-[14px] leading-relaxed text-white/75 mb-7 line-clamp-2">
             {description}
           </p>
         )}
@@ -145,7 +184,7 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
           <Link
             to="/browse/$type/$id"
             params={{ type: featured.item.type, id: featured.item.id }}
-            className="inline-flex items-center gap-2.5 rounded-full bg-white px-7 py-3 text-[13px] font-bold text-black hover:bg-white/90 active:scale-95 transition-all shadow-lg"
+            className="btn-primary inline-flex items-center gap-2.5 !rounded-full text-[15px] !px-7 !py-3"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
               <path d="M8 5v14l11-7z" />
@@ -155,7 +194,7 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
           <Link
             to="/browse/$type/$id"
             params={{ type: featured.item.type, id: featured.item.id }}
-            className="inline-flex items-center gap-2 rounded-full bg-white/10 border border-white/15 backdrop-blur-sm px-6 py-3 text-[13px] font-bold text-white hover:bg-white/18 active:scale-95 transition-all"
+            className="btn-secondary inline-flex items-center gap-2 !rounded-full text-[15px] !px-6 !py-3"
           >
             More Info
           </Link>
@@ -165,19 +204,24 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
       {/* Carousel dots — bottom-center */}
       {featuredItems.length > 1 && (
         <div className="absolute bottom-5 left-0 right-0 flex items-center justify-center gap-1.5 pointer-events-none">
-          {featuredItems.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => onIndexChange(i)}
-              aria-label={`Go to item ${i + 1}`}
-              className={[
-                'rounded-full transition-all duration-300 pointer-events-auto',
-                i === activeIndex
-                  ? 'w-6 h-[3px] bg-white'
-                  : 'w-[5px] h-[3px] bg-white/30 hover:bg-white/55',
-              ].join(' ')}
-            />
-          ))}
+          {featuredItems.map((_, i) => {
+            const active = i === activeIndex;
+            return (
+              <motion.button
+                key={i}
+                onClick={() => onIndexChange(i)}
+                layout
+                aria-label={`Go to item ${i + 1}`}
+                className="rounded-full pointer-events-auto"
+                style={{
+                  height: 5,
+                  width: active ? 28 : 8,
+                  backgroundColor: active ? '#FFFFFF' : 'rgba(255,255,255,0.40)',
+                }}
+                transition={SPRING.nav}
+              />
+            );
+          })}
         </div>
       )}
     </div>

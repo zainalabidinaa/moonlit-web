@@ -1,8 +1,11 @@
 import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
 import { useAuth } from '@/app/AuthProvider';
-import { ReactNode } from 'react';
+import { ReactNode, useEffect } from 'react';
+import { motion } from 'framer-motion';
 import { SFSymbol } from '@/components/SFSymbol';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
+import { SPRING } from '@/lib/design/motion';
+import { isDesktop } from '@/lib/platform';
 
 const navItems = [
   { href: '/home',    label: 'Home',    symbol: 'house.fill' },
@@ -10,48 +13,68 @@ const navItems = [
   { href: '/library', label: 'Library', symbol: 'book.fill' },
 ];
 
+const allRoutes = [...navItems.map(n => n.href), '/settings'];
+
 export function Sidebar({ children }: { children: ReactNode }) {
   const pathname = useRouterState({ select: s => s.location.pathname });
   const { currentProfile, selectProfile } = useAuth();
   const navigate = useNavigate();
 
+  const activePath = pathname === '/' ? '/home' : pathname;
+
+  // Desktop Ctrl+1-8 shortcuts
+  useEffect(() => {
+    if (!isDesktop()) return;
+    function handleKey(e: KeyboardEvent) {
+      if (e.ctrlKey && !e.metaKey && !e.altKey) {
+        const idx = parseInt(e.key, 10);
+        if (idx >= 1 && idx <= 8) {
+          e.preventDefault();
+          const routeIdx = (idx - 1) % allRoutes.length;
+          navigate({ to: allRoutes[routeIdx] });
+        }
+      }
+    }
+    window.addEventListener('keydown', handleKey);
+    return () => window.removeEventListener('keydown', handleKey);
+  }, [navigate]);
+
   return (
     <div className="relative min-h-screen">
       {/* Floating pill navbar */}
-      <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 px-2 py-2 rounded-full shadow-xl shadow-black/50"
-        style={{ background: 'rgba(18,18,22,0.80)', backdropFilter: 'blur(30px) saturate(1.8)', border: '1px solid rgba(255,255,255,0.08)' }}>
+      <nav className="fixed top-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 px-2.5 py-2 glass-liquid-capsule">
 
-        {/* Nav links */}
-        {navItems.map(({ href, label, symbol }) => {
-          const active = pathname === href || (href === '/home' && pathname === '/');
+        {/* Brand wordmark */}
+        <span className="brand-wordmark text-[14px] tracking-[2px] px-2 select-none">MOONLIT</span>
+
+        <div className="w-px h-5 bg-white/10 mx-1" />
+
+        {/* Nav links + settings */}
+        {[...navItems, { href: '/settings', label: 'Settings', symbol: 'gear' }].map(({ href, label, symbol }) => {
+          const active = activePath === href;
           return (
             <Link
               key={href}
               to={href}
-              className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-medium transition-all duration-200 ${
-                active
-                  ? 'bg-moonlit-accent/90 text-white shadow-[0_0_12px_rgba(255,138,53,0.45)]'
-                  : 'text-white/50 hover:text-white hover:bg-white/8'
-              }`}
+              className="relative flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors duration-200"
+              style={{ color: active ? '#FFFFFF' : undefined }}
             >
-              <SFSymbol name={symbol} size={13} opacity={active ? 1 : 0.55} />
-              <span>{label}</span>
+              {active && (
+                <motion.div
+                  layoutId="nav-active-pill"
+                  transition={SPRING.nav}
+                  className="absolute inset-0 rounded-full bg-white/10 border border-white/[0.12]"
+                />
+              )}
+              <span className="relative z-10 flex items-center gap-1.5">
+                <SFSymbol name={symbol} size={12.5} opacity={active ? 1 : 0.65} />
+                <span className={active ? 'text-white' : 'text-white/65 group-hover:text-white'}>
+                  {label}
+                </span>
+              </span>
             </Link>
           );
         })}
-
-        {/* Settings link */}
-        <Link
-          to="/settings"
-          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-[13px] font-medium transition-all duration-200 ${
-            pathname === '/settings'
-              ? 'bg-moonlit-accent/90 text-white shadow-[0_0_12px_rgba(255,138,53,0.45)]'
-              : 'text-white/50 hover:text-white hover:bg-white/8'
-          }`}
-        >
-          <SFSymbol name="gear" size={13} opacity={pathname === '/settings' ? 1 : 0.55} />
-          <span>Settings</span>
-        </Link>
 
         {/* Separator + Profile */}
         {currentProfile && (
@@ -63,13 +86,12 @@ export function Sidebar({ children }: { children: ReactNode }) {
               aria-label="Switch profile"
               title={`Signed in as ${currentProfile.name}`}
             >
-              {/* Avatar */}
               <ProfileAvatar
                 profile={currentProfile}
-                size={28}
+                size={30}
                 className="ring-2 ring-white/20 group-hover:ring-white/35 transition-all"
               />
-              <span className="text-[13px] font-medium text-white/70 group-hover:text-white transition-colors leading-none">
+              <span className="text-[12.5px] font-semibold text-white/70 group-hover:text-white transition-colors leading-none">
                 {currentProfile.name}
               </span>
             </button>
