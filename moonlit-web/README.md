@@ -70,4 +70,28 @@ export default defineConfig([
     },
   },
 ])
+
+## Desktop (Windows) — Tauri shell
+
+The desktop app lives in `src-tauri/` and wraps this web app. Web deploys to
+Vercel are unaffected; desktop-only behavior is gated by `isDesktop()`
+(`src/lib/platform`).
+
+### Dev loop
+- **macOS (shell iteration):** `npm run tauri dev` — frameless mac window, fine
+  for UI/chrome/bridge work. Not valid for video or Windows-specific testing.
+- **Windows daily testing:** Windows 11 ARM VM (Parallels/UTM/VMware Fusion) on
+  Apple Silicon. Install Node 22 + Rust (rustup) + VS Build Tools in the VM,
+  then `npm run tauri dev` from a shared or cloned checkout.
+- **CI:** `.github/workflows/windows-desktop.yml` (repo root) builds an NSIS
+  installer artifact per push/PR — install that in the VM for release-build
+  testing.
+- **Video/codec validation:** real x64 hardware only. ARM VMs do not represent
+  GPU/codec behavior (HEVC, DTS, HDR).
+
+### Commands
+- `npm run tauri dev` — run the desktop shell (starts Vite automatically)
+- `npm run tauri build` — production bundle (NSIS on Windows)
+- `cargo test --manifest-path src-tauri/Cargo.toml` — Rust tests
+- `npm run typecheck` — TypeScript project check (also used in CI)
 ```
