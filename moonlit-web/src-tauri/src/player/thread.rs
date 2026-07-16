@@ -182,7 +182,7 @@ pub fn run(app: AppHandle, rx: Receiver<Cmd>) {
                         .and_then(|m| {
                             // Try String first (for track-list etc.), then f64, then Bool
                             m.get_property::<String>(&name)
-                                .map(|s| json!(s.as_ref()))
+                                .map(|s| json!(s.as_str()))
                                 .or_else(|_| {
                                     m.get_property::<f64>(&name).map(|v| json!(v))
                                 })
