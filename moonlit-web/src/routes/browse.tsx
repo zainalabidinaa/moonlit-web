@@ -10,6 +10,7 @@ import { isInLibrary, toggleLibrary, getWatchProgress } from '@/lib/services/api
 import { cacheStreams } from '@/lib/stream-cache';
 import { getPlayableStreamUrl } from '@/lib/player-utils';
 import { TMDB_API_KEY } from '@/lib/supabase';
+import { useAmbientColors } from '@/lib/design/artwork-color';
 
 const PlayIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -244,14 +245,15 @@ export default function DetailPage() {
   if (isLoading) {
     return (
       <Sidebar>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-moonlit-accent border-t-transparent" />
+          <div className="flex items-center justify-center min-h-screen">
+            <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
         </div>
       </Sidebar>
     );
   }
 
   const backdropSrc = detail?.background || detail?.poster;
+  const ambient = useAmbientColors(backdropSrc);
   const title = detail?.name || decodeURIComponent(id);
   const isSeries = type === 'series';
 
@@ -262,7 +264,7 @@ export default function DetailPage() {
         {trailers.map(trailer => (
           <a key={trailer.id} href={`https://www.youtube.com/watch?v=${trailer.youtubeId}`}
             target="_blank" rel="noopener noreferrer" className="flex-shrink-0 w-52 group cursor-pointer">
-            <div className="relative w-52 h-[117px] rounded-xl overflow-hidden bg-moonlit-elevated mb-2">
+            <div className="relative w-52 h-[117px] rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2">
               <img src={`https://img.youtube.com/vi/${trailer.youtubeId}/mqdefault.jpg`} alt={trailer.title}
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" />
               <div className="absolute bottom-2 right-2 bg-red-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">YouTube</div>
@@ -282,6 +284,12 @@ export default function DetailPage() {
             <img src={backdropSrc} alt="" className="w-full h-full object-cover object-[center_20%]" aria-hidden="true" />
           </div>
         )}
+        {ambient && (
+          <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ opacity: 0.55, transition: 'opacity 0.9s ease-in-out' }}>
+            <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${ambient[0]}66, transparent 60%)`, transition: 'background 0.9s ease-in-out' }} />
+            <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 70% 0%, ${ambient[1]}52, transparent 50%)`, transition: 'background 0.9s ease-in-out' }} />
+          </div>
+        )}
         <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#080808] to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-t from-moonlit-bg via-moonlit-bg/30 to-transparent" />
         <div className="absolute inset-0 bg-gradient-to-r from-moonlit-bg/60 via-transparent to-transparent" />
@@ -297,8 +305,8 @@ export default function DetailPage() {
               {(detail as any)?.year && <span>{(detail as any).year}</span>}
               {detail?.runtime && <span>{detail.runtime}</span>}
               {detail?.imdbRating && (
-                <span className="flex items-center gap-1">
-                  <svg viewBox="0 0 20 20" fill="#f59e0b" className="w-3.5 h-3.5">
+                <span className="rating-badge">
+                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
                     <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
                   </svg>
                   {detail.imdbRating}
@@ -406,7 +414,7 @@ export default function DetailPage() {
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {similar.slice(0, 15).map(item => (
                   <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }} className="group cursor-pointer">
-                    <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-moonlit-elevated mb-2">
+                    <div className="relative aspect-[2/3] rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2">
                       {item.poster ? (
                         <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
                       ) : (
@@ -432,7 +440,7 @@ export default function DetailPage() {
                 <div>
                   <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Network</h4>
                   <div className="flex gap-2 flex-wrap">
-                    {networks.map(l => <span key={l.url} className="px-3 py-1.5 rounded-lg bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
+                    {networks.map(l => <span key={l.url} className="px-3 py-1.5 rounded-ml-sm bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
                   </div>
                 </div>
               )}
@@ -440,7 +448,7 @@ export default function DetailPage() {
                 <div>
                   <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Production</h4>
                   <div className="flex gap-2 flex-wrap">
-                    {studios.map(l => <span key={l.url} className="px-3 py-1.5 rounded-lg bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
+                    {studios.map(l => <span key={l.url} className="px-3 py-1.5 rounded-ml-sm bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
                   </div>
                 </div>
               )}
@@ -455,7 +463,7 @@ export default function DetailPage() {
             </h3>
             {loadingStreams ? (
               <div className="flex items-center gap-2 text-white/30 text-sm">
-                <div className="animate-spin rounded-full h-4 w-4 border-2 border-moonlit-accent border-t-transparent" />
+                <div className="w-5 h-5 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
                 Fetching streams...
               </div>
             ) : streams.length === 0 ? (
@@ -464,7 +472,7 @@ export default function DetailPage() {
               <div className="space-y-1">
                 {streams.slice(0, 30).map((s, i) => (
                   <button key={s.url ? `${s.url}-${i}` : `stream-${i}`} onClick={() => handlePlay(s)}
-                    className="w-full text-left p-3 hover:bg-white/5 rounded-lg transition-all flex items-center justify-between group">
+                    className="w-full text-left p-3 hover:bg-white/5 rounded-ml-sm transition-all flex items-center justify-between group">
                     <div className="min-w-0">
                       <p className="text-sm text-white truncate">{s.title || s.name || s.description || 'Unknown'}</p>
                       <p className="text-xs text-white/30 mt-0.5">{s.addonName}</p>
@@ -486,7 +494,7 @@ export default function DetailPage() {
           <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
             {detail.seasons.map(s => (
               <button key={s.id} onClick={() => { setSelectedSeason(s); setShowStreams(false); setSelectedEpisodeId(null); }}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm transition-all ${selectedSeason?.id === s.id ? 'bg-moonlit-accent text-white font-bold shadow-[0_0_14px_rgba(255,138,53,0.35)]' : 'bg-white/5 text-white/60 font-medium hover:bg-white/10 hover:text-white'}`}>
+                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm transition-all ${selectedSeason?.id === s.id ? 'bg-white text-black font-bold' : 'bg-white/5 text-white/60 font-medium hover:bg-white/10 hover:text-white'}`}>
                 Season {s.number}
               </button>
             ))}
@@ -495,8 +503,8 @@ export default function DetailPage() {
             <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide -mx-6 px-6">
               {selectedSeason.episodes.map(ep => (
                 <button key={ep.id} onClick={() => { setSelectedEpisodeId(ep.id); handleAutoPlay(ep.id); }}
-                  className={`flex-shrink-0 w-52 text-left group rounded-xl overflow-hidden transition-all ${selectedEpisodeId === ep.id ? 'ring-2 ring-moonlit-accent' : ''}`}>
-                  <div className="relative w-full aspect-video bg-moonlit-elevated rounded-xl overflow-hidden mb-2">
+                  className={`flex-shrink-0 w-52 text-left group rounded-ml-card overflow-hidden transition-all ${selectedEpisodeId === ep.id ? 'ring-2 ring-white/60' : ''}`}>
+                  <div className="relative w-full aspect-video bg-moonlit-elevated rounded-ml-card overflow-hidden mb-2">
                     {ep.thumbnail ? (
                       <img src={ep.thumbnail} alt={ep.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" />
                     ) : (

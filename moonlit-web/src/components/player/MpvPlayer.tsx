@@ -304,7 +304,7 @@ export function MpvPlayer(props: MpvPlayerProps) {
 
       {/* Panels */}
       {panel === 'speed' && (
-        <div className="absolute bottom-20 right-6 z-30 rounded-2xl bg-[#141414] border border-white/10 p-2">
+        <div className="absolute bottom-20 right-6 z-30 rounded-ml-lg bg-player-elevated border border-player-edge shadow-ml-panel p-2">
           {SPEEDS.map((sp) => (
             <button key={sp} type="button" onClick={() => { mpv.setProp('speed', sp); setPanel(null); }}
               className={`block w-full rounded-lg px-4 py-1.5 text-left text-[13px] ${Math.abs(state.speed - sp) < 0.01 ? 'bg-white text-black font-bold' : 'text-white/80 hover:bg-white/10'}`}>

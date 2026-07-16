@@ -70,7 +70,7 @@ export function UpNextPanel({ mediaId, mediaType, onClose }: {
   };
 
   return (
-    <div className="absolute inset-y-0 right-0 z-30 w-[380px] overflow-y-auto bg-[#141414]/95 backdrop-blur border-l border-white/10 p-4">
+    <div className="absolute inset-y-0 right-0 z-30 w-[380px] overflow-y-auto bg-player-elevated border-l border-player-edge shadow-ml-panel p-4">
       <div className="flex items-center justify-between pb-3">
         <div className="text-[14px] font-bold text-white">Up Next</div>
         <button type="button" aria-label="Close" onClick={onClose} className="text-white/60 hover:text-white"><X size={16} aria-hidden /></button>

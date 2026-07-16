@@ -70,7 +70,7 @@ function parseStreamMeta(s: StreamItem): StreamMeta {
   let resolution: StreamMeta['resolution'] = 'SD';
   let resolutionColor = 'text-slate-400 bg-slate-400/10';
   if (t.includes('2160') || t.includes('4k') || t.includes('uhd')) {
-    resolution = '4K'; resolutionColor = 'text-yellow-400 bg-yellow-400/15';
+    resolution = '4K'; resolutionColor = 'text-moonlit-gold bg-moonlit-gold/15';
   } else if (t.includes('1080')) {
     resolution = '1080p'; resolutionColor = 'text-blue-400 bg-blue-400/15';
   } else if (t.includes('720')) {
@@ -188,12 +188,12 @@ function SourcesPanel({
   return (
     <div className="absolute inset-0 z-40 flex justify-end">
       <div className="absolute inset-0 bg-black/60" onClick={onClose} />
-      <div className="relative w-[460px] max-w-[92vw] h-full bg-[radial-gradient(circle_at_top_right,rgba(124,58,237,0.18),rgba(8,8,12,0.98)_42%)] border-l border-white/10 flex flex-col shadow-2xl backdrop-blur-2xl">
+      <div className="relative w-[460px] max-w-[92vw] h-full bg-player-canvas/98 border-l border-player-edge flex flex-col shadow-2xl">
         {/* Header */}
-        <div className="p-6 border-b border-white/8 bg-[#090910]/90 backdrop-blur-xl shrink-0">
+        <div className="p-6 border-b border-player-edge bg-player-canvas shrink-0">
           <div className="flex items-start justify-between gap-4 mb-4">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-moonlit-accent">Now Playing</p>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-player-ink-muted">Now Playing</p>
               <h3 className="mt-1 text-2xl font-black text-white">Sources</h3>
             </div>
             <button onClick={onClose} className="p-2 rounded-full bg-white/5 hover:bg-white/10">
@@ -205,7 +205,7 @@ function SourcesPanel({
             <div className="flex gap-2 flex-wrap">
               <button
                 onClick={() => setActiveAddon(null)}
-                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeAddon === null ? 'bg-moonlit-accent text-white' : 'bg-white/8 text-white/50 hover:text-white hover:bg-white/12'}`}
+                className={`px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeAddon === null ? 'bg-white text-black' : 'bg-white/8 text-white/50 hover:text-white hover:bg-white/12'}`}
               >
                 All ({baseList.length})
               </button>
@@ -213,7 +213,7 @@ function SourcesPanel({
                 <button
                   key={name}
                   onClick={() => setActiveAddon(name)}
-                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeAddon === name ? 'bg-moonlit-accent text-white' : 'bg-white/8 text-white/50 hover:text-white hover:bg-white/12'}`}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition-colors ${activeAddon === name ? 'bg-white text-black' : 'bg-white/8 text-white/50 hover:text-white hover:bg-white/12'}`}
                 >
                   {(addonLogos[name] || addonLogos[baseList.find(s => s.addonName === name)?.addonId ?? '']) && (
                     <AddonLogo logoUrl={addonLogos[name] || addonLogos[baseList.find(s => s.addonName === name)?.addonId ?? '']} name={name} size={14} />
@@ -247,7 +247,7 @@ function SourcesPanel({
                   <button
                     key={sUrl ? `${sUrl}-${i}` : `stream-${i}`}
                     onClick={() => onSwitchStream(s)}
-                    className={`w-full text-left p-4 rounded-3xl border transition-all duration-200 ${isActive ? 'border-moonlit-accent/80 bg-moonlit-accent/15 shadow-[0_0_30px_rgba(255,138,53,0.18)]' : 'border-white/10 bg-white/[0.045] hover:bg-white/[0.08] hover:border-white/20'}`}
+                    className={`w-full text-left p-4 rounded-3xl border transition-all duration-200 ${isActive ? 'border-white/60 bg-white/10' : 'border-white/10 bg-white/[0.045] hover:bg-white/[0.08] hover:border-white/20'}`}
                   >
                     <div className="flex items-center justify-between gap-3 mb-3">
                       <div className="flex items-center gap-1 flex-wrap">
@@ -275,7 +275,7 @@ function SourcesPanel({
                       </div>
                       <div className="flex-shrink-0 text-right">
                         {meta.sizeFmt && <p className="text-xs font-semibold text-white/45">{meta.sizeFmt}</p>}
-                        <p className={`mt-1 text-[10px] font-bold uppercase ${score > 120 ? 'text-emerald-400' : score > 60 ? 'text-yellow-300' : 'text-red-300'}`}>
+                        <p className={`mt-1 text-[10px] font-bold uppercase ${score > 120 ? 'text-emerald-400' : score > 60 ? 'text-moonlit-gold' : 'text-red-300'}`}>
                           {score > 120 ? 'Best' : score > 60 ? 'OK' : 'Risky'}
                         </p>
                       </div>
@@ -353,7 +353,7 @@ function TracksPanel({
   return (
     <div className="absolute inset-0 z-40 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/75 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:w-[540px] max-h-[82vh] sm:max-h-[72vh] overflow-hidden rounded-t-2xl sm:rounded-2xl bg-[#141414] shadow-2xl border border-white/[0.08] flex flex-col">
+      <div className="relative w-full sm:w-[540px] max-h-[82vh] sm:max-h-[72vh] overflow-hidden rounded-ml-lg bg-player-elevated border border-player-edge shadow-ml-panel flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
           <div className="flex gap-1 bg-white/[0.07] rounded-xl p-1">
@@ -800,7 +800,7 @@ function PlayerUI({
                   {speed === 1 ? '1×' : `${speed}×`}
                 </button>
                 {showSpeed && (
-                  <div className="absolute bottom-full right-0 mb-3 bg-[#141414] border border-white/10 rounded-2xl p-1.5 min-w-[130px] z-30 shadow-xl">
+                  <div className="absolute bottom-full right-0 mb-3 bg-player-elevated border border-player-edge shadow-ml-panel rounded-ml-lg p-1.5 min-w-[130px] z-30">
                     {speeds.map(s => (
                       <button key={s} onClick={() => { if (playerRef.current) playerRef.current.playbackRate = s; setSpeed(s); setShowSpeed(false); }}
                         className={`w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors ${s === speed ? 'text-white' : 'text-white/60 hover:bg-white/10 hover:text-white'}`}>
