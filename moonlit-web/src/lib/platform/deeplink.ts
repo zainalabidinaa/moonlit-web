@@ -1,10 +1,12 @@
 import { isDesktop } from './index';
 
+/** A parsed Moonlit deep link with an action and query parameters. */
 export interface MoonlitDeepLink {
   action: string;
   params: Record<string, string>;
 }
 
+/** Parse a moonlit:// URL; returns null for non-moonlit, malformed, or opaque URLs. */
 export function parseMoonlitUrl(raw: string): MoonlitDeepLink | null {
   let url: URL;
   try {
@@ -13,7 +15,10 @@ export function parseMoonlitUrl(raw: string): MoonlitDeepLink | null {
     return null;
   }
   if (url.protocol !== 'moonlit:') return null;
-  const action = url.host || url.pathname.replace(/^\/+/, '');
+  // moonlit://action → URL parses the action as host.
+  // Host-only (no pathname fallback) to stay aligned with the Rust parser
+  // in src-tauri/src/deeplink.rs, which is the source of truth.
+  const action = url.host;
   if (!action) return null;
   const params: Record<string, string> = {};
   url.searchParams.forEach((value, key) => {

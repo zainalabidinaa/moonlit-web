@@ -17,4 +17,9 @@ describe('parseMoonlitUrl', () => {
   it('returns null for malformed input', () => {
     expect(parseMoonlitUrl('not a url')).toBeNull();
   });
+
+  it('returns null when there is no host (aligns with Rust parser)', () => {
+    expect(parseMoonlitUrl('moonlit:///orphan-path')).toBeNull();
+    expect(parseMoonlitUrl('moonlit:opaque-form')).toBeNull();
+  });
 });
