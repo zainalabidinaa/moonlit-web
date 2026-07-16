@@ -12,6 +12,7 @@ export function PlayerOverlay() {
   const [phase, setPhase] = useState<'enter' | 'visible' | 'exit'>('enter');
   const [showLoading, setShowLoading] = useState(true);
   const [timedOut, setTimedOut] = useState(false);
+  const [transparent, setTransparent] = useState(false);
   const overlayRef = useRef<HTMLDivElement>(null);
   const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -82,13 +83,17 @@ export function PlayerOverlay() {
     setShowLoading(false);
   }, []);
 
+  const handleDesktop = useCallback(() => {
+    setTransparent(true);
+  }, []);
+
   if (!isOpen && phase === 'exit') return null;
   if (!launch) return null;
 
   const overlay = (
     <div
       ref={overlayRef}
-      className="fixed inset-0 z-[100] bg-black"
+      className={`fixed inset-0 z-[100] ${transparent ? 'bg-transparent' : 'bg-black'}`}
       style={{
         transform: phase === 'visible' || phase === 'exit'
           ? 'translateY(0)'
@@ -136,6 +141,7 @@ export function PlayerOverlay() {
         onBack={handleBack}
         onVideoReady={handleVideoReady}
         onError={handleError}
+        onDesktop={handleDesktop}
         profileId={currentProfile?.id}
       />
     </div>

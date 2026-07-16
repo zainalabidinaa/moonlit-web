@@ -2,28 +2,39 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import Player from '@/components/Player';
 import WebCodecsPlayer from '@/components/WebCodecsPlayer';
 import MediabunnyPlayer from '@/components/MediabunnyPlayer';
+import { MpvPlayer } from '@/components/player/MpvPlayer';
 import { usePlayer } from '@/app/PlayerProvider';
 import { PlayerLaunch } from '@/app/PlayerProvider';
 import { StreamItem } from '@/lib/types';
 import { SubtitleItem, fetchStreamsFromAll, fetchSubtitlesFromAll } from '@/lib/stremio';
 import { getCachedStreams, cacheStreams } from '@/lib/stream-cache';
-import { getPlayableStreamUrl, sortStreamsForBrowserPlayback } from '@/lib/player-utils';
+import { getPlayableStreamUrl, getStreamUrl, sortStreamsForBrowserPlayback } from '@/lib/player-utils';
 import { getLastStream, saveLastStream } from '@/lib/last-stream';
 import { preflightUrl } from '@/lib/player/preflight';
 import { useAuth } from '@/app/AuthProvider';
 import { PlayerType, PreparedStream, prepareStreamForPlayback, prepareStreamForPlaybackAsync } from './PlayerShell.stream';
+import { mpvAvailable } from '@/lib/platform/mpv';
+import { sortStreamsForDesktop, pickDesktopStream, getPrefer4K } from '@/lib/platform/desktop-selection';
 
 interface PlayerShellProps {
   launch: PlayerLaunch;
   onBack: () => void;
   onVideoReady: () => void;
   onError: () => void;
+  onDesktop?: () => void;
   profileId?: string;
 }
 
 type ShellPhase = 'resolving' | 'preflighting' | 'playing' | 'error';
 
-export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShellProps) {
+/** Strip the /api/stremio/vtt?url= proxy prefix for mpv (handles SRT natively). */
+function rawSubUrl(proxied: string): string {
+  const m = proxied.match(/^\/api\/stremio\/vtt\?url=(.*)/);
+  if (m) return decodeURIComponent(m[1]);
+  return proxied;
+}
+
+export function PlayerShell({ launch, onBack, onVideoReady, onError, onDesktop }: PlayerShellProps) {
   const { setAllStreams, setActiveStream, registerStreamSwitchHandler } = usePlayer();
   const { addons } = useAuth();
 
@@ -34,6 +45,7 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShe
   );
   const [allStreamsLocal, setAllStreamsLocal] = useState<StreamItem[]>(launch.streams ?? []);
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>(launch.subtitles ?? []);
+  const [rawSubtitles, setRawSubtitles] = useState<SubtitleItem[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
   const [resumePosition] = useState(launch.startPosition || 0);
   const [playerType, setPlayerType] = useState<PlayerType>(
@@ -41,13 +53,20 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShe
       ? 'mediabunny'
       : 'vidstack'
   );
+  const [useMpv, setUseMpv] = useState(false);
 
   const failedUrlsRef = useRef<Set<string>>(new Set());
   const resolvedRef = useRef(false);
+  const desktopPickDone = useRef(false);
 
   const { type, id, metadata } = launch;
   const cacheKey = `${type}:${id}`;
 
+  // Probe for desktop mpv support
+  useEffect(() => {
+    mpvAvailable().then((yes) => { if (yes) { setUseMpv(true); onDesktop?.(); } }).catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Phase 1: Resolve streams if not provided
   useEffect(() => {
@@ -56,101 +75,101 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShe
       resolvedRef.current = true;
       return;
     }
-    // Check cache first
     const cached = getCachedStreams(cacheKey);
     if (cached && cached.length > 0) {
       setAllStreamsLocal(cached);
       resolvedRef.current = true;
       return;
     }
-    // Fetch from addons
     fetchStreamsFromAll(type, id, addons).then(fetched => {
       resolvedRef.current = true;
-      if (fetched.length > 0) {
-        cacheStreams(cacheKey, fetched);
-        setAllStreamsLocal(fetched);
-      }
-    }).catch(() => {
-      resolvedRef.current = true;
-    });
+      if (fetched.length > 0) cacheStreams(cacheKey, fetched);
+      setAllStreamsLocal(fetched);
+    }).catch(() => { resolvedRef.current = true; });
   }, [cacheKey, addons]);
 
-  // Fetch subtitles
+  // Fetch subtitles + raw subtitles for mpv
   useEffect(() => {
     if (subtitles.length > 0) return;
-    fetchSubtitlesFromAll(type, id, addons).then(setSubtitles).catch(() => {});
+    fetchSubtitlesFromAll(type, id, addons).then((subs) => {
+      setSubtitles(subs);
+      // For mpv: strip proxy prefix (mpv handles SRT/VTT natively)
+      setRawSubtitles(subs.map((s) => ({ ...s, url: rawSubUrl(s.url) })));
+    }).catch(() => {});
   }, [type, id, addons]);
 
-  // Phase 2: Pick best stream + preflight
+  // Phase 2: Desktop stream pick (mpv — no preflight, use raw URLs)
+  const pickStreamDesktop = useCallback(() => {
+    if (desktopPickDone.current) return;
+    if (!useMpv || allStreamsLocal.length === 0) return;
+    const lastStream = getLastStream(cacheKey);
+    const sorted = sortStreamsForDesktop(allStreamsLocal, getPrefer4K());
+    const picked = pickDesktopStream(sorted, lastStream?.url ?? null);
+    if (!picked) return;
+    const rawUrl = getStreamUrl(picked);
+    if (!rawUrl) return;
+    desktopPickDone.current = true;
+    setActiveUrl(rawUrl);
+    setActiveStreamLocal(picked);
+    setPlayerType('mpv');
+    setAllStreams(allStreamsLocal);
+    setActiveStream(picked);
+    setPhase('playing');
+    saveLastStream(cacheKey, { url: rawUrl, addonName: picked.addonName, streamTitle: picked.title ?? picked.name });
+  }, [useMpv, allStreamsLocal, cacheKey, setAllStreams, setActiveStream]);
+
+  useEffect(() => { pickStreamDesktop(); }, [pickStreamDesktop]);
+
+  // Phase 2: Web pick best stream + preflight (only when NOT on mpv path)
   useEffect(() => {
+    if (useMpv) return; // desktop handled above
     if (phase !== 'resolving' && phase !== 'preflighting') return;
     if (allStreamsLocal.length === 0 && !activeUrl) return;
 
     async function resolveAndPreflight() {
       try {
       setPhase('preflighting');
-
-      // If we already have a URL from launch, preflight it
       if (activeUrl && !failedUrlsRef.current.has(activeUrl)) {
         const prepared = await prepareStreamForPlaybackAsync(activeStreamLocal ?? { url: activeUrl, addonName: 'Direct' });
         if (prepared && await canPlayPreparedStream(prepared)) {
-          selectPreparedStream(prepared);
-          setPhase('playing');
-          return;
+          selectPreparedStream(prepared); setPhase('playing'); return;
         }
         failedUrlsRef.current.add(activeUrl);
       }
-
-      // Pick best streams
       const lastStream = getLastStream(cacheKey);
       const sorted = sortStreamsForBrowserPlayback(allStreamsLocal);
-
-      // Prefer last played stream
       if (lastStream) {
-        const lastMatch = sorted.find(s => {
-          const url = getPlayableStreamUrl(s);
-          return url && url === lastStream.url;
-        });
+        const lastMatch = sorted.find(s => { const url = getPlayableStreamUrl(s); return url && url === lastStream.url; });
         if (lastMatch) {
           const prepared = await prepareStreamForPlaybackAsync(lastMatch);
           if (prepared && !failedUrlsRef.current.has(prepared.rawUrl)) {
             if (await canPlayPreparedStream(prepared)) {
-              selectPreparedStream(prepared);
-              setPhase('playing');
-              return;
+              selectPreparedStream(prepared); setPhase('playing'); return;
             }
             failedUrlsRef.current.add(prepared.rawUrl);
           }
         }
       }
-
-      // Try sorted streams
       let lastUnplayableReason = '';
       for (const stream of sorted) {
         const prepared = await prepareStreamForPlaybackAsync(stream);
         if (!prepared || failedUrlsRef.current.has(prepared.rawUrl)) continue;
         if (prepared.unplayableReason) lastUnplayableReason = prepared.unplayableReason;
         if (await canPlayPreparedStream(prepared)) {
-          selectPreparedStream(prepared);
-          setPhase('playing');
-          return;
+          selectPreparedStream(prepared); setPhase('playing'); return;
         }
         failedUrlsRef.current.add(prepared.rawUrl);
       }
-
-      // All streams failed
       setErrorMsg(lastUnplayableReason || 'No playable sources found. Check your addons in Settings.');
       setPhase('error');
-
       } catch (e) {
         console.error('[player] resolveAndPreflight failed:', e);
         setErrorMsg(e instanceof Error ? e.message : 'Unexpected error resolving streams.');
         setPhase('error');
       }
     }
-
     resolveAndPreflight();
-  }, [phase, allStreamsLocal, activeUrl, cacheKey]);
+  }, [phase, allStreamsLocal, activeUrl, cacheKey, useMpv]);
 
   async function canPlayPreparedStream(prepared: PreparedStream): Promise<boolean> {
     if (prepared.routeReason === 'unsupported') return false;
@@ -163,36 +182,37 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShe
   }
 
   function selectPreparedStream(prepared: PreparedStream) {
-    console.log('[player] route:', prepared.routeReason ?? prepared.playerType, '| raw:', prepared.rawUrl, '| playback:', prepared.playbackUrl);
     setActiveUrl(prepared.playbackUrl);
     setActiveStreamLocal(prepared.playbackStream);
     setPlayerType(prepared.playerType);
-    saveLastStream(cacheKey, {
-      url: prepared.rawUrl,
-      addonName: prepared.playbackStream.addonName,
-      streamTitle: prepared.playbackStream.title ?? prepared.playbackStream.name,
-    });
-  }
-
-  async function selectStream(stream: StreamItem) {
-    const prepared = await prepareStreamForPlaybackAsync(stream);
-    if (!prepared) return;
-    if (prepared.unplayableReason) {
-      setErrorMsg(prepared.unplayableReason);
-      setPhase('error');
-      return;
-    }
-    selectPreparedStream(prepared);
+    saveLastStream(cacheKey, { url: prepared.rawUrl, addonName: prepared.playbackStream.addonName, streamTitle: prepared.playbackStream.title ?? prepared.playbackStream.name });
   }
 
   // Register stream switch handler
   const handleStreamSwitch = useCallback((newStream: StreamItem) => {
-    void selectStream(newStream);
-  }, [cacheKey]);
+    if (useMpv) {
+      // Desktop: just restart with new raw URL
+      const rawUrl = getStreamUrl(newStream);
+      if (!rawUrl) return;
+      const prevPos = activeUrl ? undefined : resumePosition;
+      setActiveUrl(rawUrl);
+      setActiveStreamLocal(newStream);
+      setPlayerType('mpv');
+      setPhase('playing');
+      setAllStreams(allStreamsLocal);
+      setActiveStream(newStream);
+      saveLastStream(cacheKey, { url: rawUrl, addonName: newStream.addonName, streamTitle: newStream.title ?? newStream.name });
+      return;
+    }
+    void (async () => {
+      const prepared = await prepareStreamForPlaybackAsync(newStream);
+      if (!prepared) return;
+      if (prepared.unplayableReason) { setErrorMsg(prepared.unplayableReason); setPhase('error'); return; }
+      selectPreparedStream(prepared);
+    })();
+  }, [useMpv, cacheKey, resumePosition, allStreamsLocal, activeUrl, setAllStreams, setActiveStream]);
 
-  useEffect(() => {
-    registerStreamSwitchHandler(handleStreamSwitch);
-  }, [handleStreamSwitch, registerStreamSwitchHandler]);
+  useEffect(() => { registerStreamSwitchHandler(handleStreamSwitch); }, [handleStreamSwitch, registerStreamSwitchHandler]);
 
   // Sync to PlayerProvider
   useEffect(() => {
@@ -227,15 +247,9 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShe
   if (playerType === 'mediabunny') {
     return (
       <MediabunnyPlayer
-        streamUrl={activeUrl}
-        streams={allStreamsLocal}
-        currentStream={activeStreamLocal}
-        title={metadata.title}
-        mediaLogo={metadata.logo}
-        startPosition={resumePosition}
-        onSwitchStream={handleStreamSwitch}
-        onBack={onBack}
-        onError={onError}
+        streamUrl={activeUrl} streams={allStreamsLocal} currentStream={activeStreamLocal}
+        title={metadata.title} mediaLogo={metadata.logo} startPosition={resumePosition}
+        onSwitchStream={handleStreamSwitch} onBack={onBack} onError={onError}
       />
     );
   }
@@ -243,34 +257,36 @@ export function PlayerShell({ launch, onBack, onVideoReady, onError }: PlayerShe
   if (playerType === 'webcodecs') {
     return (
       <WebCodecsPlayer
-        streamUrl={activeUrl}
-        streams={allStreamsLocal}
-        currentStream={activeStreamLocal}
-        title={metadata.title}
-        mediaLogo={metadata.logo}
-        startPosition={resumePosition}
-        subtitles={subtitles}
+        streamUrl={activeUrl} streams={allStreamsLocal} currentStream={activeStreamLocal}
+        title={metadata.title} mediaLogo={metadata.logo} startPosition={resumePosition}
+        subtitles={subtitles} onSwitchStream={handleStreamSwitch} onBack={onBack} onError={onError}
+      />
+    );
+  }
+
+  if (playerType === 'mpv') {
+    return (
+      <MpvPlayer
+        streamUrl={activeUrl} streams={allStreamsLocal} currentStream={activeStreamLocal}
+        title={metadata.title} mediaLogo={metadata.logo} mediaId={id} mediaType={type}
+        startPosition={resumePosition} subtitles={rawSubtitles}
         onSwitchStream={handleStreamSwitch}
+        onOpenSources={() => {
+          // SourcesPanel is integrated via a callback — for now, trigger switchStream externally
+          // In future, this opens the existing SourcesPanel sheet
+        }}
         onBack={onBack}
-        onError={onError}
+        onReady={onVideoReady}
       />
     );
   }
 
   return (
     <Player
-      streamUrl={activeUrl}
-      streams={allStreamsLocal}
-      currentStream={activeStreamLocal}
-      title={metadata.title}
-      mediaLogo={metadata.logo}
-      mediaPoster={metadata.poster}
-      mediaId={id}
-      mediaType={type}
-      startPosition={resumePosition}
-      subtitles={subtitles}
-      onSwitchStream={handleStreamSwitch}
-      onBack={onBack}
+      streamUrl={activeUrl} streams={allStreamsLocal} currentStream={activeStreamLocal}
+      title={metadata.title} mediaLogo={metadata.logo} mediaPoster={metadata.poster}
+      mediaId={id} mediaType={type} startPosition={resumePosition} subtitles={subtitles}
+      onSwitchStream={handleStreamSwitch} onBack={onBack}
     />
   );
 }

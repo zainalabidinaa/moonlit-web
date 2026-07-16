@@ -4,7 +4,7 @@ import { probeMediabunnyPlayback } from '@/lib/mediabunny-probe';
 import { buildRemuxUrl } from '@/lib/streaming-server';
 import type { StreamItem } from '@/lib/types';
 
-export type PlayerType = 'vidstack' | 'mediabunny' | 'webcodecs';
+export type PlayerType = 'vidstack' | 'mediabunny' | 'webcodecs' | 'mpv';
 export type PlaybackRouteReason =
   | 'vidstack-direct'
   | 'vidstack-proxy'
