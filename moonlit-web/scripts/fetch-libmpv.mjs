@@ -98,22 +98,41 @@ if (foundDef && dirname(foundDef) !== libmpvDir) {
   renameSync(foundDef, join(libmpvDir, 'mpv.def'));
 }
 
-// Clean up extracted subdirectories (keep the .7z archive)
+const def = join(libmpvDir, 'mpv.def');
+const dll = join(libmpvDir, 'libmpv-2.dll');
+
+// Some shinchiro releases omit mpv.def — generate it from the DLL exports
+if (!existsSync(def)) {
+  console.log('mpv.def not in archive, generating from DLL exports via dumpbin...');
+  try {
+    const dumpOpts = process.platform === 'win32'
+      ? { encoding: 'utf8', shell: 'powershell.exe' }
+      : { encoding: 'utf8' };
+    const out = execSync(`dumpbin /EXPORTS "${dll}"`, dumpOpts).toString();
+    const exports = [];
+    for (const line of out.split(/\r?\n/)) {
+      // dumpbin output: "    ordinal hint RVA      name"
+      const m = line.match(/^\s+\d+\s+[0-9A-Fa-f]+\s+[0-9A-Fa-f]+\s+(\S+)/);
+      if (m) exports.push(`  ${m[1]}`);
+    }
+    if (exports.length === 0) throw new Error('No exports parsed');
+    writeFileSync(def, 'EXPORTS\n' + exports.join('\n') + '\n');
+    console.log(`  Generated mpv.def with ${exports.length} exports`);
+  } catch (err) {
+    console.error('dumpbin failed, mpv.def generation error:', err.stderr?.toString() || err.message);
+    process.exit(1);
+  }
+}
+
+// Clean up extracted subdirectories (keep the .7z archive and our generated files)
 for (const entry of readdirSync(libmpvDir, { withFileTypes: true })) {
   if (entry.isDirectory()) {
     rmSync(join(libmpvDir, entry.name), { recursive: true, force: true });
   }
 }
 
-if (!existsSync(join(libmpvDir, 'mpv.def'))) {
-  console.error('mpv.def not found after extraction — archive structure may have changed.');
-  console.error('Contents of', libmpvDir, ':', readdirSync(libmpvDir).join(', '));
-  process.exit(1);
-}
-
 // Generate MSVC import library from the .def
 // Prefer llvm-dlltool (ships with LLVM on GitHub runners), fall back to VS lib.exe.
-const def = join(libmpvDir, 'mpv.def');
 const lib = join(libmpvDir, 'mpv.lib');
 try {
   execSync(`llvm-dlltool -m i386:x86-64 -d "${def}" -D libmpv-2.dll -l "${lib}"`, execOpts);
