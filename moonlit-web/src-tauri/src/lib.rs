@@ -1,4 +1,5 @@
 pub mod deeplink;
+pub mod player;
 
 pub fn run() {
     let mut builder = tauri::Builder::default();
