@@ -2,7 +2,7 @@
 // import library generated from mpv.def) and Anime4K GLSL shaders.
 // Windows-only artifacts; safe to run on any OS (shaders always fetched,
 // DLL steps skipped off-Windows unless FORCE_DLL=1).
-import { mkdirSync, writeFileSync, existsSync, renameSync, readdirSync } from 'node:fs';
+import { mkdirSync, writeFileSync, existsSync, renameSync, readdirSync, rmSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
@@ -66,15 +66,64 @@ const archive = join(libmpvDir, 'mpv-dev.7z');
 await download(devUrl, archive);
 
 // Extract (7z.exe present on GitHub runners and most dev boxes; else install 7-Zip)
-execSync(`7z x -y -o"${libmpvDir}" "${archive}" libmpv-2.dll mpv.def`, { stdio: 'inherit' });
+const execOpts = process.platform === 'win32'
+  ? { stdio: 'inherit', shell: 'powershell.exe' }
+  : { stdio: 'inherit' };
+try {
+  execSync(`7z x -y -o"${libmpvDir}" "${archive}" libmpv-2.dll mpv.def`, execOpts);
+} catch (err) {
+  console.error('7z extraction failed:', err.stderr?.toString() || err.stderr || err.message);
+  process.exit(1);
+}
+
+// shinchiro archives nest contents in a subdirectory — hoist files to top level
+function findFile(dir, name) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const full = join(dir, entry.name);
+    if (entry.isFile() && entry.name === name) return full;
+    if (entry.isDirectory()) {
+      const found = findFile(full, name);
+      if (found) return found;
+    }
+  }
+  return null;
+}
+
+const foundDll = findFile(libmpvDir, 'libmpv-2.dll');
+const foundDef = findFile(libmpvDir, 'mpv.def');
+if (foundDll && dirname(foundDll) !== libmpvDir) {
+  renameSync(foundDll, join(libmpvDir, 'libmpv-2.dll'));
+}
+if (foundDef && dirname(foundDef) !== libmpvDir) {
+  renameSync(foundDef, join(libmpvDir, 'mpv.def'));
+}
+
+// Clean up extracted subdirectories (keep the .7z archive)
+for (const entry of readdirSync(libmpvDir, { withFileTypes: true })) {
+  if (entry.isDirectory()) {
+    rmSync(join(libmpvDir, entry.name), { recursive: true, force: true });
+  }
+}
+
+if (!existsSync(join(libmpvDir, 'mpv.def'))) {
+  console.error('mpv.def not found after extraction — archive structure may have changed.');
+  console.error('Contents of', libmpvDir, ':', readdirSync(libmpvDir).join(', '));
+  process.exit(1);
+}
 
 // Generate MSVC import library from the .def
 // Prefer llvm-dlltool (ships with LLVM on GitHub runners), fall back to VS lib.exe.
 const def = join(libmpvDir, 'mpv.def');
 const lib = join(libmpvDir, 'mpv.lib');
 try {
-  execSync(`llvm-dlltool -m i386:x86-64 -d "${def}" -D libmpv-2.dll -l "${lib}"`, { stdio: 'inherit' });
-} catch {
-  execSync(`lib /def:"${def}" /machine:x64 /out:"${lib}"`, { stdio: 'inherit' });
+  execSync(`llvm-dlltool -m i386:x86-64 -d "${def}" -D libmpv-2.dll -l "${lib}"`, execOpts);
+} catch (err) {
+  console.error('llvm-dlltool failed, falling back to lib.exe:', err.stderr?.toString() || err.message);
+  try {
+    execSync(`lib /def:"${def}" /machine:x64 /out:"${lib}"`, execOpts);
+  } catch (err2) {
+    console.error('lib.exe also failed:', err2.stderr?.toString() || err2.message);
+    process.exit(1);
+  }
 }
 console.log('✓ sidecars ready:', readdirSync(libmpvDir).join(', '));
