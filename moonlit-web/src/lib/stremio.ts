@@ -1,7 +1,8 @@
 import { AddonManifest, MetaPreview, MetaDetail, StreamItem } from './types';
+import { stremioFetch, subtitleTrackUrl } from './platform/net';
 
 export async function fetchManifest(url: string): Promise<AddonManifest> {
-  const res = await fetch(`/api/stremio/manifest?url=${encodeURIComponent(url)}`);
+  const res = await stremioFetch('manifest', { url });
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new Error(`Manifest fetch failed (${res.status}): ${text.slice(0, 120)}`);
@@ -33,7 +34,7 @@ export async function fetchCatalog(
   if (extras && Object.keys(extras).length > 0) {
     params.set('extras', JSON.stringify(extras));
   }
-  const res = await fetch(`/api/stremio/catalog?${params}`);
+  const res = await stremioFetch('catalog', { url: baseURL, type, id, extras });
   const json = await res.json();
 
   return (json.metas || []).map((m: any) => ({
@@ -58,8 +59,7 @@ export async function fetchMeta(
   id: string
 ): Promise<MetaDetail | null> {
   try {
-    const params = new URLSearchParams({ url: baseURL, type, id });
-    const res = await fetch(`/api/stremio/meta?${params}`);
+    const res = await stremioFetch('meta', { url: baseURL, type, id });
     const json = await res.json();
     const m = json.meta;
 
@@ -134,8 +134,7 @@ export async function fetchStreams(
   id: string
 ): Promise<StreamItem[]> {
   try {
-    const params = new URLSearchParams({ url: baseURL, type, id });
-    const res = await fetch(`/api/stremio/stream?${params}`);
+    const res = await stremioFetch('stream', { url: baseURL, type, id });
     const json = await res.json();
     return json.streams || [];
   } catch {
@@ -176,8 +175,7 @@ export interface SubtitleItem {
 
 async function fetchSubtitles(baseURL: string, type: string, id: string): Promise<SubtitleItem[]> {
   try {
-    const params = new URLSearchParams({ url: baseURL, type, id });
-    const res = await fetch(`/api/stremio/subtitles?${params}`);
+    const res = await stremioFetch('subtitles', { url: baseURL, type, id });
     const json = await res.json();
     const langNames = new Intl.DisplayNames(['en'], { type: 'language' });
     return (json.subtitles || []).map((s: any, i: number) => {
@@ -186,7 +184,7 @@ async function fetchSubtitles(baseURL: string, type: string, id: string): Promis
       try { displayName = langNames.of(lang) || lang; } catch { displayName = lang; }
       return {
         id: s.id || s.url || String(i),
-        url: s.url ? `/api/stremio/vtt?url=${encodeURIComponent(s.url)}` : s.url,
+        url: s.url ? subtitleTrackUrl(s.url) : s.url,
         lang,
         name: displayName,
       };

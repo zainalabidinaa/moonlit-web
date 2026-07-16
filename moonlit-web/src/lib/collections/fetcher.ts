@@ -1,4 +1,5 @@
 import { MetaPreview, StremioCatalogQuery } from './types';
+import { stremioFetch } from '@/lib/platform/net';
 
 const CACHE_TTL_MS = 30 * 60 * 1000;
 const CACHE_PREFIX = 'moonlit.catalog.';
@@ -51,14 +52,11 @@ export async function fetchCatalog(query: StremioCatalogQuery): Promise<MetaPrev
   const cached = getFromCache(query);
   if (cached) return cached;
 
-  // The /api/stremio/catalog proxy (dev + Vercel) expects separate
-  // url(base) / type / id / extras(JSON) params — NOT a single full URL.
-  const params = new URLSearchParams({ url: query.baseURL, type: query.type, id: query.id });
-  if (query.extras && Object.keys(query.extras).length > 0) {
-    params.set('extras', JSON.stringify(query.extras));
-  }
+  // Browser: via /api/stremio/catalog proxy. Desktop: direct addon call.
   try {
-    const res = await fetch(`/api/stremio/catalog?${params.toString()}`);
+    const res = await stremioFetch('catalog', {
+      url: query.baseURL, type: query.type, id: query.id, extras: query.extras,
+    });
     if (!res.ok) return [];
     const data = await res.json();
     const items: MetaPreview[] = (data.metas || []).map((m: any) => ({
