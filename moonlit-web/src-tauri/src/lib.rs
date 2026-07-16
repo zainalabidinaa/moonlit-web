@@ -1,3 +1,5 @@
+pub mod deeplink;
+
 pub fn run() {
     let mut builder = tauri::Builder::default();
 
