@@ -1,9 +1,11 @@
-import { OrganizedCollections, CatalogRow, AddonManifest } from './types';
+import { OrganizedCollections, CatalogRow, AddonManifest, MetaPreview } from './types';
 export type { CatalogRow };
 import { parseOrganizerJSON } from './parser';
 import { mergeOrganizedCollections } from './merge';
 import { buildCollectionRows } from './builder';
+import { fetchCatalog } from './fetcher';
 import { CollectionDisplayPreferencesStore } from './preferences';
+import { fetchCatalog as stremioFetchCatalog } from '@/lib/stremio';
 
 const BUNDLED_JSON_PATH = '/home-organizer.json';
 const CACHE_KEY = 'moonlit.organizedCollections';
@@ -180,4 +182,70 @@ export function resolveFolderFromOrganizer(folderId: string): ResolvedFolder | n
     catalogs,
     sources,
   };
+}
+
+export async function loadFolderItems(folderId: string): Promise<{ items: MetaPreview[] }> {
+  if (cachedRows) {
+    const row = cachedRows.find(r => r.id === folderId || r.folderId === folderId || r.collectionId === folderId);
+    if (row && row.items.length > 0) {
+      return { items: row.items };
+    }
+  }
+
+  if (currentOrganized) {
+    const folder = currentOrganized.folders.find(f => f.id === folderId);
+    if (folder) {
+      const folderCatalogs = currentOrganized.folderCatalogs.filter(c => c.folderId === folder.id);
+      const allItems: MetaPreview[] = [];
+      for (const cat of folderCatalogs) {
+        try {
+          const loadedItems = loadAddonsFromLocalStorage();
+          const addon = loadedItems.find((a: AddonManifest) =>
+            a.transportUrl && a.catalogs?.some(ac => ac.id === cat.catalogId || ac.type === cat.catalogId)
+          );
+          if (addon?.transportUrl) {
+            const items = await fetchCatalog({
+              baseURL: addon.transportUrl,
+              type: cat.mediaType || 'movie',
+              id: cat.catalogId,
+            });
+            allItems.push(...items);
+          }
+        } catch {}
+      }
+      if (allItems.length > 0) {
+        return { items: allItems };
+      }
+    }
+  }
+
+  const loadedAddons = loadAddonsFromLocalStorage();
+  for (const addon of loadedAddons) {
+    if (!addon.transportUrl || !addon.catalogs) continue;
+    for (const catalog of addon.catalogs) {
+      if (catalog.id === folderId) {
+        try {
+          const items = await stremioFetchCatalog(addon.transportUrl, catalog.type || 'movie', catalog.id);
+          if (items.length > 0) return { items };
+        } catch {}
+      }
+    }
+    try {
+      const items = await stremioFetchCatalog(addon.transportUrl, 'movie', folderId);
+      if (items.length > 0) return { items };
+    } catch {}
+  }
+
+  return { items: [] };
+}
+
+function loadAddonsFromLocalStorage(): AddonManifest[] {
+  try {
+    const raw = localStorage.getItem('moonlit.addons');
+    if (!raw) return [];
+    const data = JSON.parse(raw);
+    return data.map((a: any) => a.manifest).filter(Boolean);
+  } catch {
+    return [];
+  }
 }

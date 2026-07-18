@@ -157,9 +157,9 @@ export function Shell() {
           )}
         </AnimatePresence>
 
-        {actorItem && <ActorBioScreen name={actorItem.name} />}
-        {!actorItem && streamingService && <StreamingServiceScreen name={streamingService.name} />}
-        {!actorItem && !streamingService && folderItem && <FolderScreen name={folderItem.name} />}
+        {actorItem && <ActorBioScreen id={actorItem.id} name={actorItem.name} />}
+        {!actorItem && streamingService && <StreamingServiceScreen rowId={streamingService.rowId} name={streamingService.name} />}
+        {!actorItem && !streamingService && folderItem && <FolderScreen rowId={folderItem.rowId} folderId={folderItem.folderId} name={folderItem.name} />}
         {!actorItem && !streamingService && !folderItem && detailItem && (
           <DetailScreen type={detailItem.type} id={detailItem.id} />
         )}
