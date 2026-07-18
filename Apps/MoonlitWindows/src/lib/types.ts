@@ -13,6 +13,51 @@ export interface MetaPreview {
   popularity?: number;
   /** For folder group-tiles: the folder's own tile shape (POSTER | LANDSCAPE). */
   tileShape?: string;
+  background?: string;
+  backdrop?: string;
+  focusGif?: string;
+  focusGifEnabled?: boolean;
+}
+
+export interface ContinueWatchingItem {
+  id: string;
+  name: string;
+  poster?: string;
+  background?: string;
+  logo?: string;
+  seasonNumber?: number;
+  episodeNumber?: number;
+  durationMs: number;
+  progressFraction: number;
+  upcomingAirsAt?: string;
+  isUpNext?: boolean;
+  isUpcoming?: boolean;
+}
+
+export interface CatalogRow {
+  id: string;
+  title: string;
+  items: MetaPreview[];
+  tileShape?: string;
+  coverImage?: string;
+  focusGif?: string;
+  focusGifEnabled?: boolean;
+  titleLogo?: string;
+  heroBackdrop?: string;
+  heroVideoUrl?: string;
+  hideTitle?: boolean;
+  focusGlowEnabled?: boolean;
+  viewMode?: string;
+  showAllTab?: boolean;
+  pinToTop?: boolean;
+  backdropImage?: string;
+  isGroupTile?: boolean;
+  folderId?: string;
+  collectionId?: string;
+  addonName?: string;
+  page?: number;
+  hasMore?: boolean;
+  isMainRow?: boolean;
 }
 
 export interface MetaLink {
