@@ -74,6 +74,7 @@ export interface MetaDetail {
   background?: string;
   logo?: string;
   description?: string;
+  tagline?: string;
   releaseInfo?: string;
   status?: string;
   imdbRating?: string;
@@ -86,6 +87,8 @@ export interface MetaDetail {
   seasons?: Season[];
   links?: MetaLink[];
   moreLikeThis?: MetaPreview[];
+  recommendations?: MetaPreview[];
+  rawPosterUrl?: string;
   tmdbId?: string;
 }
 
