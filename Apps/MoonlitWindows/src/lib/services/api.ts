@@ -178,6 +178,52 @@ export async function isInLibrary(profileId: string, mediaId: string): Promise<b
   return !!data;
 }
 
+export interface LikedItem {
+  id: string;
+  profile_id: string;
+  media_id: string;
+  media_type: string;
+  name: string;
+  poster?: string;
+  liked_at: string;
+}
+
+export async function getLikedItems(profileId: string): Promise<LikedItem[]> {
+  const { data } = await supabase
+    .from('liked_items')
+    .select('*')
+    .eq('profile_id', profileId)
+    .order('liked_at', { ascending: false });
+  return data || [];
+}
+
+export async function toggleLiked(
+  profileId: string,
+  mediaId: string,
+  mediaType: string,
+  name?: string,
+  poster?: string
+) {
+  const { data: existing } = await supabase
+    .from('liked_items')
+    .select('id')
+    .eq('profile_id', profileId)
+    .eq('media_id', mediaId)
+    .maybeSingle();
+
+  if (existing) {
+    await supabase.from('liked_items').delete().eq('id', existing.id);
+  } else {
+    await supabase.from('liked_items').insert({
+      profile_id: profileId,
+      media_id: mediaId,
+      media_type: mediaType,
+      name: name ?? mediaId,
+      poster: poster ?? null,
+    });
+  }
+}
+
 export async function getInstalledAddons(profileId: string): Promise<string[]> {
   const { data } = await supabase
     .from('installed_addons')
