@@ -388,4 +388,16 @@ public actor SyncService {
     public func pullSystemAddon() async throws -> String? {
         try await pullSystemAddonInfo()?.url
     }
+
+    /// Addon URLs curated by the admin (their own installed addons), shared to all
+    /// authenticated users via the get_shared_addons() SECURITY DEFINER function.
+    /// Callers MUST stream-guard these (metadata/catalog/subtitle only) — see
+    /// AddonRepository. The backend must never deliver a stream source to users.
+    public func pullSharedAddons() async throws -> [String] {
+        struct SharedAddonRow: Codable {
+            let addon_url: String
+        }
+        let rows: [SharedAddonRow] = try await client.rpc(function: "get_shared_addons")
+        return rows.map { $0.addon_url }
+    }
 }

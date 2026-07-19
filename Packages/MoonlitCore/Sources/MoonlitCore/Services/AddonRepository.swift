@@ -19,6 +19,10 @@ public class AddonRepository: ObservableObject {
     private static let manifestTTL: TimeInterval = 300
     private var systemAddonUrl: String?
     private var disabledAddonUrls: Set<String> = []
+    /// Admin-curated addons inherited via get_shared_addons(). Tracked so they are
+    /// never written back into the user's own `installed_addons` (they aren't the
+    /// user's; they're provisioned each load and stream-guarded).
+    private var sharedAddonUrls: Set<String> = []
 
     private init() {}
 
@@ -39,6 +43,7 @@ public class AddonRepository: ObservableObject {
     private var managedURLs: Set<String> {
         var set = Set(MoonlitConfig.defaultAddons)
         if let systemAddonUrl { set.insert(systemAddonUrl) }
+        set.formUnion(sharedAddonUrls)
         return set
     }
 
@@ -79,10 +84,28 @@ public class AddonRepository: ObservableObject {
             merged.insert(systemUrl, at: 0)
         }
         #endif
-        await refreshFromUrls(merged)
+
+        // Shared/admin-curated addons: authenticated non-admin users inherit the
+        // admin's own installed addons (via the get_shared_addons RPC). These are
+        // STREAM-GUARDED below — any `stream` resource is stripped, so the admin
+        // can provision catalog/metadata/subtitle addons to everyone but can never
+        // deliver a stream source through this channel (guideline 5.2.3 / 2.3.1).
+        // The admin themselves loads their own list directly, so they don't inherit.
+        var streamGuardedUrls: Set<String> = []
+        if ProfileManager.shared.isAuthenticated,
+           ProfileManager.shared.currentProfile?.profileRole != .admin {
+            let sharedUrls = (try? await syncService.pullSharedAddons()) ?? []
+            for url in sharedUrls where !merged.contains(url) {
+                merged.append(url)
+                streamGuardedUrls.insert(url)
+            }
+        }
+        self.sharedAddonUrls = streamGuardedUrls
+
+        await refreshFromUrls(merged, streamGuardedUrls: streamGuardedUrls)
     }
 
-    public func refreshFromUrls(_ urls: [String]) async {
+    public func refreshFromUrls(_ urls: [String], streamGuardedUrls: Set<String> = []) async {
         var addons: [ManagedAddon] = []
         let existing = managedAddons
 
@@ -91,7 +114,12 @@ public class AddonRepository: ObservableObject {
             for (index, url) in urls.enumerated() {
                 group.addTask {
                     do {
-                        let manifest = try await self.fetchManifest(url: url)
+                        var manifest = try await self.fetchManifest(url: url)
+                        // Strip streams from shared/admin-provisioned addons: the
+                        // backend must never deliver a playable source to users.
+                        if streamGuardedUrls.contains(url), manifest.hasResource("stream") {
+                            manifest = manifest.strippingStreamResource()
+                        }
                         return ManagedAddon(
                             manifest: manifest,
                             manifestUrl: url,

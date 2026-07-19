@@ -133,6 +133,28 @@ public struct AddonManifest: Codable, Sendable, Identifiable {
         resources?.contains(where: { $0.name == name }) ?? false
     }
 
+    /// Returns a copy of this manifest with its `stream` resource removed, so the
+    /// addon can no longer serve streams. Used to stream-guard addons that arrive
+    /// through the admin/shared channel — the backend must never deliver a stream
+    /// source to users (App Store Review Guidelines 5.2.3 / 2.3.1).
+    public func strippingStreamResource() -> AddonManifest {
+        AddonManifest(
+            id: id,
+            name: name,
+            version: version,
+            description: description,
+            types: types,
+            idPrefixes: idPrefixes,
+            resources: resources?.filter { $0.name != "stream" },
+            catalogs: catalogs,
+            addonCatalogs: addonCatalogs,
+            behaviorHints: behaviorHints,
+            transportUrl: transportUrl,
+            logo: logo,
+            background: background
+        )
+    }
+
     /// Returns true if this addon can serve a meta response for the given type+id.
     /// Respects resource-level `types` and `idPrefixes` when present.
     public func canHandleMeta(type: String, id: String) -> Bool {
