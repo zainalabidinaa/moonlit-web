@@ -22,6 +22,7 @@ struct SettingsScreen: View {
     @State private var showSubtitleAppearance = false
     @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = false
     @AppStorage("moonlit.guestMode") private var guestMode = false
+    @State private var showDeleteConfirm = false
 
     var body: some View {
         NavigationStack {
@@ -44,7 +45,7 @@ struct SettingsScreen: View {
                                             .padding(.horizontal, 5)
                                             .padding(.vertical, 2)
                                             .background(Color(red: 0.35, green: 0.34, blue: 0.84).opacity(0.15))
-                                            .cornerRadius(4)
+                                            .cornerRadius(MoonlitTheme.radiusSmall)
                                     }
                                 }
                                 if let email = profileManager.currentSession?.email {
@@ -63,12 +64,12 @@ struct SettingsScreen: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .background(Color.white.opacity(0.08))
-                                    .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.white.opacity(0.2), lineWidth: 1))
-                                    .cornerRadius(8)
+                                    .overlay(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl).stroke(Color.white.opacity(0.2), lineWidth: 1))
+                                    .cornerRadius(MoonlitTheme.radiusControl)
                             }
                         }
                         .padding(16)
-                        .glassCard(cornerRadius: 14)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal, 16)
                     } else if !profileManager.isAuthenticated {
                         Button { showAuth = true } label: {
@@ -79,7 +80,7 @@ struct SettingsScreen: View {
                                 subtitle: "Sync profiles and collections"
                             )
                         }
-                        .glassCard(cornerRadius: 14)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal, 16)
                     }
 
@@ -97,7 +98,7 @@ struct SettingsScreen: View {
                             )
                         }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     if profileManager.isAuthenticated {
@@ -107,7 +108,7 @@ struct SettingsScreen: View {
                             if traktAuth.isConnected {
                                 HStack(spacing: 12) {
                                     ZStack {
-                                        RoundedRectangle(cornerRadius: 7)
+                                        RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
                                             .fill(Color(red: 0.92, green: 0.27, blue: 0.0))
                                             .frame(width: 28, height: 28)
                                         Image(systemName: "checkmark.circle.fill")
@@ -132,7 +133,7 @@ struct SettingsScreen: View {
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
                                     .background(Color.red.opacity(0.1))
-                                    .cornerRadius(8)
+                                    .cornerRadius(MoonlitTheme.radiusControl)
                                 }
                                 .padding(.horizontal, 16)
                                 .padding(.vertical, 11)
@@ -176,7 +177,7 @@ struct SettingsScreen: View {
                                 .disabled(traktAuth.isConnecting || metadataIntegrations.traktClientId.isEmpty)
                             }
                         }
-                        .glassCard(cornerRadius: 14)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal, 16)
                     }
 
@@ -192,7 +193,7 @@ struct SettingsScreen: View {
                                 )
                             }
                         }
-                        .glassCard(cornerRadius: 14)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal, 16)
 
                         settingsSectionLabel("Content Management")
@@ -214,7 +215,24 @@ struct SettingsScreen: View {
                                 settingsRowLabel(icon: "film.fill", iconColor: Color.blue, title: "Hero Management")
                             }
                         }
-                        .glassCard(cornerRadius: 14)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
+                        .padding(.horizontal, 16)
+                    } else if roleManager.profileRole.canManageOwnAddons {
+                        // Premium+ (self-manage): may add & manage their own addons,
+                        // including their own stream addon. Other paid roles get
+                        // addons provisioned for them and have no management entry.
+                        settingsSectionLabel("Addons")
+                        VStack(spacing: 0) {
+                            Button { showAddons = true } label: {
+                                settingsRowLabel(
+                                    icon: "puzzlepiece.extension.fill",
+                                    iconColor: Color(red: 0.35, green: 0.34, blue: 0.84),
+                                    title: "Addons",
+                                    subtitle: "\(addonRepo.managedAddons.count) installed"
+                                )
+                            }
+                        }
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal, 16)
                     } else if !profileManager.isAuthenticated {
                         settingsSectionLabel("Addons")
@@ -228,7 +246,7 @@ struct SettingsScreen: View {
                                 )
                             }
                         }
-                        .glassCard(cornerRadius: 14)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal, 16)
                     }
 
@@ -264,7 +282,7 @@ struct SettingsScreen: View {
                             }
                         }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     // ── APPEARANCE ───────────────────────────────────
@@ -297,28 +315,81 @@ struct SettingsScreen: View {
                             )
                         }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     // ── APP ───────────────────────────────────────────
                     settingsSectionLabel("App")
                     VStack(spacing: 0) {
                         settingsRowLabel(icon: "info.circle.fill", iconColor: Color(white: 0.25), title: "Moonlit v1.0.0")
+                        Divider().padding(.leading, 52)
+                        Link(destination: URL(string: "https://trymoonlit.app/privacy")!) {
+                            settingsRowLabel(
+                                icon: "lock.shield.fill",
+                                iconColor: Color(red: 0.22, green: 0.55, blue: 0.35),
+                                title: "Privacy Policy"
+                            )
+                        }
+                        Divider().padding(.leading, 52)
+                        Link(destination: URL(string: "https://trymoonlit.app/terms")!) {
+                            settingsRowLabel(
+                                icon: "doc.text.fill",
+                                iconColor: Color(red: 0.28, green: 0.40, blue: 0.65),
+                                title: "Terms of Use"
+                            )
+                        }
+                        Divider().padding(.leading, 52)
+                        Link(destination: URL(string: "https://www.themoviedb.org")!) {
+                            settingsRowLabel(
+                                icon: "film.fill",
+                                iconColor: Color(red: 0.03, green: 0.71, blue: 0.60),
+                                title: "Movie & TV Metadata",
+                                subtitle: "This product uses the TMDB API but is not endorsed or certified by TMDB."
+                            )
+                        }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     if profileManager.isAuthenticated {
-                        // ── SIGN OUT ──────────────────────────────────────
-                        Button(role: .destructive) {
-                            Task { await profileManager.signOut() }
-                        } label: {
-                            Text("Sign Out")
-                                .foregroundColor(.red)
-                                .frame(maxWidth: .infinity)
-                                .padding(16)
+                        // ── CONNECT APPLE ID ──────────────────────────────
+                        ConnectAppleIDButton()
+                            .padding(.horizontal, 16)
+
+                        // ── SIGN OUT / DELETE ACCOUNT ─────────────────────
+                        VStack(spacing: 8) {
+                            Button(role: .destructive) {
+                                Task { await profileManager.signOut() }
+                            } label: {
+                                Text("Sign Out")
+                                    .foregroundColor(.red)
+                                    .frame(maxWidth: .infinity)
+                                    .padding(16)
+                            }
+                            .glassCard(cornerRadius: MoonlitTheme.radiusCard)
+
+                            Button(role: .destructive) {
+                                showDeleteConfirm = true
+                            } label: {
+                                Text("Delete Account")
+                                    .foregroundColor(.red.opacity(0.7))
+                                    .frame(maxWidth: .infinity)
+                                    .padding(16)
+                            }
+                            .glassCard(cornerRadius: MoonlitTheme.radiusCard)
+                            .confirmationDialog(
+                                "Delete Account",
+                                isPresented: $showDeleteConfirm,
+                                titleVisibility: .visible
+                            ) {
+                                Button("Delete Account and All Data", role: .destructive) {
+                                    Task { try? await profileManager.deleteAccount() }
+                                }
+                                Button("Cancel", role: .cancel) {}
+                            } message: {
+                                Text("This permanently deletes your Moonlit account and all profiles. This cannot be undone.")
+                            }
                         }
-                        .glassCard(cornerRadius: 14)
                         .padding(.horizontal, 16)
                     }
 
@@ -367,7 +438,7 @@ struct SettingsScreen: View {
     private var cinematicModeRow: some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
                     .fill(Color(red: 0.22, green: 0.42, blue: 0.72))
                     .frame(width: 28, height: 28)
                 Image(systemName: "sparkles.tv.fill")
@@ -406,7 +477,7 @@ struct SettingsScreen: View {
     private func settingsRowLabel(icon: String, iconColor: Color, title: String, subtitle: String? = nil, value: String? = nil) -> some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
                     .fill(iconColor)
                     .frame(width: 28, height: 28)
                 Image(systemName: icon)
@@ -445,7 +516,7 @@ struct SettingsScreen: View {
     private func settingsTextField(icon: String, placeholder: String, text: Binding<String>, isSecure: Bool = false) -> some View {
         HStack(spacing: 12) {
             ZStack {
-                RoundedRectangle(cornerRadius: 7)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
                     .fill(Color.white.opacity(0.1))
                     .frame(width: 28, height: 28)
                 Image(systemName: icon)
@@ -514,7 +585,7 @@ struct StreamAutoplaySettingsScreen: View {
 
                     allowedAddonsSection
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 Text("Manual opens the source picker. Automatic launches a ranked source from the allowed addons after the selected wait time.")
@@ -775,7 +846,7 @@ struct MetadataIntegrationsScreen: View {
                         state: tmdbState
                     )
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 Button {
@@ -789,7 +860,7 @@ struct MetadataIntegrationsScreen: View {
                     .frame(maxWidth: .infinity)
                     .padding(14)
                 }
-                .glassProminentButtonStyle(cornerRadius: 12)
+                .glassProminentButtonStyle(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 Text("Episode images resolve from TVDB first, then TMDB, then any usable addon image.")
@@ -831,9 +902,9 @@ struct MetadataIntegrationsScreen: View {
                 .foregroundColor(.white)
                 .font(.callout.monospaced())
                 .padding(12)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 8)
+                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                         .stroke(Color.white.opacity(0.08), lineWidth: 1)
                 )
 
@@ -1169,7 +1240,7 @@ struct AddonsScreen: View {
                                 .padding(.horizontal, 24)
                                 .padding(.vertical, 10)
                         }
-                        .glassCard(cornerRadius: 12, interactive: true)
+                        .glassCard(cornerRadius: MoonlitTheme.radiusCard, interactive: true)
                         .foregroundColor(.white)
                     }
                 } else {
@@ -1252,7 +1323,7 @@ struct AddonsScreen: View {
                         TextField("https://.../manifest.json", text: $newAddonURL)
                             .padding()
                             .background(MoonlitTheme.surface)
-                            .cornerRadius(12)
+                            .cornerRadius(MoonlitTheme.radiusCard)
                             .foregroundColor(.white)
                             .padding(.horizontal)
                             .autocapitalization(.none)
@@ -1298,7 +1369,7 @@ struct AddonsScreen: View {
                                     .padding()
                             }
                         }
-                        .glassProminentButtonStyle(cornerRadius: 12)
+                        .glassProminentButtonStyle(cornerRadius: MoonlitTheme.radiusCard)
                         .disabled(newAddonURL.isEmpty || isInstalling)
                         .padding(.horizontal)
 
@@ -1358,7 +1429,7 @@ private struct AddonRow: View {
                             .padding(.horizontal, 5)
                             .padding(.vertical, 2)
                             .background(category.color.opacity(0.15))
-                            .cornerRadius(4)
+                            .cornerRadius(MoonlitTheme.radiusSmall)
                     }
                 }
 
@@ -1373,7 +1444,7 @@ private struct AddonRow: View {
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.white.opacity(0.07))
-                                .cornerRadius(4)
+                                .cornerRadius(MoonlitTheme.radiusSmall)
                         }
                     }
                 }

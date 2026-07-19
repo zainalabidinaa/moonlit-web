@@ -13,6 +13,7 @@ struct AuthScreen: View {
     @State private var showReset = false
     @State private var resetLoading = false
     @State private var resetSent = false
+    @StateObject private var appleCoordinator = AppleSignInCoordinator()
 
     var body: some View {
         ZStack {
@@ -77,9 +78,9 @@ struct AuthScreen: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 15)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
                                     .stroke(.white.opacity(0.10), lineWidth: 1)
                             )
 
@@ -89,9 +90,9 @@ struct AuthScreen: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 15)
-                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
                                     .stroke(.white.opacity(0.10), lineWidth: 1)
                             )
                     }
@@ -119,9 +120,9 @@ struct AuthScreen: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 13)
-                                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                                         .stroke(.white.opacity(0.10), lineWidth: 1)
                                 )
 
@@ -139,7 +140,7 @@ struct AuthScreen: View {
                                         .foregroundStyle(.white.opacity(0.5))
                                         .padding(.vertical, 12)
                                         .padding(.horizontal, 20)
-                                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
                                 }
 
                                 Button(action: sendReset) {
@@ -153,7 +154,7 @@ struct AuthScreen: View {
                                     .foregroundStyle(.black)
                                     .padding(.vertical, 12)
                                     .padding(.horizontal, 20)
-                                    .background(Color(hex: "#FF8A35"), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                                    .background(Color(hex: "#FF8A35"), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
                                 }
                                 .disabled(resetEmail.isEmpty || resetLoading)
                                 .opacity(resetEmail.isEmpty || resetLoading ? 0.5 : 1)
@@ -185,7 +186,7 @@ struct AuthScreen: View {
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 17)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                         }
                         .disabled(isLoading)
 
@@ -200,7 +201,7 @@ struct AuthScreen: View {
                             .foregroundStyle(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 17)
-                            .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                            .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                         }
                         .disabled(isLoading || email.isEmpty || password.isEmpty)
                         .opacity(isLoading || email.isEmpty || password.isEmpty ? 0.48 : 1)
@@ -211,17 +212,13 @@ struct AuthScreen: View {
                                 .foregroundStyle(.white.opacity(0.62))
                                 .frame(maxWidth: .infinity)
                                 .padding(.vertical, 16)
-                                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                                .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
                                         .stroke(.white.opacity(0.08), lineWidth: 1)
                                 )
                         }
 
-                        Text("Create your account on the Moonlit website.")
-                            .font(.system(size: 13, weight: .regular, design: .default))
-                            .foregroundStyle(.white.opacity(0.42))
-                            .padding(.top, 4)
                     }
                     .padding(.horizontal, 28)
                     .padding(.bottom, 52)
@@ -251,7 +248,25 @@ struct AuthScreen: View {
     }
 
     private func startAppleSignIn() {
-        errorMessage = "Sign in with Apple needs to be connected to the Moonlit backend first."
+        isLoading = true
+        errorMessage = nil
+        appleCoordinator.onResult = { result in
+            Task { @MainActor in
+                switch result {
+                case .success(let creds):
+                    do {
+                        try await profileManager.signInWithApple(idToken: creds.idToken, nonce: creds.nonce)
+                        guestMode = false
+                    } catch {
+                        errorMessage = error.localizedDescription
+                    }
+                case .failure(let error):
+                    errorMessage = error.localizedDescription
+                }
+                isLoading = false
+            }
+        }
+        appleCoordinator.performRequest()
     }
 
     private func sendReset() {

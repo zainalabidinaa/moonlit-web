@@ -27,12 +27,23 @@ struct DetailScreen: View {
     @State private var isLiked = false
     @State private var descriptionSheet: DescriptionSheetData?
     @State private var showGuestStreamingAlert = false
+    @State private var showFullOverview = false
+    @State private var autoScrollEpisodeID: String?
+    @State private var ambientColor: Color = .clear
+    @State private var ambientColor2: Color = .clear
+    /// Season awaiting a mark/unmark confirmation. Non-nil drives the dialog.
+    @State private var seasonWatchPrompt: SeasonWatchPrompt?
     @StateObject private var likedRepo = LikedRepository.shared
+    @StateObject private var awardsMeta = AwardsMetadataService.shared
     @AppStorage("moonlit.guestMode") private var guestMode = false
+    @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
 
     private static let streailerBaseURL = "https://streailer.elfhosted.com/%7B%22language%22%3A%22en-US%22%2C%22externalLink%22%3Afalse%2C%22showRecap%22%3Afalse%2C%22onlyRecaps%22%3Afalse%7D"
     private static let mltBaseURL = "https://bbab4a35b833-more-like-this.baby-beamup.club/%7B%22iv%22%3A%226eccbcc6a9db21bd4cb1fef5f30b4892%22%2C%22salt%22%3Anull%2C%22authTag%22%3A%22017bc87cc819a77554085544340d58ee%22%2C%22data%22%3A%22d270093abcf6a558d135729ff8b3b1f799809a1b7bcf8e42b77a79357857b567587078990ef4e3668c550ee8b53b3219b6b9d39a201b768bf39dd3516762994348df48afdf938ad363cdf3bf2c620fb2014ee02826dac096aaa4e23da726f2b5de5467874ff0a51a87567354a45e23daf41cddbac084ed0f72000bf89b4d66acbf6908349fa70d0106a0e803001766e4a8635343e348c523061beabaa612a054ca63730898aa357d37af353db6ebf07dc415bb4de0064ef88f13c308a8bf8a64c620b9433575b7dd6a3b135d2aa0db02a82e434a0a713dd00e2c23efe2938ffcb5bcefe24fb2b7b70e2d0749029c88e2f9c4eb72af2cdd7162a706fccd56cc4f81d470fd9d3518f8d6d0d79943de3bafb4bc83de616f236f4e111bfad494bdb50426351aaaeb7df0573f4dc195c87f18094466b490bb9c8d9547ed3a82f2a0930cd55d177b03df493591470b75f4c7fe179b4725e40aafc21cfe7593e0d72dc825598b2c083854a60c284c0582f75736904a8b35842cc44872c8c294b9bec96421288ab2d80f6cb5c824eec1aff65e485193083a66da91022dffa55f9059b986ad65e2f09902648fc197a076773f29136b2c1df1b2af9e7334b3c0285d397602abc0ffd6bcdecf5d5318093dce2b8b2922d8ac1215e8ec4385e3eef554f21f6e49fa1fd6d37544530f3dd41a3bcd2f3febe53dd3a3390a6ce5a4748fa600a9466b425901e5e05500c941882ecce958e40f30256c02eedfccc5f7b630b214c9e61795bdba0481abd9160b901a014ac4d4cddf57a83ca8529ce5c30bf368ff8740ce7b757313cce9f0b73567897250ab333bfa%22%7D"
     @Environment(\.openURL) private var openURL
+
+    private let heroHeight: CGFloat = 520
+    private let contentRailInset: CGFloat = 16
 
     private var isSyntheticFolderId: Bool {
         mediaId.hasPrefix("folder_")
@@ -53,92 +64,65 @@ struct DetailScreen: View {
                 VStack(alignment: .leading, spacing: 0) {
 
                     // ── BACKDROP ──────────────────────────────────────────
-                    // Use GeometryReader to extend the image under the status bar
-                    // WITHOUT putting ignoresSafeArea on an inner view (which breaks
-                    // sibling layout frames and strips horizontal padding below).
+                    // Mirrors macOS: the artwork fades to transparent so the ambient
+                    // page layer carries through the bottom of the hero.
                     GeometryReader { geo in
                         let topInset = geo.safeAreaInsets.top
                         let backdropURL = detail.background.flatMap(URL.init)
-                            ?? detail.poster.flatMap(URL.init)
 
                         ZStack(alignment: .bottom) {
                             if let url = backdropURL {
-                                AsyncImage(url: url) { phase in
-                                    if case .success(let img) = phase {
-                                        img.resizable()
-                                            .aspectRatio(contentMode: .fill)
-                                            .frame(width: geo.size.width, height: 380 + topInset)
-                                            .clipped()
-                                    } else {
-                                        Color(MoonlitTheme.surfaceElevated)
-                                            .frame(maxWidth: .infinity)
-                                            .frame(height: 380 + topInset)
+                                ZStack(alignment: .top) {
+                                    CachedAsyncImage(url: url) { phase in
+                                        if case .success(let image) = phase {
+                                            image.resizable().scaledToFill()
+                                        } else {
+                                            Color(MoonlitTheme.surfaceElevated)
+                                        }
                                     }
+
+                                    LinearGradient(
+                                        stops: [
+                                            .init(color: MoonlitTheme.background.opacity(0.85), location: 0.0),
+                                            .init(color: MoonlitTheme.background.opacity(0.45), location: 0.28),
+                                            .init(color: .clear, location: 0.62)
+                                        ],
+                                        startPoint: .leading,
+                                        endPoint: .trailing
+                                    )
                                 }
+                                .frame(width: geo.size.width, height: heroHeight + topInset)
+                                .clipped()
+                                .mask(heroArtworkMask)
                             } else {
                                 Color(MoonlitTheme.surfaceElevated)
                                     .frame(maxWidth: .infinity)
-                                    .frame(height: 380 + topInset)
+                                    .frame(height: heroHeight + topInset)
                             }
 
-                            LinearGradient(
-                                stops: [
-                                    .init(color: .clear,                            location: 0.0),
-                                    .init(color: .clear,                            location: 0.30),
-                                    .init(color: MoonlitTheme.background.opacity(0.6), location: 0.60),
-                                    .init(color: MoonlitTheme.background,              location: 1.0),
-                                ],
-                                startPoint: .top, endPoint: .bottom
-                            )
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 380 + topInset)
-
-                            // Title + meta overlaid at backdrop bottom
-                            VStack(alignment: .leading, spacing: 6) {
-                                if let genres = detail.genres, !genres.isEmpty {
-                                    Text(genres.prefix(3).joined(separator: " · "))
-                                        .font(.system(size: 11, weight: .semibold))
-                                        .foregroundColor(.white.opacity(0.65))
+                            // Tagline + logo + metadata chips, Mac-style.
+                            VStack(alignment: .leading, spacing: 10) {
+                                if let tagline = detail.tagline, !tagline.isEmpty {
+                                    Text(tagline)
+                                        .font(.system(size: 10, weight: .medium))
+                                        .tracking(2.6)
+                                        .textCase(.uppercase)
+                                        .foregroundColor(.white.opacity(0.48))
                                         .lineLimit(1)
                                 }
 
-                                Text(detail.name)
-                                    .font(.title2.bold())
-                                    .foregroundColor(.white)
-                                    .lineLimit(2)
-                                    .fixedSize(horizontal: false, vertical: true)
+                                heroLogo(for: detail)
 
-                                HStack(spacing: 8) {
-                                    if let rating = detail.imdbRating {
-                                        HStack(spacing: 3) {
-                                            Image(systemName: "star.fill")
-                                                .font(.caption2)
-                                                .foregroundColor(.yellow)
-                                            Text(rating)
-                                                .font(.caption.bold())
-                                                .foregroundColor(.yellow)
-                                        }
-                                    }
-                                    if let release = detail.releaseInfo {
-                                        Text(release)
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.6))
-                                    }
-                                    if let runtime = detail.runtime {
-                                        Text(runtime)
-                                            .font(.caption)
-                                            .foregroundColor(.white.opacity(0.6))
-                                    }
-                                }
+                                heroMetadataChips(for: detail)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.horizontal, 16)
                             .padding(.bottom, 20)
                         }
                         .frame(maxWidth: .infinity)
-                        .frame(height: 380 + topInset)
+                        .frame(height: heroHeight + topInset)
                     }
-                    .frame(height: 380)
+                    .frame(height: heroHeight)
 
                     if metaRepo.isShowingStaleDetail {
                         HStack(spacing: 6) {
@@ -224,19 +208,26 @@ struct DetailScreen: View {
                     .padding(.top, 16)
 
                     // ── OVERVIEW ──────────────────────────────────────────
+                    // Expands in place rather than opening a sheet — one fewer
+                    // context switch to read a synopsis.
                     if let description = detail.description, !description.isEmpty {
                         Button {
-                            descriptionSheet = DescriptionSheetData(title: detail.name, text: description)
+                            withAnimation(.easeInOut(duration: 0.22)) { showFullOverview.toggle() }
                         } label: {
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("Overview")
+                                    .font(.system(size: 15, weight: .bold))
+                                    .foregroundColor(.white)
                                 Text(description)
                                     .font(.subheadline)
                                     .foregroundColor(MoonlitTheme.textSecondary)
-                                    .lineLimit(3)
+                                    .lineLimit(showFullOverview ? nil : 3)
                                     .multilineTextAlignment(.leading)
-                                Text("More")
-                                    .font(.caption.bold())
-                                    .foregroundColor(.white)
+                                if !showFullOverview && description.count > 220 {
+                                    Text("Show more")
+                                        .font(.caption.bold())
+                                        .foregroundColor(.white.opacity(0.9))
+                                }
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
@@ -259,42 +250,12 @@ struct DetailScreen: View {
                                 .font(.headline).foregroundColor(.white)
                                 .padding(.horizontal, 16)
 
-                            // Season picker
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                HStack(spacing: 8) {
-                                    ForEach(sorted) { season in
-                                        let isActive = season.id == activeId
-                                        Button { selectedSeasonId = season.id } label: {
-                                            Text("Season \(season.number)")
-                                                .font(.subheadline.weight(isActive ? .bold : .medium))
-                                                .foregroundColor(isActive ? .black : .white.opacity(0.85))
-                                                .padding(.horizontal, 16).padding(.vertical, 8)
-                                                .background(
-                                                    Capsule().fill(
-                                                        isActive ? AnyShapeStyle(MoonlitTheme.accent)
-                                                                 : AnyShapeStyle(Color.white.opacity(0.06))
-                                                    )
-                                                )
-                                                .overlay(
-                                                    Capsule().stroke(
-                                                        Color.white.opacity(isActive ? 0 : 0.14),
-                                                        lineWidth: 0.5
-                                                    )
-                                                )
-                                                .shadow(
-                                                    color: isActive ? MoonlitTheme.accent.opacity(0.35) : .clear,
-                                                    radius: 8, y: 2
-                                                )
-                                        }
-                                        .buttonStyle(.plain)
-                                        .animation(.easeInOut(duration: 0.18), value: isActive)
-                                    }
-                                }
+                            seasonControls(detail: detail, sorted: sorted, activeId: activeId)
                                 .padding(.horizontal, 16)
-                            }
 
                             if let activeSeason = sorted.first(where: { $0.id == activeId }),
                                let episodes = activeSeason.episodes {
+                                ScrollViewReader { proxy in
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     LazyHStack(spacing: 12) {
                                         ForEach(episodes) { ep in
@@ -313,6 +274,14 @@ struct DetailScreen: View {
                                                 episode: ep,
                                                 progressFraction: progress?.progressFraction,
                                                 isWatched: watched,
+                                                onToggleWatched: {
+                                                    toggleEpisodeWatched(
+                                                        detail: detail,
+                                                        episode: ep,
+                                                        season: seasonNumber,
+                                                        isWatched: watched
+                                                    )
+                                                },
                                                 onShowDescription: {
                                                     if let overview = ep.overview, !overview.isEmpty {
                                                         let epLabel = ep.episode.map { "Episode \($0) · " } ?? ""
@@ -341,9 +310,24 @@ struct DetailScreen: View {
                                                     )
                                                 }
                                             }
+                                            .id(ep.id)
                                         }
                                     }
-                                    .padding(.horizontal, 16)
+                                }
+                                .contentMargins(.horizontal, contentRailInset, for: .scrollContent)
+                                // Land on the episode the viewer would actually
+                                // press play on, not E1. Deferred a beat so the
+                                // LazyHStack has built the row before we scroll.
+                                .task(id: "\(activeSeason.id)-\(autoScrollEpisodeID ?? "")") {
+                                    guard let target = autoScrollEpisodeID,
+                                          episodes.contains(where: { $0.id == target }) else { return }
+                                    try? await Task.sleep(for: .milliseconds(350))
+                                    guard !Task.isCancelled else { return }
+                                    withAnimation(.easeInOut(duration: 0.35)) {
+                                        proxy.scrollTo(target, anchor: .leading)
+                                    }
+                                    autoScrollEpisodeID = nil
+                                }
                                 }
                             }
                         }
@@ -454,6 +438,15 @@ struct DetailScreen: View {
                         .padding(.top, 20)
                     }
 
+                    if let summary = awardsMeta.summary(forId: detail.id),
+                       !summary.bodiesRepresented.isEmpty {
+                        AwardsRecognitionSection(summary: summary)
+                            .padding(.top, 28)
+                    }
+
+                    InformationGrid(detail: detail)
+                        .padding(.top, 28)
+
                     // ── NETWORK / PRODUCTION ──────────────────────────────
                     if let links = detail.links, !links.isEmpty {
                         let networks = links.filter { $0.category?.lowercased() == "network" }
@@ -491,7 +484,18 @@ struct DetailScreen: View {
             }
         }
         .ignoresSafeArea(edges: .top)
-        .background(MoonlitTheme.background)
+        .background {
+            FusionAmbientBackground(
+                ambientColor: ambientColor,
+                ambientColor2: ambientColor2,
+                heroBackdropURL: metaRepo.detail?.background.flatMap(URL.init),
+                isEnabled: cinematicModeEnabled,
+                screenWidth: UIScreen.main.bounds.width,
+                screenHeight: UIScreen.main.bounds.height
+            )
+            .animation(.easeInOut(duration: 0.9), value: ambientColor)
+            .animation(.easeInOut(duration: 0.9), value: ambientColor2)
+        }
         .refreshable {
             await metaRepo.loadDetail(
                 type: type,
@@ -509,7 +513,7 @@ struct DetailScreen: View {
         .alert("Streaming unavailable", isPresented: $showGuestStreamingAlert) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Your account is set to Free. Visit the Moonlit website to upgrade your account and unlock streaming.")
+            Text("Streaming isn't available on this account.")
         }
         .fullScreenCover(item: $playerLaunch) { launch in
             PlayerScreen(launch: launch) {
@@ -533,7 +537,40 @@ struct DetailScreen: View {
                 initialPositionMs: launch.initialPositionMs
             )
         }
+        .confirmationDialog(
+            seasonWatchPrompt.map {
+                $0.markingWatched
+                    ? "Mark Season \($0.season.number) as watched?"
+                    : "Unmark Season \($0.season.number)?"
+            } ?? "",
+            isPresented: Binding(
+                get: { seasonWatchPrompt != nil },
+                set: { if !$0 { seasonWatchPrompt = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: seasonWatchPrompt
+        ) { prompt in
+            Button(prompt.markingWatched ? "Mark Watched" : "Unmark", role: prompt.markingWatched ? nil : .destructive) {
+                applySeasonWatchPrompt(prompt)
+                seasonWatchPrompt = nil
+            }
+            Button("Cancel", role: .cancel) { seasonWatchPrompt = nil }
+        } message: { prompt in
+            let count = prompt.season.episodes?.count ?? 0
+            Text(prompt.markingWatched
+                 ? "This marks all \(count) episodes as watched."
+                 : "This clears the watched mark from all \(count) episodes.")
+        }
+        .task(id: metaRepo.detail?.background) {
+            await updateAmbientColors(from: metaRepo.detail?.background)
+        }
+        .task(id: metaRepo.detail?.id) {
+            guard let detail = metaRepo.detail, detail.id.hasPrefix("tt") else { return }
+            await awardsMeta.fetch(id: detail.id)
+        }
         .task {
+            selectedSeasonId = nil
+            autoScrollEpisodeID = nil
             guard !isSyntheticFolderId else {
                 metaRepo.detail = nil
                 metaRepo.isLoading = false
@@ -576,6 +613,46 @@ struct DetailScreen: View {
                 await libraryRepo.loadLibrary(profileId: profile.id)
                 await watchedRepo.loadAll(profileId: profile.id)
             }
+            configureInitialEpisodePosition(for: metaRepo.detail)
+        }
+    }
+
+    private var heroArtworkMask: some View {
+        LinearGradient(
+            stops: [
+                .init(color: .black, location: 0.0),
+                .init(color: .black, location: 0.48),
+                .init(color: .black.opacity(0.5), location: 0.72),
+                .init(color: .black.opacity(0.15), location: 0.88),
+                .init(color: .clear, location: 1.0)
+            ],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func updateAmbientColors(from backdrop: String?) async {
+        guard cinematicModeEnabled,
+              let backdrop,
+              let url = URL(string: backdrop) else {
+            ambientColor = .clear
+            ambientColor2 = .clear
+            return
+        }
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let image = UIImage(data: data),
+                  let (primary, secondary) = image.moonlitAmbientColors() else {
+                ambientColor = .clear
+                ambientColor2 = .clear
+                return
+            }
+            ambientColor = primary.moonlitBoostedForAmbient
+            ambientColor2 = secondary.moonlitBoostedForAmbient
+        } catch {
+            ambientColor = .clear
+            ambientColor2 = .clear
         }
     }
 
@@ -699,6 +776,268 @@ struct DetailScreen: View {
                 ? "Trailer \(count)" : stream.title
             return Trailer(id: ytId, title: title, youtubeId: ytId)
         }
+    }
+
+    // MARK: - Season controls
+
+    /// Season menu + mark-watched button. The menu replaces the old horizontal
+    /// pill rail: it stays one row tall no matter how many seasons a series has,
+    /// and iOS renders the popup itself so it matches the system exactly.
+    @ViewBuilder
+    private func seasonControls(detail: MetaDetail, sorted: [Season], activeId: String?) -> some View {
+        let activeSeason = sorted.first { $0.id == activeId }
+        let allWatched = activeSeason.map { isSeasonFullyWatched($0, detail: detail) } ?? false
+
+        HStack(spacing: 8) {
+            Menu {
+                Picker("Season", selection: Binding(
+                    get: { activeId ?? sorted.first?.id ?? "" },
+                    set: { newId in
+                        selectedSeasonId = newId
+                        // A manual season change means the viewer is browsing;
+                        // don't yank the rail back to next-up underneath them.
+                        autoScrollEpisodeID = nil
+                    }
+                )) {
+                    ForEach(sorted) { season in
+                        Text(season.name ?? "Season \(season.number)").tag(season.id)
+                    }
+                }
+            } label: {
+                HStack(spacing: 7) {
+                    Text(activeSeason?.name ?? "Season \(activeSeason?.number ?? 1)")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.white)
+                    Image(systemName: "chevron.up.chevron.down")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.white.opacity(0.55))
+                }
+                .padding(.horizontal, 13)
+                .padding(.vertical, 8)
+                .background(Color.white.opacity(0.10), in: Capsule())
+                .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+            }
+
+            if let activeSeason {
+                Button {
+                    seasonWatchPrompt = SeasonWatchPrompt(season: activeSeason, markingWatched: !allWatched)
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: allWatched ? "checkmark.circle.fill" : "checkmark.circle")
+                            .font(.system(size: 12, weight: .semibold))
+                        Text(allWatched ? "Watched" : "Mark Watched")
+                            .font(.system(size: 11, weight: .semibold))
+                    }
+                    .foregroundColor(allWatched ? .green : .white.opacity(0.9))
+                    .padding(.horizontal, 11)
+                    .padding(.vertical, 8)
+                    .background(
+                        (allWatched ? Color.green.opacity(0.14) : Color.white.opacity(0.06)),
+                        in: Capsule()
+                    )
+                    .overlay(
+                        Capsule().stroke(
+                            allWatched ? Color.green.opacity(0.4) : Color.white.opacity(0.14),
+                            lineWidth: 0.5
+                        )
+                    )
+                }
+                .buttonStyle(.plain)
+                .sensoryFeedback(.impact(weight: .light), trigger: allWatched)
+            }
+
+            Spacer(minLength: 0)
+        }
+    }
+
+    private func isSeasonFullyWatched(_ season: Season, detail: MetaDetail) -> Bool {
+        guard let episodes = season.episodes, !episodes.isEmpty else { return false }
+        return episodes.allSatisfy {
+            watchedRepo.isEpisodeWatched(
+                parentMediaId: detail.id,
+                season: $0.season ?? season.number,
+                episode: $0.episode
+            )
+        }
+    }
+
+    private func applySeasonWatchPrompt(_ prompt: SeasonWatchPrompt) {
+        Task {
+            guard let profile = profileManager.currentProfile,
+                  let detail = metaRepo.detail,
+                  let episodes = prompt.season.episodes else { return }
+
+            if prompt.markingWatched {
+                await watchedRepo.markSeasonWatched(
+                    profileId: profile.id,
+                    seriesId: detail.id,
+                    mediaType: type,
+                    season: prompt.season.number,
+                    episodes: episodes.map { (mediaId: $0.id, episode: $0.episode) },
+                    name: detail.name,
+                    poster: detail.rawPosterUrl ?? detail.poster
+                )
+            } else {
+                // No bulk unmark exists on the repository — markUnwatched deletes
+                // one row at a time, so walk the season.
+                for ep in episodes {
+                    await watchedRepo.markUnwatched(mediaId: ep.id)
+                }
+            }
+        }
+    }
+
+    private func toggleEpisodeWatched(detail: MetaDetail, episode: MetaVideo, season: Int, isWatched: Bool) {
+        Task {
+            guard let profile = profileManager.currentProfile else { return }
+            if isWatched {
+                await watchedRepo.markUnwatched(mediaId: episode.id)
+            } else {
+                await watchedRepo.markWatched(
+                    profileId: profile.id,
+                    mediaId: episode.id,
+                    mediaType: type,
+                    name: detail.name,
+                    poster: detail.rawPosterUrl ?? detail.poster,
+                    season: season,
+                    episode: episode.episode
+                )
+            }
+        }
+    }
+
+    // MARK: - Next up
+
+    /// The episode the viewer is most likely to want: the one they're partway
+    /// through, else the first unwatched one after the last watched. Returns nil
+    /// for a season that's already fully watched.
+    private func nextUpEpisodeId(in season: Season, detail: MetaDetail) -> String? {
+        guard let episodes = season.episodes, !episodes.isEmpty else { return nil }
+
+        if let inProgress = episodes.first(where: { ep in
+            guard let p = watchedRepo.getEpisodeProgress(
+                parentMediaId: detail.id,
+                season: ep.season ?? season.number,
+                episode: ep.episode
+            ) else { return false }
+            let f = p.progressFraction
+            return f > 0.01 && f < 0.95
+        }) {
+            return inProgress.id
+        }
+
+        let lastWatchedIndex = episodes.lastIndex { ep in
+            watchedRepo.isEpisodeWatched(
+                parentMediaId: detail.id,
+                season: ep.season ?? season.number,
+                episode: ep.episode
+            )
+        }
+        guard let lastWatchedIndex else { return nil }
+        let next = episodes.index(after: lastWatchedIndex)
+        return episodes.indices.contains(next) ? episodes[next].id : nil
+    }
+
+    /// The season the viewer should land on — next-up often isn't in Season 1.
+    /// Picks the first season with something in progress or partially watched,
+    /// falling back to the first season.
+    private func initialSeasonId(for detail: MetaDetail, sorted: [Season]) -> String? {
+        for season in sorted where nextUpEpisodeId(in: season, detail: detail) != nil {
+            return season.id
+        }
+        return sorted.first?.id
+    }
+
+    private func configureInitialEpisodePosition(for detail: MetaDetail?) {
+        guard let detail,
+              let seasons = detail.seasons, !seasons.isEmpty else { return }
+
+        let sorted = seasons.filter { $0.number != 0 }.sorted { $0.number < $1.number }
+        guard let seasonID = initialSeasonId(for: detail, sorted: sorted),
+              let season = sorted.first(where: { $0.id == seasonID }) else { return }
+
+        selectedSeasonId = seasonID
+        autoScrollEpisodeID = nextUpEpisodeId(in: season, detail: detail)
+    }
+
+    /// The title's stylized clearlogo. Deliberately has NO text fallback: when
+    /// the addon supplies no logo the hero shows tagline + chips only. Mac keeps
+    /// a serif fallback here; iOS does not, by request.
+    @ViewBuilder
+    private func heroLogo(for detail: MetaDetail) -> some View {
+        if let logoURL = detail.logo.flatMap(URL.init) {
+            CachedAsyncImage(url: logoURL) { phase in
+                // Must return a real view in every phase — CachedAsyncImage hangs
+                // its fetch off `.task` applied to this closure's result, and an
+                // empty ViewBuilder result has no lifecycle to attach it to.
+                ZStack(alignment: .leading) {
+                    Color.clear
+                    if case .success(let img) = phase {
+                        img.resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: 260, maxHeight: 104, alignment: .leading)
+                            .shadow(color: .black.opacity(0.65), radius: 10, x: 0, y: 4)
+                    }
+                }
+                .frame(height: 104, alignment: .leading)
+            }
+            .id(detail.logo)
+        }
+    }
+
+    /// Mac-style metadata pills. Wraps to a second line rather than scrolling —
+    /// six chips don't fit a 390pt width on one row.
+    @ViewBuilder
+    private func heroMetadataChips(for detail: MetaDetail) -> some View {
+        let genres = Array((detail.genres ?? []).prefix(3))
+        FlowLayout(spacing: 6) {
+            if let year = releaseYear(from: detail.releaseInfo) {
+                metadataChip { Text(year) }
+            }
+            if let rating = detail.imdbRating {
+                metadataChip {
+                    Text("IMDb")
+                        .font(.system(size: 9, weight: .black))
+                        .foregroundColor(MoonlitTheme.harborGold)
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 8, weight: .bold))
+                        .foregroundColor(MoonlitTheme.harborGold)
+                    Text(rating)
+                }
+            }
+            if let seasons = seasonSummary(for: detail) {
+                metadataChip { Text(seasons) }
+            } else if let runtime = detail.runtime {
+                metadataChip { Text(runtime) }
+            }
+            ForEach(genres, id: \.self) { genre in
+                metadataChip { Text(genre) }
+            }
+        }
+    }
+
+    private func metadataChip<Content: View>(@ViewBuilder content: () -> Content) -> some View {
+        HStack(spacing: 4) {
+            content()
+        }
+        .font(.system(size: 10.5, weight: .semibold))
+        .foregroundColor(.white.opacity(0.9))
+        .padding(.horizontal, 9)
+        .padding(.vertical, 4)
+        .background(Color.white.opacity(0.10), in: Capsule())
+        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+    }
+
+    private func releaseYear(from releaseInfo: String?) -> String? {
+        guard let releaseInfo else { return nil }
+        let year = releaseInfo.prefix(4)
+        return year.count == 4 && Int(year) != nil ? String(year) : releaseInfo
+    }
+
+    private func seasonSummary(for detail: MetaDetail) -> String? {
+        let real = (detail.seasons ?? []).filter { $0.number != 0 }
+        guard !real.isEmpty else { return nil }
+        return real.count == 1 ? "1 Season" : "\(real.count) Seasons"
     }
 
     @ViewBuilder
@@ -1219,10 +1558,79 @@ struct DescriptionSheet: View {
 
 // MARK: - Episode Card
 
+/// A pending "mark/unmark this whole season" confirmation.
+struct SeasonWatchPrompt: Identifiable {
+    let season: Season
+    /// true = about to mark watched, false = about to unmark.
+    let markingWatched: Bool
+    var id: String { "\(season.id)-\(markingWatched)" }
+}
+
+/// Left-aligned wrapping flow: each subview keeps its natural size and rows wrap
+/// when they run out of width. Used for the hero's metadata pills, which don't
+/// fit a phone width on one line.
+///
+/// Mirrors MoonlitMac's `FlowLayout` — the two apps are separate targets and
+/// only share code through MoonlitCore, which can't vend SwiftUI layouts here
+/// without pulling the whole component set across.
+struct FlowLayout: Layout {
+    var spacing: CGFloat = 8
+    var rowSpacing: CGFloat = 8
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let rows = computeRows(maxWidth: proposal.width ?? .infinity, subviews: subviews)
+        let width = proposal.width ?? rows.map(\.width).max() ?? 0
+        let height = rows.reduce(0) { $0 + $1.height } + rowSpacing * CGFloat(max(0, rows.count - 1))
+        return CGSize(width: width, height: height)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        let rows = computeRows(maxWidth: bounds.width, subviews: subviews)
+        var y = bounds.minY
+        for row in rows {
+            var x = bounds.minX
+            for index in row.indices {
+                let size = subviews[index].sizeThatFits(.unspecified)
+                subviews[index].place(
+                    at: CGPoint(x: x, y: y + (row.height - size.height) / 2),
+                    proposal: ProposedViewSize(size)
+                )
+                x += size.width + spacing
+            }
+            y += row.height + rowSpacing
+        }
+    }
+
+    private struct Row {
+        var indices: [Int] = []
+        var width: CGFloat = 0
+        var height: CGFloat = 0
+    }
+
+    private func computeRows(maxWidth: CGFloat, subviews: Subviews) -> [Row] {
+        var rows: [Row] = []
+        var current = Row()
+        for (index, subview) in subviews.enumerated() {
+            let size = subview.sizeThatFits(.unspecified)
+            let needed = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            if !current.indices.isEmpty && needed > maxWidth {
+                rows.append(current)
+                current = Row()
+            }
+            current.width = current.indices.isEmpty ? size.width : current.width + spacing + size.width
+            current.height = max(current.height, size.height)
+            current.indices.append(index)
+        }
+        if !current.indices.isEmpty { rows.append(current) }
+        return rows
+    }
+}
+
 struct EpisodeCard: View {
     let episode: MetaVideo
     let progressFraction: Double?
     let isWatched: Bool
+    var onToggleWatched: (() -> Void)? = nil
     var onShowDescription: (() -> Void)? = nil
     let onPlay: () -> Void
 
@@ -1278,6 +1686,26 @@ struct EpisodeCard: View {
             .frame(width: 220, height: 124)
             .contentShape(RoundedRectangle(cornerRadius: 10))
             .onTapGesture(perform: onPlay)
+            // Long-press rather than a visible control: the card is already
+            // carrying a thumbnail, episode number, title, overview and a
+            // progress bar in 220pt.
+            .contextMenu {
+                if let onToggleWatched {
+                    Button {
+                        onToggleWatched()
+                    } label: {
+                        Label(
+                            isWatched ? "Mark as Unwatched" : "Mark as Watched",
+                            systemImage: isWatched ? "checkmark.circle.badge.xmark" : "checkmark.circle"
+                        )
+                    }
+                }
+                Button {
+                    onPlay()
+                } label: {
+                    Label("Play", systemImage: "play.fill")
+                }
+            }
 
             if let epNum = episode.episode {
                 Text("Episode \(epNum)")

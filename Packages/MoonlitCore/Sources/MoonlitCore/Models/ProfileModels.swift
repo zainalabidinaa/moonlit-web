@@ -50,15 +50,22 @@ public struct MoonlitProfile: Codable, Sendable, Identifiable, Equatable {
     public var isAdmin: Bool { role == "admin" }
 
     public var profileRole: ProfileRole {
-        ProfileRole(rawValue: role) ?? .user
+        // The portal/backend is the source of truth for role names ("premium",
+        // "premium_plus"). Map the older app-only names as legacy aliases so any
+        // pre-existing rows keep resolving correctly.
+        switch role {
+        case "premium_full":        return .premium
+        case "premium_self_manage": return .premiumPlus
+        default:                    return ProfileRole(rawValue: role) ?? .user
+        }
     }
 }
 
 public enum ProfileRole: String, Codable, Sendable, CaseIterable {
     case admin            = "admin"
     case friendsAndFamily = "friends_family"
-    case premiumFull      = "premium_full"
-    case premiumSelfManage = "premium_self_manage"
+    case premium          = "premium"
+    case premiumPlus      = "premium_plus"
     case free             = "free"
     case restricted       = "restricted"
     case user             = "user"
@@ -71,8 +78,11 @@ public enum ProfileRole: String, Codable, Sendable, CaseIterable {
         self != .restricted
     }
 
+    /// True when the user may add & manage their OWN addons (bring-your-own,
+    /// including their own stream addon URL). Other roles get addons provisioned
+    /// for them but cannot add their own. Admin + Premium+ (self-manage) only.
     public var canManageOwnAddons: Bool {
-        self == .admin || self == .premiumSelfManage
+        self == .admin || self == .premiumPlus
     }
 
     public var canManageCatalogs: Bool { self == .admin }
@@ -82,8 +92,8 @@ public enum ProfileRole: String, Codable, Sendable, CaseIterable {
         switch self {
         case .admin:             return "Admin"
         case .friendsAndFamily:  return "Friends & Family"
-        case .premiumFull:       return "Premium"
-        case .premiumSelfManage: return "Premium"
+        case .premium:           return "Premium"
+        case .premiumPlus:       return "Premium+"
         case .free:              return "Free"
         case .restricted:        return "Restricted"
         case .user:              return "User"

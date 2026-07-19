@@ -68,9 +68,17 @@ public class AddonRepository: ObservableObject {
         for url in remoteUrls where !merged.contains(url) {
             merged.append(url)
         }
+        #if os(macOS)
+        // The admin-controlled `system_addon` is broadcast to every user and force-inserted
+        // at the top of the list. It is provisioned ONLY on macOS. On iOS this path is
+        // compiled out entirely: the App Store build must never let the backend deliver a
+        // stream source to users (App Store Review Guidelines 2.3.1 / 5.2.3). On iOS the
+        // addon list is only the bundled metadata/subtitle defaults plus addons the user
+        // installs themselves; those sync per-user via `installed_addons` (owner-scoped RLS).
         if let systemUrl = systemAddonUrl, !merged.contains(systemUrl) {
             merged.insert(systemUrl, at: 0)
         }
+        #endif
         await refreshFromUrls(merged)
     }
 
