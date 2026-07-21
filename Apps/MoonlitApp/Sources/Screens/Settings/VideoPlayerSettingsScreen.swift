@@ -116,7 +116,7 @@ struct VideoPlayerSettingsScreen: View {
                 .padding(.horizontal, 16)
                 .animation(.easeInOut(duration: 0.2), value: prefs.usePerTypePlayers)
 
-                Text("Auto-Detect: .m3u8/HLS uses AVPlayer; .mkv/.avi and complex formats use KSPlayer.")
+                Text("Auto-Detect: .m3u8/HLS uses AVPlayer; .mkv/.avi and complex formats use the built-in player.")
                     .font(.caption)
                     .foregroundColor(MoonlitTheme.textTertiary)
                     .padding(.horizontal, 20)

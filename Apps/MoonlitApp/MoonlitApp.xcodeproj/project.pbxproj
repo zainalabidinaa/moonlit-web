@@ -756,7 +756,6 @@
 				INFOPLIST_FILE = Sources/Info.plist;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSAppTransportSecurity = "[\"NSAllowsArbitraryLoads\": true]";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -780,7 +779,6 @@
 				INFOPLIST_FILE = Sources/Info.plist;
 				INFOPLIST_KEY_CFBundleIconName = AppIcon;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
-				INFOPLIST_KEY_NSAppTransportSecurity = "[\"NSAllowsArbitraryLoads\": true]";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

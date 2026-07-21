@@ -704,7 +704,7 @@ struct StreamAutoplaySettingsScreen: View {
             }
 
             if streamAddons.isEmpty {
-                Text(addonRepo.isLoading ? "Loading addons..." : "No stream addons installed")
+                Text(addonRepo.isLoading ? "Loading addons..." : "No sources installed")
                     .font(.caption)
                     .foregroundColor(MoonlitTheme.textTertiary)
             } else {
@@ -747,7 +747,7 @@ struct StreamAutoplaySettingsScreen: View {
 
     private var allowedAddonSummary: String {
         if selectedAddonUrls.isEmpty {
-            return "All enabled stream addons"
+            return "All enabled sources"
         }
         return "\(selectedAddonUrls.count) selected"
     }
@@ -1316,7 +1316,7 @@ struct AddonsScreen: View {
             .sheet(isPresented: $showAddSheet) {
                 NavigationStack {
                     VStack(spacing: 20) {
-                        Text("Enter a Stremio addon URL")
+                        Text("Enter an addon manifest URL")
                             .font(.headline)
                             .foregroundColor(.white)
 

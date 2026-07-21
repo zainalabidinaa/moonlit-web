@@ -33,8 +33,6 @@ settings:
 packages:
   MoonlitCore:
     path: ../../Packages/MoonlitCore
-  KSPlayer:
-    path: /tmp/ksplayer-clone
   Lottie:
     url: https://github.com/airbnb/lottie-spm.git
     from: "4.6.0"
@@ -51,7 +49,6 @@ targets:
       - path: Resources
     dependencies:
       - package: MoonlitCore
-      - package: KSPlayer
       - package: Lottie
       - sdk: AppIntents.framework
     settings:
@@ -64,8 +61,6 @@ targets:
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
-        INFOPLIST_KEY_NSAppTransportSecurity:
-          NSAllowsArbitraryLoads: true
         VALIDATE_WORKSPACE: NO
     postBuildScripts:
       - name: Generate Missing Framework Info.plist
