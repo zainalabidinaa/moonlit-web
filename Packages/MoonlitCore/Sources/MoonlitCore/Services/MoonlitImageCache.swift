@@ -5,7 +5,7 @@ import CoreGraphics
 #if os(macOS)
 import AppKit
 public typealias MoonlitImage = NSImage
-#elseif os(iOS)
+#elseif os(iOS) || os(tvOS)
 import UIKit
 public typealias MoonlitImage = UIImage
 #endif
@@ -132,7 +132,7 @@ public enum MoonlitImageCache {
         let cost = cg.height * cg.bytesPerRow
         #if os(macOS)
         let image = NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
-        #elseif os(iOS)
+        #elseif os(iOS) || os(tvOS)
         let image = UIImage(cgImage: cg)
         #endif
         return (image, cost)

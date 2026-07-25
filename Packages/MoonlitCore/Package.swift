@@ -5,7 +5,8 @@ let package = Package(
     name: "MoonlitCore",
     platforms: [
         .iOS(.v17),
-        .macOS("14.0")
+        .macOS("14.0"),
+        .tvOS(.v17),
     ],
     products: [
         .library(
