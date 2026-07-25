@@ -8,9 +8,9 @@ const PREMIUM_ENTITLEMENT = "premium";
 const PREMIUM_PLUS_ENTITLEMENT = "premium_plus";
 
 Deno.serve(async (req) => {
+    const secret = Deno.env.get("REVENUECAT_WEBHOOK_SECRET");
     const authHeader = req.headers.get("Authorization");
-    const expected = `Bearer ${Deno.env.get("REVENUECAT_WEBHOOK_SECRET")}`;
-    if (authHeader !== expected) {
+    if (!secret || authHeader !== `Bearer ${secret}`) {
         return new Response("Unauthorized", { status: 401 });
     }
 
