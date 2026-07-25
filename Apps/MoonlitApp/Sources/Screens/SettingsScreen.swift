@@ -27,16 +27,18 @@ struct SettingsScreen: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 8) {
+                VStack(spacing: 0) {
 
-                    // ── PROFILE CARD ──────────────────────────────────
+                    // ── IDENTITY ──────────────────────────────────────
+                    // Uncarded, above the first group: who you are, and the two
+                    // account actions that belong to that question.
                     if let profile = profileManager.currentProfile {
                         HStack(spacing: 12) {
                             ProfileAvatarView(profile: profile, size: 44)
                             VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
                                     Text(profile.name)
-                                        .font(.headline)
+                                        .font(.system(size: 17, weight: .semibold))
                                         .foregroundColor(.white)
                                     if roleManager.isAdmin {
                                         Text("ADMIN")
@@ -59,67 +61,61 @@ struct SettingsScreen: View {
                                 profileManager.currentProfile = nil
                             } label: {
                                 Text("Switch")
-                                    .font(.caption.weight(.semibold))
+                                    .font(.system(size: 12, weight: .semibold))
                                     .foregroundColor(.white)
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.white.opacity(0.08))
-                                    .overlay(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl).stroke(Color.white.opacity(0.2), lineWidth: 1))
-                                    .cornerRadius(MoonlitTheme.radiusControl)
+                                    .padding(.horizontal, 13)
+                                    .padding(.vertical, 7)
+                                    .background(Color.white.opacity(0.10), in: Capsule())
+                                    .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1))
                             }
+                            .buttonStyle(.plain)
                         }
-                        .padding(16)
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
+                        .padding(14)
+                        .background(
+                            LinearGradient(
+                                colors: [MoonlitTheme.accent.opacity(0.13), Color.white.opacity(0.04)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            in: RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                .stroke(MoonlitTheme.accent.opacity(0.20), lineWidth: 1)
+                        )
                         .padding(.horizontal, 16)
                     } else if !profileManager.isAuthenticated {
                         Button { showAuth = true } label: {
-                            settingsRowLabel(
-                                icon: "person.crop.circle.fill.badge.plus",
-                                iconColor: Color(red: 0.92, green: 0.43, blue: 0.12),
+                            settingsRow(
+                                icon: "person.crop.circle.badge.plus",
                                 title: "Sign in",
                                 subtitle: "Sync profiles and collections"
                             )
                         }
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                        .padding(.horizontal, 16)
+                        .buttonStyle(.plain)
+                        .settingsGroupStyle()
                     }
 
-                    // ── GENERAL ───────────────────────────────────────
-                    settingsSectionLabel("General")
-                    VStack(spacing: 0) {
-                        NavigationLink {
-                            MetadataIntegrationsScreen()
-                        } label: {
-                            settingsRowLabel(
-                                icon: "key.horizontal.fill",
-                                iconColor: Color(red: 0.43, green: 0.23, blue: 0.55),
-                                title: "Metadata",
-                                subtitle: metadataIntegrations.effectiveTVDBAPIKey == nil ? "TMDB" : "TVDB + TMDB"
-                            )
-                        }
-                    }
-                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                    .padding(.horizontal, 16)
-
+                    // Apple ID sits directly under the profile card — it answers
+                    // "which account is this?", not "what else can the app do?".
                     if profileManager.isAuthenticated {
-                        // ── TRAKT ─────────────────────────────────────────
-                        settingsSectionLabel("Trakt")
-                        VStack(spacing: 0) {
+                        ConnectAppleIDButton()
+                            .padding(.top, 8)
+                            .padding(.horizontal, 16)
+                    }
+
+                    // ── ACCOUNT ───────────────────────────────────────
+                    settingsGroupLabel("Account")
+                    VStack(spacing: 0) {
+                        if profileManager.isAuthenticated {
                             if traktAuth.isConnected {
                                 HStack(spacing: 12) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
-                                            .fill(Color(red: 0.92, green: 0.27, blue: 0.0))
-                                            .frame(width: 28, height: 28)
-                                        Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.white)
-                                    }
+                                    settingsIcon("checkmark.seal")
                                     VStack(alignment: .leading, spacing: 2) {
-                                        Text("Connected")
-                                            .font(.subheadline)
+                                        Text("Trakt")
+                                            .font(.system(size: 15))
                                             .foregroundColor(.white)
-                                        Text("Watchlist synced to Upcoming")
+                                        Text("Connected · watchlist synced to Upcoming")
                                             .font(.caption)
                                             .foregroundColor(MoonlitTheme.textTertiary)
                                     }
@@ -135,158 +131,96 @@ struct SettingsScreen: View {
                                     .background(Color.red.opacity(0.1))
                                     .cornerRadius(MoonlitTheme.radiusControl)
                                 }
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 11)
+                                .padding(.horizontal, 14)
+                                .padding(.vertical, 12)
                             } else {
                                 if roleManager.isAdmin {
-                                    VStack(spacing: 0) {
-                                        settingsTextField(
-                                            icon: "key.fill",
-                                            placeholder: "Trakt Client ID",
-                                            text: Binding(
-                                                get: { metadataIntegrations.traktClientId },
-                                                set: { metadataIntegrations.traktClientId = $0 }
-                                            )
+                                    settingsTextField(
+                                        icon: "key.fill",
+                                        placeholder: "Trakt Client ID",
+                                        text: Binding(
+                                            get: { metadataIntegrations.traktClientId },
+                                            set: { metadataIntegrations.traktClientId = $0 }
                                         )
-                                        settingsDivider()
-                                        settingsTextField(
-                                            icon: "lock.fill",
-                                            placeholder: "Trakt Client Secret",
-                                            text: Binding(
-                                                get: { metadataIntegrations.traktClientSecret },
-                                                set: { metadataIntegrations.traktClientSecret = $0 }
-                                            ),
-                                            isSecure: true
-                                        )
-                                        settingsDivider()
-                                    }
+                                    )
+                                    settingsRowDivider()
+                                    settingsTextField(
+                                        icon: "lock.fill",
+                                        placeholder: "Trakt Client Secret",
+                                        text: Binding(
+                                            get: { metadataIntegrations.traktClientSecret },
+                                            set: { metadataIntegrations.traktClientSecret = $0 }
+                                        ),
+                                        isSecure: true
+                                    )
+                                    settingsRowDivider()
                                 }
                                 Button {
                                     guard let profile = profileManager.currentProfile else { return }
                                     traktAuth.connect(profileId: profile.id)
                                 } label: {
-                                    settingsRowLabel(
+                                    settingsRow(
                                         icon: "tv.and.mediabox",
-                                        iconColor: Color(red: 0.92, green: 0.27, blue: 0.0),
                                         title: "Connect Trakt",
                                         subtitle: traktAuth.isConnecting ? "Waiting for authorization..."
                                             : metadataIntegrations.traktClientId.isEmpty ? "Enter Client ID above first"
                                             : "Sync your watchlist to Upcoming"
                                     )
                                 }
+                                .buttonStyle(.plain)
                                 .disabled(traktAuth.isConnecting || metadataIntegrations.traktClientId.isEmpty)
                             }
+                            settingsRowDivider()
                         }
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                        .padding(.horizontal, 16)
+                        NavigationLink {
+                            MetadataIntegrationsScreen()
+                        } label: {
+                            settingsRow(
+                                icon: "text.magnifyingglass",
+                                title: "Metadata",
+                                subtitle: metadataIntegrations.effectiveTVDBAPIKey == nil ? "TMDB" : "TVDB + TMDB"
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-
-                    // ── CONTENT MANAGEMENT (admin only) ───────────────
-                    if roleManager.isAdmin {
-                        settingsSectionLabel("Admin")
-                        VStack(spacing: 0) {
-                            NavigationLink { AdminDashboard() } label: {
-                                settingsRowLabel(
-                                    icon: "shield.fill",
-                                    iconColor: MoonlitTheme.accent,
-                                    title: "Admin Dashboard"
-                                )
-                            }
-                        }
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                        .padding(.horizontal, 16)
-
-                        settingsSectionLabel("Content Management")
-                        VStack(spacing: 0) {
-                            Button { showAddons = true } label: {
-                                settingsRowLabel(
-                                    icon: "puzzlepiece.extension.fill",
-                                    iconColor: Color(red: 0.35, green: 0.34, blue: 0.84),
-                                    title: "Addons",
-                                    subtitle: "\(addonRepo.managedAddons.count) installed"
-                                )
-                            }
-                            settingsDivider()
-                            Button { showCatalogManagement = true } label: {
-                                settingsRowLabel(icon: "folder.fill", iconColor: Color.orange, title: "Catalog Management")
-                            }
-                            settingsDivider()
-                            NavigationLink { HeroManagementScreen() } label: {
-                                settingsRowLabel(icon: "film.fill", iconColor: Color.blue, title: "Hero Management")
-                            }
-                        }
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                        .padding(.horizontal, 16)
-                    } else if roleManager.profileRole.canManageOwnAddons {
-                        // Premium+ (self-manage): may add & manage their own addons,
-                        // including their own stream addon. Other paid roles get
-                        // addons provisioned for them and have no management entry.
-                        settingsSectionLabel("Addons")
-                        VStack(spacing: 0) {
-                            Button { showAddons = true } label: {
-                                settingsRowLabel(
-                                    icon: "puzzlepiece.extension.fill",
-                                    iconColor: Color(red: 0.35, green: 0.34, blue: 0.84),
-                                    title: "Addons",
-                                    subtitle: "\(addonRepo.managedAddons.count) installed"
-                                )
-                            }
-                        }
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                        .padding(.horizontal, 16)
-                    } else if !profileManager.isAuthenticated {
-                        settingsSectionLabel("Addons")
-                        VStack(spacing: 0) {
-                            Button { showAddons = true } label: {
-                                settingsRowLabel(
-                                    icon: "puzzlepiece.extension.fill",
-                                    iconColor: Color(red: 0.92, green: 0.43, blue: 0.12),
-                                    title: "Catalog & Metadata Addons",
-                                    subtitle: "Streaming addons require sign in"
-                                )
-                            }
-                        }
-                        .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                        .padding(.horizontal, 16)
-                    }
+                    .settingsGroupStyle()
 
                     // ── PLAYBACK ──────────────────────────────────────
-                    settingsSectionLabel("Playback")
+                    settingsGroupLabel("Playback")
                     VStack(spacing: 0) {
                         NavigationLink { VideoPlayerSettingsScreen() } label: {
-                            settingsRowLabel(
-                                icon: "play.circle.fill",
-                                iconColor: Color(red: 0.1, green: 0.42, blue: 0.8),
+                            settingsRow(
+                                icon: "play.circle",
                                 title: "Video Player",
                                 subtitle: "Skip Intro · Auto-detect"
                             )
                         }
-                        settingsDivider()
+                        .buttonStyle(.plain)
+                        settingsRowDivider()
                         Button { showSubtitleAppearance = true } label: {
-                            settingsRowLabel(
-                                icon: "captions.bubble.fill",
-                                iconColor: Color(red: 0.02, green: 0.37, blue: 0.27),
+                            settingsRow(
+                                icon: "captions.bubble",
                                 title: "Subtitles",
                                 subtitle: SubtitleAppearanceStore.shared.preset.displayName
                             )
                         }
+                        .buttonStyle(.plain)
                         if profileManager.isAuthenticated {
-                            settingsDivider()
+                            settingsRowDivider()
                             NavigationLink { StreamAutoplaySettingsScreen() } label: {
-                                settingsRowLabel(
-                                    icon: "bolt.fill",
-                                    iconColor: Color(red: 0.49, green: 0.18, blue: 0.07),
+                                settingsRow(
+                                    icon: "bolt",
                                     title: "Stream Auto-Play",
                                     value: streamAutoplaySummary
                                 )
                             }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                    .padding(.horizontal, 16)
+                    .settingsGroupStyle()
 
-                    // ── APPEARANCE ───────────────────────────────────
-                    settingsSectionLabel("Appearance")
+                    // ── APPEARANCE ────────────────────────────────────
+                    settingsGroupLabel("Appearance")
                     VStack(spacing: 0) {
                         Button {
                             withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
@@ -296,101 +230,169 @@ struct SettingsScreen: View {
                             cinematicModeRow
                         }
                         .buttonStyle(.plain)
-                        settingsDivider()
+                        settingsRowDivider()
                         NavigationLink { CollectionDesignScreen() } label: {
-                            settingsRowLabel(
-                                icon: "rectangle.3.group.fill",
-                                iconColor: Color(red: 0.48, green: 0.28, blue: 0.72),
+                            settingsRow(
+                                icon: "rectangle.3.group",
                                 title: "Collection Design",
-                                subtitle: "Choose row layouts for Home"
+                                subtitle: "Row layouts for Home"
                             )
                         }
-                        settingsDivider()
+                        .buttonStyle(.plain)
+                        settingsRowDivider()
+                        #if os(iOS)
                         NavigationLink { AppIconPickerScreen() } label: {
-                            settingsRowLabel(
-                                icon: "app.fill",
-                                iconColor: Color(red: 0.15, green: 0.15, blue: 0.15),
+                            settingsRow(
+                                icon: "app.dashed",
                                 title: "App Icon",
                                 subtitle: "Change the home screen icon"
                             )
                         }
+                        .buttonStyle(.plain)
+                        settingsRowDivider()
+                        #endif
+                        NavigationLink { PosterBadgesScreen() } label: {
+                            settingsRow(
+                                icon: "rectangle.badge.checkmark",
+                                title: "Poster Badges",
+                                subtitle: "Tags shown on posters"
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                    .padding(.horizontal, 16)
+                    .settingsGroupStyle()
 
-                    // ── APP ───────────────────────────────────────────
-                    settingsSectionLabel("App")
+                    // ── CONTENT ───────────────────────────────────────
+                    // Admin tooling folds in here rather than getting its own
+                    // group; role gating already hides it from everyone else.
+                    if roleManager.isAdmin {
+                        settingsGroupLabel("Content")
+                        VStack(spacing: 0) {
+                            Button { showAddons = true } label: {
+                                settingsRow(
+                                    icon: "puzzlepiece.extension",
+                                    title: "Addons",
+                                    subtitle: "\(addonRepo.managedAddons.count) installed"
+                                )
+                            }
+                            .buttonStyle(.plain)
+                            settingsRowDivider()
+                            Button { showCatalogManagement = true } label: {
+                                settingsRow(icon: "folder", title: "Catalog Management")
+                            }
+                            .buttonStyle(.plain)
+                            settingsRowDivider()
+                            NavigationLink { HeroManagementScreen() } label: {
+                                settingsRow(icon: "film", title: "Hero Management")
+                            }
+                            .buttonStyle(.plain)
+                            settingsRowDivider()
+                            NavigationLink { AdminDashboard() } label: {
+                                settingsRow(icon: "shield", title: "Admin Dashboard")
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .settingsGroupStyle()
+                    } else if roleManager.profileRole.canManageOwnAddons {
+                        // Premium+ (self-manage): may add & manage their own addons,
+                        // including their own stream addon. Other paid roles get
+                        // addons provisioned for them and have no management entry.
+                        settingsGroupLabel("Content")
+                        VStack(spacing: 0) {
+                            Button { showAddons = true } label: {
+                                settingsRow(
+                                    icon: "puzzlepiece.extension",
+                                    title: "Addons",
+                                    subtitle: "\(addonRepo.managedAddons.count) installed"
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .settingsGroupStyle()
+                    } else if !profileManager.isAuthenticated {
+                        settingsGroupLabel("Content")
+                        VStack(spacing: 0) {
+                            Button { showAddons = true } label: {
+                                settingsRow(
+                                    icon: "puzzlepiece.extension",
+                                    title: "Catalog & Metadata Addons",
+                                    subtitle: "Streaming addons require sign in"
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .settingsGroupStyle()
+                    }
+
+                    // ── ABOUT ─────────────────────────────────────────
+                    settingsGroupLabel("About")
                     VStack(spacing: 0) {
-                        settingsRowLabel(icon: "info.circle.fill", iconColor: Color(white: 0.25), title: "Moonlit v1.0.0")
-                        Divider().padding(.leading, 52)
+                        settingsRow(icon: "info.circle", title: "Version", value: "1.0.0", showsChevron: false)
+                        settingsRowDivider()
                         Link(destination: URL(string: "https://trymoonlit.app/privacy")!) {
-                            settingsRowLabel(
-                                icon: "lock.shield.fill",
-                                iconColor: Color(red: 0.22, green: 0.55, blue: 0.35),
-                                title: "Privacy Policy"
-                            )
+                            settingsRow(icon: "lock.shield", title: "Privacy Policy")
                         }
-                        Divider().padding(.leading, 52)
+                        .buttonStyle(.plain)
+                        settingsRowDivider()
                         Link(destination: URL(string: "https://trymoonlit.app/terms")!) {
-                            settingsRowLabel(
-                                icon: "doc.text.fill",
-                                iconColor: Color(red: 0.28, green: 0.40, blue: 0.65),
-                                title: "Terms of Use"
-                            )
+                            settingsRow(icon: "doc.text", title: "Terms of Use")
                         }
-                        Divider().padding(.leading, 52)
+                        .buttonStyle(.plain)
+                        settingsRowDivider()
                         Link(destination: URL(string: "https://www.themoviedb.org")!) {
-                            settingsRowLabel(
-                                icon: "film.fill",
-                                iconColor: Color(red: 0.03, green: 0.71, blue: 0.60),
+                            settingsRow(
+                                icon: "film.stack",
                                 title: "Movie & TV Metadata",
                                 subtitle: "This product uses the TMDB API but is not endorsed or certified by TMDB."
                             )
                         }
+                        .buttonStyle(.plain)
                     }
-                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                    .padding(.horizontal, 16)
+                    .settingsGroupStyle()
 
+                    // ── DESTRUCTIVE ───────────────────────────────────
                     if profileManager.isAuthenticated {
-                        // ── CONNECT APPLE ID ──────────────────────────────
-                        ConnectAppleIDButton()
-                            .padding(.horizontal, 16)
-
-                        // ── SIGN OUT / DELETE ACCOUNT ─────────────────────
-                        VStack(spacing: 8) {
-                            Button(role: .destructive) {
-                                Task { await profileManager.signOut() }
-                            } label: {
-                                Text("Sign Out")
-                                    .foregroundColor(.red)
-                                    .frame(maxWidth: .infinity)
-                                    .padding(16)
-                            }
-                            .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-
-                            Button(role: .destructive) {
-                                showDeleteConfirm = true
-                            } label: {
-                                Text("Delete Account")
-                                    .foregroundColor(.red.opacity(0.7))
-                                    .frame(maxWidth: .infinity)
-                                    .padding(16)
-                            }
-                            .glassCard(cornerRadius: MoonlitTheme.radiusCard)
-                            .confirmationDialog(
-                                "Delete Account",
-                                isPresented: $showDeleteConfirm,
-                                titleVisibility: .visible
-                            ) {
-                                Button("Delete Account and All Data", role: .destructive) {
-                                    Task { try? await profileManager.deleteAccount() }
-                                }
-                                Button("Cancel", role: .cancel) {}
-                            } message: {
-                                Text("This permanently deletes your Moonlit account and all profiles. This cannot be undone.")
-                            }
+                        Button(role: .destructive) {
+                            Task { await profileManager.signOut() }
+                        } label: {
+                            Text("Sign Out")
+                                .font(.system(size: 15, weight: .medium))
+                                .foregroundColor(.red)
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 15)
+                                .background(Color.red.opacity(0.07), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                                        .stroke(Color.red.opacity(0.18), lineWidth: 1)
+                                )
                         }
+                        .buttonStyle(.plain)
                         .padding(.horizontal, 16)
+                        .padding(.top, 22)
+
+                        Button(role: .destructive) {
+                            showDeleteConfirm = true
+                        } label: {
+                            Text("Delete Account")
+                                .font(.system(size: 13))
+                                .foregroundColor(.red.opacity(0.55))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 12)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.top, 4)
+                        .confirmationDialog(
+                            "Delete Account",
+                            isPresented: $showDeleteConfirm,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete Account and All Data", role: .destructive) {
+                                Task { try? await profileManager.deleteAccount() }
+                            }
+                            Button("Cancel", role: .cancel) {}
+                        } message: {
+                            Text("This permanently deletes your Moonlit account and all profiles. This cannot be undone.")
+                        }
                     }
 
                     Spacer().frame(height: 40)
@@ -474,42 +476,58 @@ struct SettingsScreen: View {
         .contentShape(Rectangle())
     }
 
-    private func settingsRowLabel(icon: String, iconColor: Color, title: String, subtitle: String? = nil, value: String? = nil) -> some View {
+    /// A settings row in the reference aesthetic: a thin monoline glyph in plain
+    /// white, a 15pt label, and a quiet chevron. Deliberately no coloured icon
+    /// tile — the colour carried no meaning and eight competing hues read as noise.
+    private func settingsRow(
+        icon: String,
+        title: String,
+        subtitle: String? = nil,
+        value: String? = nil,
+        showsChevron: Bool = true
+    ) -> some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
-                    .fill(iconColor)
-                    .frame(width: 28, height: 28)
-                Image(systemName: icon)
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-            }
+            settingsIcon(icon)
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
-                    .font(.subheadline)
+                    .font(.system(size: 15))
                     .foregroundColor(.white)
                 if let subtitle {
                     Text(subtitle)
                         .font(.caption)
                         .foregroundColor(MoonlitTheme.textTertiary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
-            Spacer()
+            Spacer(minLength: 8)
             if let value {
                 Text(value)
                     .font(.caption)
-                    .foregroundColor(MoonlitTheme.textSecondary)
+                    .foregroundColor(MoonlitTheme.textTertiary)
             }
-            Image(systemName: "chevron.right")
-                .font(.caption)
-                .foregroundColor(MoonlitTheme.textTertiary)
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(MoonlitTheme.textTertiary.opacity(0.65))
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 11)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .contentShape(Rectangle())
     }
 
-    private func settingsDivider() -> some View {
-        Divider().background(Color.white.opacity(0.08)).padding(.leading, 56)
+    private func settingsIcon(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 17, weight: .regular))
+            .foregroundColor(.white)
+            .frame(width: 24, height: 24)
+    }
+
+    /// Inset to the label, matching the reference — not full-bleed.
+    private func settingsRowDivider() -> some View {
+        Divider()
+            .background(Color.white.opacity(0.06))
+            .padding(.leading, 50)
     }
 
     @ViewBuilder
@@ -543,14 +561,32 @@ struct SettingsScreen: View {
 }
 
 @MainActor
-private func settingsSectionLabel(_ text: String) -> some View {
+private func settingsGroupLabel(_ text: String) -> some View {
     Text(text.uppercased())
-        .font(.caption.weight(.semibold))
+        .font(.system(size: 11, weight: .semibold))
+        .tracking(0.9)
         .foregroundColor(MoonlitTheme.textTertiary)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 2)
+        .padding(.horizontal, 22)
+        .padding(.top, 22)
+        .padding(.bottom, 7)
+}
+
+/// One rounded container per group — 16pt radius, hairline border.
+private struct SettingsGroupStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Color.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 16, style: .continuous)
+                    .stroke(Color.white.opacity(0.055), lineWidth: 1)
+            )
+            .padding(.horizontal, 16)
+    }
+}
+
+private extension View {
+    func settingsGroupStyle() -> some View { modifier(SettingsGroupStyle()) }
 }
 
 struct StreamAutoplaySettingsScreen: View {

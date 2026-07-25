@@ -1,3 +1,4 @@
+#if os(iOS)
 import SwiftUI
 import MoonlitCore
 
@@ -255,3 +256,4 @@ struct PaywallScreen: View {
         .padding(.top, 60)
     }
 }
+#endif

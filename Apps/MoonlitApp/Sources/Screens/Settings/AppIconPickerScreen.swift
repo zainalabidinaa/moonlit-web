@@ -1,10 +1,10 @@
+#if os(iOS)
 import SwiftUI
 import UIKit
 import MoonlitCore
 
 enum AppIconStyle: String {
     case clapperboard
-    case onePiece
 }
 
 @MainActor
@@ -20,16 +20,10 @@ enum AppIconManager {
         }
     }
 
-    static func onePieceIconName(for style: UIUserInterfaceStyle) -> String {
-        style == .dark ? "AppIconOnePieceDark" : "AppIconOnePiece"
-    }
-
-    static func iconName(for style: AppIconStyle, colorScheme: ColorScheme) -> String? {
+    static func iconName(for style: AppIconStyle, colorScheme _: ColorScheme) -> String? {
         switch style {
         case .clapperboard:
             return nil
-        case .onePiece:
-            return colorScheme == .dark ? "AppIconOnePieceDark" : "AppIconOnePiece"
         }
     }
 
@@ -71,7 +65,6 @@ struct AppIconOption: Identifiable {
 
 private let iconOptions: [AppIconOption] = [
     AppIconOption(id: .clapperboard, name: "Clapperboard", assetName: "AppIconPreview"),
-    AppIconOption(id: .onePiece, name: "One Piece", assetName: "AppIconOnePiecePreview"),
 ]
 
 struct AppIconPickerScreen: View {
@@ -121,9 +114,9 @@ struct AppIconPickerScreen: View {
                         .resizable()
                         .interpolation(.high)
                         .aspectRatio(1, contentMode: .fit)
-                        .cornerRadius(18)
+                        .cornerRadius(MoonlitTheme.radiusLarge)
                         .overlay(
-                            RoundedRectangle(cornerRadius: 18)
+                            RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge)
                                 .strokeBorder(
                                     isSelected ? MoonlitTheme.accent : Color.clear,
                                     lineWidth: 3
@@ -171,3 +164,4 @@ struct AppIconPickerScreen: View {
         }
     }
 }
+#endif

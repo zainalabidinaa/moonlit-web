@@ -181,6 +181,7 @@ struct SplashStarField: View {
     }
 }
 
+#if os(iOS)
 private struct TabBarMinimizeModifier: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
@@ -190,6 +191,7 @@ private struct TabBarMinimizeModifier: ViewModifier {
         }
     }
 }
+#endif
 
 struct MainTabView: View {
     @EnvironmentObject var profileManager: ProfileManager
@@ -213,7 +215,7 @@ struct MainTabView: View {
                         Label("Library", systemImage: "rectangle.stack.fill")
                     }
                     Button { selectedTab = 3 } label: {
-                        Label("Settings", systemImage: "circle.fill")
+                        Label("Settings", systemImage: "gearshape.fill")
                     }
                 }
                 .listStyle(.sidebar)
@@ -234,6 +236,7 @@ struct MainTabView: View {
                 }
             }
         } else {
+            #if os(tvOS)
             TabView(selection: $selectedTab) {
                 Tab("Home", systemImage: "house.fill", value: 0) {
                     HomeScreen()
@@ -244,12 +247,15 @@ struct MainTabView: View {
                 Tab("Library", systemImage: "rectangle.stack.fill", value: 2) {
                     LibraryScreen()
                 }
-                Tab("Settings", systemImage: "circle.fill", value: 3) {
+                Tab("Settings", systemImage: "gearshape.fill", value: 3) {
                     SettingsScreen()
                 }
             }
+            #else
+            phoneTabView
             .tint(.blue)
             .modifier(TabBarMinimizeModifier())
+            #endif
             .task {
                 if let profile = profileManager.currentProfile {
                     await addonRepo.loadAddons(profileId: profile.id)
@@ -260,6 +266,46 @@ struct MainTabView: View {
                     Task {
                         await addonRepo.loadAddons(profileId: profile.id)
                     }
+                }
+            }
+        }
+    }
+
+    /// iOS 26 gives the search tab a detached, circular presentation to the right
+    /// of the tab pill, and presents its content as a sheet over the current tab
+    /// with the bar morphing into the search field. It must be declared last.
+    /// On iOS 18 no such role exists, so Search stays an ordinary inline tab and
+    /// SearchScreen keeps its own field.
+    @ViewBuilder
+    private var phoneTabView: some View {
+        if #available(iOS 26.0, *) {
+            TabView(selection: $selectedTab) {
+                Tab("Home", systemImage: "house.fill", value: 0) {
+                    HomeScreen()
+                }
+                Tab("Library", systemImage: "rectangle.stack.fill", value: 2) {
+                    LibraryScreen()
+                }
+                Tab("Settings", systemImage: "gearshape.fill", value: 3) {
+                    SettingsScreen()
+                }
+                Tab(value: 1, role: .search) {
+                    SearchScreen()
+                }
+            }
+        } else {
+            TabView(selection: $selectedTab) {
+                Tab("Home", systemImage: "house.fill", value: 0) {
+                    HomeScreen()
+                }
+                Tab("Search", systemImage: "magnifyingglass", value: 1) {
+                    SearchScreen()
+                }
+                Tab("Library", systemImage: "rectangle.stack.fill", value: 2) {
+                    LibraryScreen()
+                }
+                Tab("Settings", systemImage: "gearshape.fill", value: 3) {
+                    SettingsScreen()
                 }
             }
         }
