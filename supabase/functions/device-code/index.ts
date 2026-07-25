@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const moonlitAppURL = Deno.env.get("MOONLIT_APP_URL") || "https://moonlit.app";
+const moonlitAppURL = Deno.env.get("MOONLIT_APP_URL") || "https://trymoonlit.app";
 
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
@@ -15,7 +15,20 @@ function generateCode(): string {
   ).join("");
 }
 
+function corsHeaders(): Record<string, string> {
+  return {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Access-Control-Allow-Headers": "apikey, Authorization, Content-Type",
+  };
+}
+
 serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders() });
+  }
+
   const url = new URL(req.url);
   const action = url.searchParams.get("action");
 
@@ -28,14 +41,14 @@ serve(async (req: Request) => {
       .insert({ code, expires_at: expiresAt.toISOString(), status: "pending" });
 
     if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+      return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders() });
     }
 
     return new Response(JSON.stringify({
       code,
       verification_url: `${moonlitAppURL}/activate`,
       expires_in: 600,
-    }), { headers: { "Content-Type": "application/json" } });
+    }), { headers: corsHeaders() });
   }
 
   if (req.method === "POST" && action === "poll") {
@@ -43,58 +56,71 @@ serve(async (req: Request) => {
 
     const { data, error } = await supabase
       .from("device_codes")
-      .select("*")
+      .select("status, expires_at, access_token, refresh_token")
       .eq("code", code)
-      .eq("status", "linked")
-      .gte("expires_at", new Date().toISOString())
       .single();
 
     if (error || !data) {
-      return new Response(JSON.stringify({ status: "pending" }), {
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(JSON.stringify({ status: "expired" }), { headers: corsHeaders() });
     }
 
-    const { data: sessionData, error: sessionError } = await supabase.auth.admin
-      .generateLink({ type: "recovery", email: data.user_email ?? "" });
+    if (new Date(data.expires_at) < new Date()) {
+      return new Response(JSON.stringify({ status: "expired" }), { headers: corsHeaders() });
+    }
 
-    if (!sessionError) {
+    if (data.status === "linked" && data.access_token && data.refresh_token) {
       return new Response(JSON.stringify({
         status: "authorized",
         access_token: data.access_token,
         refresh_token: data.refresh_token,
-      }), { headers: { "Content-Type": "application/json" } });
+      }), { headers: corsHeaders() });
     }
 
-    return new Response(JSON.stringify({
-      status: "authorized",
-      access_token: data.access_token,
-      refresh_token: data.refresh_token,
-    }), { headers: { "Content-Type": "application/json" } });
+    return new Response(JSON.stringify({ status: "pending" }), { headers: corsHeaders() });
   }
 
+  // Called by the already-authenticated device (phone/laptop) that just
+  // entered the code. It relays its own session tokens so the TV can poll
+  // them back — the service-role key can't mint a session for another
+  // user, so the authenticated client's own tokens are what get stored.
   if (req.method === "POST" && action === "link") {
-    const { code, user_id } = await req.json();
+    const { code, access_token, refresh_token } = await req.json();
 
-    if (!code || !user_id) {
-      return new Response(JSON.stringify({ error: "code and user_id required" }), { status: 400 });
+    if (!code || !access_token || !refresh_token) {
+      return new Response(
+        JSON.stringify({ error: "code, access_token and refresh_token required" }),
+        { status: 400, headers: corsHeaders() }
+      );
     }
 
-    const { error } = await supabase
+    const { data: userData, error: userError } = await supabase.auth.getUser(access_token);
+    if (userError || !userData?.user) {
+      return new Response(JSON.stringify({ error: "Invalid session" }), { status: 401, headers: corsHeaders() });
+    }
+
+    const { data, error } = await supabase
       .from("device_codes")
-      .update({ status: "linked", user_id })
+      .update({
+        status: "linked",
+        user_id: userData.user.id,
+        access_token,
+        refresh_token,
+      })
       .eq("code", code)
       .eq("status", "pending")
-      .gte("expires_at", new Date().toISOString());
+      .gte("expires_at", new Date().toISOString())
+      .select()
+      .single();
 
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 500 });
+    if (error || !data) {
+      return new Response(
+        JSON.stringify({ error: error?.message ?? "Code not found or already used" }),
+        { status: 400, headers: corsHeaders() }
+      );
     }
 
-    return new Response(JSON.stringify({ status: "linked" }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ status: "linked" }), { headers: corsHeaders() });
   }
 
-  return new Response(JSON.stringify({ error: "Invalid request" }), { status: 400 });
+  return new Response(JSON.stringify({ error: "Invalid request" }), { status: 400, headers: corsHeaders() });
 });
