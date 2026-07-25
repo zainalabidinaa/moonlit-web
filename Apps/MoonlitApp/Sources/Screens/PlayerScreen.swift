@@ -54,7 +54,9 @@ struct PlayerScreen: View {
     private let minLoadingDuration: TimeInterval = 0.8
 
     // Volume
+#if os(iOS)
     @State private var systemVolume: Float = AVAudioSession.sharedInstance().outputVolume
+#endif
 
     // Skip Intro
     @StateObject private var introViewModel = IntroTimestampServiceViewModel()
@@ -74,7 +76,7 @@ struct PlayerScreen: View {
             Color.black.ignoresSafeArea()
 
             // ── PRE-ROLL BRANDED LOADING CARD ─────────────────────────────
-            // Nuvio-style: full-bleed backdrop + original logo + animated
+            // : full-bleed backdrop + original logo + animated
             // "Loading" dots. Held until the first video frame renders, with a
             // minimum-visible window so a fast cached source doesn't just flash.
             if loadingCardVisible, !mpvEngine.didEncounterError {
@@ -205,7 +207,9 @@ struct PlayerScreen: View {
         .onAppear {
             MainHangDiagnostics.start()
             MainHangDiagnostics.mark("player.onAppear")
+#if os(iOS)
             OrientationManager.shared.currentMask = .allButUpsideDown
+#endif
             // Keep the branded loading card up for a minimum window so it's
             // always perceptible, even when a cached source renders instantly.
             DispatchQueue.main.asyncAfter(deadline: .now() + minLoadingDuration) {
@@ -261,8 +265,8 @@ struct PlayerScreen: View {
                             Task {
                                 await ensureStreamsLoadedForActiveLaunch()
                                 if let matching = streamRepo.streams.first(where: { $0.url == cachedUrl }),
-                                   StreamSourceSelector.isPendingDebrid(matching) {
-                                    print("[Moonlit] cached source is pending-debrid, falling back to auto-launch")
+                                    StreamSourceSelector.isPendingStream(matching) {
+                                    print("[Moonlit] cached source is pending, falling back to auto-launch")
                                     cachedSourceFallbackTask?.cancel()
                                     mpvEngine.stop()
                                     engine.resetState()
@@ -294,6 +298,7 @@ struct PlayerScreen: View {
                     }
                 }
             }
+#if os(iOS)
             // Request landscape after the fullScreenCover slide-up animation finishes
             Task { @MainActor in
                 try? await Task.sleep(for: .milliseconds(500))
@@ -301,14 +306,17 @@ struct PlayerScreen: View {
                     scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
                 }
             }
+#endif
         }
         .onDisappear {
             hideControlsTask?.cancel()
             cachedSourceFallbackTask?.cancel()
+#if os(iOS)
             OrientationManager.shared.currentMask = .portrait
             if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
                 scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
             }
+#endif
             engine.stop()
             mpvEngine.stop()
         }
@@ -482,12 +490,14 @@ struct PlayerScreen: View {
 
             Spacer()
 
+#if os(iOS)
             GlassVolumeSlider(volume: $systemVolume)
 
             // Hidden volume view for system volume control
             VolumeViewRepresentable(volume: $systemVolume)
                 .frame(width: 0, height: 0)
                 .opacity(0)
+#endif
         }
     }
 
@@ -800,7 +810,7 @@ struct PlayerScreen: View {
             }
         } else {
             if mpvEngine.displayView != nil {
-                mpvEngine.loadURL(activeLaunch.sourceUrl, headers: activeLaunch.sourceHeaders ?? [:])
+                mpvEngine.launch(activeLaunch)
                 engine.play()
             } else {
                 mpvEngine.stop()
@@ -828,7 +838,7 @@ struct PlayerScreen: View {
         Task { await switchToSource(stream, persist4KPreference: false) }
     }
 
-    /// Nuvio-style silent candidate cycling during stream resolution.
+    ///  silent candidate cycling during stream resolution.
     /// Removes the current (failed) stream from the queue and tries the next
     /// auto-playable candidate. If none remain, shows the error overlay.
     private func tryNextAutoPlayCandidate() {
@@ -926,10 +936,10 @@ struct PlayerScreen: View {
         savePlaybackSource(for: stream, url: url, launch: nextLaunch)
         isSwitchingStream = true
         engine.pause()
-        // Preflight: skip this candidate if the debrid server returns an error page
+        // Preflight: skip this candidate if the server returns an error page
         // instead of media. On failure, tryNextAutoPlayCandidate() moves to the next.
         if await preflightReachable(url: url, headers: hints.requestHeaders ?? [:]) {
-            mpvEngine.loadURL(url, headers: hints.requestHeaders ?? [:])
+            mpvEngine.launch(nextLaunch)
             engine.launch(nextLaunch)
             wireCustomEngine()
             engine.play()
@@ -1061,8 +1071,8 @@ struct PlayerScreen: View {
             streamRepo.clearStreams()
             MainHangDiagnostics.mark("player.fetchStreams")
             let bg = Task { await streamRepo.fetchStreams(type: type, id: id, addons: addonRepo.enabledAddons, title: activeLaunch.title) }
-            // React instantly when the first viable stream lands — no fixed poll interval.
-            // Uses a Combine sink so we resume the moment @Published streams updates.
+            // Resume on whichever comes first: a ranked stream lands, the whole
+            // fetch finishes, or the 15s ceiling expires.
             final class Holder { var cancellable: AnyCancellable? }
             let holder = Holder()
             await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
@@ -1073,24 +1083,28 @@ struct PlayerScreen: View {
                     holder.cancellable?.cancel()
                     cont.resume()
                 }
-                // Fire on every streams or isLoading change
-                holder.cancellable = Publishers.Merge(
-                    streamRepo.$streams.map { _ in () },
-                    streamRepo.$isLoading.map { _ in () }
-                ).sink { _ in
-                    if StreamSourceSelector.initialStream(from: streamRepo.streams, prefer4K: prefer4K, installOrder: installOrder) != nil { finish() }
-                    if !streamRepo.isLoading { finish() }
-                }
-                // 15-second hard timeout
+                // `dropFirst()` matters: @Published replays its current value to new
+                // subscribers, and `streams` is still [] here. Observing `isLoading`
+                // too would be worse — it reads false at subscribe time because the
+                // fetch task above hasn't been scheduled yet, ending the wait
+                // instantly with nothing.
+                holder.cancellable = streamRepo.$streams
+                    .dropFirst()
+                    .sink { streams in
+                        if StreamSourceSelector.initialStream(from: streams, prefer4K: prefer4K, installOrder: installOrder) != nil { finish() }
+                    }
+                // Healthy case: every addon answered, nothing ranked. Don't wait out the ceiling.
+                Task { _ = await bg.result; finish() }
+                // Ceiling for the unhealthy case: a dead addon burns 12s of timeout.
                 Task { try? await Task.sleep(for: .seconds(15)); finish() }
             }
-            if Task.isCancelled { bg.cancel(); return }
-            if StreamSourceSelector.initialStream(from: streamRepo.streams, prefer4K: prefer4K, installOrder: installOrder) == nil {
-                await bg.value
-            }
+            // Whatever hasn't answered by now is unreachable, and awaiting it would
+            // gate playback on the slowest dead host. Launch the best of what landed.
+            bg.cancel()
+            if Task.isCancelled { return }
         }
 
-        // Populate auto-play candidate queue for silent cycling (Nuvio-style).
+        // Populate auto-play candidate queue for silent cycling ().
         // If the first candidate fails, tryNextAutoPlayCandidate() picks the next.
         autoPlayCandidates = StreamSourceSelector.candidatesForAutoPlay(
             from: streamRepo.streams, prefer4K: prefer4K, installOrder: installOrder
@@ -1109,7 +1123,7 @@ struct PlayerScreen: View {
         var hints = StreamPlaybackHints(stream: stream)
         MainHangDiagnostics.mark("player.preflight")
         if !(await preflightReachable(url: url, headers: hints.requestHeaders ?? [:])) {
-            // Auto-fallback: try candidates from the auto-play queue (Nuvio-style).
+            // Auto-fallback: try candidates from the auto-play queue ().
             var found = false
             while let candidate = autoPlayCandidates.first {
                 autoPlayCandidates.removeFirst()
@@ -1126,7 +1140,9 @@ struct PlayerScreen: View {
                 }
             }
             guard found else {
+                #if DEBUG
                 print("[Moonlit] preflight all candidates unreachable")
+                #endif
                 return
             }
             StreamPlaybackDiagnostics.logSelectedStream(stream, reason: "player-ranked-auto-fallback")
@@ -1217,21 +1233,27 @@ struct PlayerScreen: View {
               let httpResponse = response as? HTTPURLResponse else { return false }
         let statusOk = (200...208).contains(httpResponse.statusCode) || httpResponse.statusCode == 416
         guard statusOk else {
+            #if DEBUG
             print("[Moonlit] preflight \(requestUrl.host ?? "nil") → \(httpResponse.statusCode)")
+            #endif
             return false
         }
-        // Reject debrid auth errors: 401/403 = invalid subscription, 429 = rate limited
+        // Reject auth errors: 401/403 = invalid subscription, 429 = rate limited
         let code = httpResponse.statusCode
         if code == 401 || code == 403 || code == 429 {
+            #if DEBUG
             print("[Moonlit] preflight \(requestUrl.host ?? "nil") → rejected \(code)")
+            #endif
             return false
         }
         let contentType = (httpResponse.allHeaderFields["Content-Type"] as? String)?.lowercased() ?? ""
         if contentType.contains("text/html") {
+            #if DEBUG
             print("[Moonlit] preflight \(requestUrl.host ?? "nil") → HTML error page, source expired")
+            #endif
             return false
         }
-        // Read first 4KB of body — debrid/JSON errors come in HTTP 200
+        // Read first 4KB of body — JSON errors come in HTTP 200
         if !data.isEmpty {
             let chunk = data.prefix(4096)
             let body = String(data: chunk, encoding: .utf8)
@@ -1239,7 +1261,7 @@ struct PlayerScreen: View {
                 ?? ""
             let lower = body.lowercased()
 
-            // Try to parse as JSON — debrid services often return structured errors
+            // Try to parse as JSON — remote services often return structured errors
             var jsonFields = ""
             if let json = try? JSONSerialization.jsonObject(with: chunk) as? [String: Any] {
                 jsonFields = json.compactMap { "\($0.key): \($0.value)" }.joined(separator: " ").lowercased()
@@ -1248,7 +1270,6 @@ struct PlayerScreen: View {
             let combined = lower + " " + jsonFields
             let errorMarkers: [(String, label: String)] = [
                 ("media_not_cached_yet", "not cached yet"),
-                ("not cached on your debrid", "not cached on debrid"),
                 ("not downloaded", "not downloaded"),
                 ("not cached", "not cached"),
                 ("not yet cached", "not yet cached"),
@@ -1259,10 +1280,8 @@ struct PlayerScreen: View {
                 ("being prepared", "being prepared"),
                 ("wait a short while", "wait a short while"),
                 ("something went wrong", "addon error"),
-                ("elfhosted", "addon error"),
                 ("unexpected error resolving", "addon error"),
                 ("access denied", "access denied"),
-                ("valid debrid subscription", "invalid subscription"),
                 ("not downloaded yet", "not downloaded"),
                 ("torrent not downloaded", "not downloaded"),
                 ("invalid token", "invalid token"),
@@ -1273,7 +1292,9 @@ struct PlayerScreen: View {
             for (term, label) in errorMarkers {
                 if combined.contains(term) {
                     let preview = lower.prefix(150).replacingOccurrences(of: "\n", with: " ")
+                    #if DEBUG
                     print("[Moonlit] preflight \(requestUrl.host ?? "nil") → \(label): \(preview)")
+                    #endif
                     return false
                 }
             }
@@ -1282,7 +1303,9 @@ struct PlayerScreen: View {
             if let json = try? JSONSerialization.jsonObject(with: chunk) as? [String: Any],
                let errorValue = json["error"] as? String, !errorValue.isEmpty,
                json["streams"] == nil, json["url"] == nil, json["data"] == nil {
+                #if DEBUG
                 print("[Moonlit] preflight \(requestUrl.host ?? "nil") → json error: \(errorValue.prefix(100))")
+                #endif
                 return false
             }
         }
@@ -1380,7 +1403,7 @@ struct PlayerScreen: View {
         mpvEngine.$didEncounterError
             .filter { $0 }
             .sink { _ in
-                // During stream resolution: silently try next candidate (Nuvio-style).
+                // During stream resolution: silently try next candidate ().
                 // Only show error when all auto-playable candidates are exhausted.
                 if self.isResolvingStream {
                     self.tryNextAutoPlayCandidate()
@@ -1543,6 +1566,7 @@ private struct PlayerTimelineControls: View {
     }
 }
 
+#if os(iOS)
 private struct GlassVolumeSlider: View {
     @Binding var volume: Float
 
@@ -1632,9 +1656,11 @@ private struct GlassVolumeSlider: View {
             .frame(width: 20)
     }
 }
+#endif
 
 // MARK: - System Volume Bridge
 
+#if os(iOS)
 private struct VolumeViewRepresentable: UIViewRepresentable {
     @Binding var volume: Float
 
@@ -1681,6 +1707,7 @@ private struct VolumeViewRepresentable: UIViewRepresentable {
         }
     }
 }
+#endif
 
 // MARK: - Skip Intro Button
 
@@ -1701,11 +1728,15 @@ private struct SkipIntroButton: View {
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .background {
+#if os(iOS)
                 if #available(iOS 26.0, *) {
                     Capsule().glassEffect()
                 } else {
                     Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
                 }
+#else
+                Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+#endif
             }
         }
     }
@@ -1719,6 +1750,7 @@ private struct PlayerScrubber: View {
     var highlights: [Double] = []
 
     var body: some View {
+#if os(iOS)
         if #available(iOS 26, *) {
             Slider(
                 value: $value,
@@ -1773,6 +1805,25 @@ private struct PlayerScrubber: View {
             }
             .frame(height: 32)
         }
+#else
+        // tvOS: always use non-gesture approach (d-pad based seeking)
+        // On tvOS the AVPlayerViewController handles transport, so this won't render
+        // But it must compile. Use a simple non-gesture scrubber:
+        GeometryReader { geo in
+            let progress = duration > 0 ? min(max(value / duration, 0), 1) : 0
+            let fillWidth = geo.size.width * progress
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(Capsule().stroke(Color.white.opacity(0.15), lineWidth: 0.5))
+                    .frame(height: 4)
+                Capsule()
+                    .fill(Color.white)
+                    .frame(width: fillWidth, height: 4)
+            }
+        }
+        .frame(height: 32)
+#endif
     }
 }
 
@@ -1810,7 +1861,7 @@ private struct SubtitleTextOverlay: View {
                         .shadow(color: .black.opacity(0.9), radius: 2, x: -1, y: -1)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 4)
-                        .background(Color.black.opacity(0.45).cornerRadius(6))
+                        .background(Color.black.opacity(0.45).cornerRadius(MoonlitTheme.radiusSmall))
                         .padding(.bottom, 4)
                 }
             }

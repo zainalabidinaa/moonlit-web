@@ -34,18 +34,22 @@ struct PlayerGestureViewModifier: ViewModifier {
                 let absDy = abs(value.translation.height)
 
                 if state.mode == .none {
+#if os(iOS)
                     // Only brightness: vertical drag on left 40% of screen
                     if absDy > absDx * 1.2, startX < 0.4 {
                         state.mode = .brightness
                         state.initialBrightness = UIScreen.main.brightness
                     }
+#endif
                 }
 
+#if os(iOS)
                 if state.mode == .brightness {
                     let delta = (-value.translation.height / screenHeight)
                     state.value = Double(min(max(state.initialBrightness + delta, 0), 1))
                     UIScreen.main.brightness = state.value
                 }
+#endif
             }
             .onEnded { _ in
                 state.mode = .none
