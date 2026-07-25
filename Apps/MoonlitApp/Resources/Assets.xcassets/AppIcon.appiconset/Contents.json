@@ -112,6 +112,16 @@
       "idiom" : "ios-marketing",
       "scale" : "1x",
       "size" : "1024x1024"
+    },
+    {
+      "idiom" : "tvOS",
+      "size" : "1280x768",
+      "scale" : "1x"
+    },
+    {
+      "idiom" : "tvOS",
+      "size" : "400x240",
+      "scale" : "1x"
     }
   ],
   "info" : {
