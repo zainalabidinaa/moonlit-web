@@ -88,6 +88,16 @@ public enum ProfileRole: String, Codable, Sendable, CaseIterable {
     public var canManageCatalogs: Bool { self == .admin }
     public var showsAdminTab: Bool     { self == .admin }
 
+    /// True for any role that should see premium features (playback beyond the
+    /// free tier, curated catalogs, watch history) unlocked — whether granted by
+    /// a StoreKit purchase or manually by an admin.
+    public var hasPremiumAccess: Bool {
+        switch self {
+        case .admin, .friendsAndFamily, .premium, .premiumPlus: return true
+        case .free, .restricted, .user: return false
+        }
+    }
+
     public var displayName: String {
         switch self {
         case .admin:             return "Admin"
