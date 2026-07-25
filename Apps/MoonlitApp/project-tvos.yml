@@ -1,0 +1,70 @@
+name: MoonlitApp
+options:
+  bundleIdPrefix: com.moonlit
+  deploymentTarget:
+    tvOS: "18.0"
+  minimumXcodeGenVersion: "2.0"
+
+settings:
+  base:
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    ENABLE_APP_INTENTS_METADATA_GENERATION: false
+    GENERATE_INFOPLIST_FILE: true
+    INFOPLIST_KEY_CFBundleDisplayName: "Moonlit"
+    INFOPLIST_KEY_UIRequiresFullScreen: true
+    INFOPLIST_KEY_UILaunchScreen_Generation: true
+    INFOPLIST_KEY_CFBundleURLTypes:
+      - CFBundleURLSchemes:
+        - moonlit
+    INFOPLIST_KEY_UIAppFonts:
+      - JetBrainsSans-Regular.ttf
+      - JetBrainsSans-SemiBold.ttf
+      - JetBrainsSans-Bold.ttf
+
+packages:
+  MoonlitCore:
+    path: ../../Packages/MoonlitCore
+  MPVKit:
+    path: ../../Vendor/MPVKit
+  Lottie:
+    url: https://github.com/airbnb/lottie-spm.git
+    from: "4.6.0"
+
+targets:
+  MoonlitApp-tvOS:
+    type: application
+    platform: tvOS
+    sources:
+      - path: Sources
+      - path: Resources
+    dependencies:
+      - package: MoonlitCore
+      - package: MPVKit
+      - package: Lottie
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit.tvos"
+        DEVELOPMENT_TEAM: 5TWS8P597N
+        CODE_SIGN_STYLE: Automatic
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
+        CODE_SIGN_ENTITLEMENTS: Sources/MoonlitApp-tvOS.entitlements
+        VALIDATE_WORKSPACE: NO
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) TVOS"
+
+  MoonlitApp-tvOSTests:
+    type: bundle.unit-test
+    platform: tvOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: MoonlitApp-tvOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit.tvos.tests"
+        DEVELOPMENT_TEAM: 5TWS8P597N
+        CODE_SIGN_STYLE: Automatic
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MoonlitApp-tvOS.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MoonlitApp-tvOS"
+        BUNDLE_LOADER: "$(TEST_HOST)"
