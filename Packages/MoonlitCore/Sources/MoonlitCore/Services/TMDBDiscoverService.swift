@@ -1,6 +1,6 @@
 import Foundation
 
-/// Builds Harbor-style curated rails for a genre's dedicated browse screen —
+/// Builds  curated rails for a genre's dedicated browse screen —
 /// Trending, Top Rated, New, Hidden Gems, and a "companion" rail for the other
 /// media kind (e.g. a "Trending Action Series" rail on the Action *movies*
 /// screen) — each backed by its own `TMDB /discover` query.
@@ -76,6 +76,54 @@ public final class TMDBDiscoverService: ObservableObject {
             rails.append(.init(id: "tmdb-hidden-gems", title: "Hidden Gems", items: hiddenGemItems))
         }
         return rails
+    }
+
+    /// Popular titles released in a single year, for the Search screen's
+    /// "Movies by Year" grid. Returns [] with no TMDB key configured, which the
+    /// caller renders as an empty year rather than an error.
+    public func discoverByYear(year: Int, mediaKind: MediaType = .movie) async -> [MetaPreview] {
+        guard let key = apiKey, !key.isEmpty else { return [] }
+        let kind = mediaKind == .movie ? "movie" : "tv"
+        let yearParam = mediaKind == .movie ? "primary_release_year" : "first_air_date_year"
+        let items = await fetchItems(kind: kind, apiKey: key, params: [
+            yearParam: "\(year)",
+            "sort_by": "popularity.desc",
+            "vote_count.gte": "20",
+        ])
+        persistCache()
+        return items
+    }
+
+    /// Titles not yet released, soonest first — used as the paywall marquee's
+    /// fallback when the viewing user has no library items yet.
+    public func discoverUpcoming(mediaKind: MediaType) async -> [MetaPreview] {
+        guard let key = apiKey, !key.isEmpty else { return [] }
+        let kind = mediaKind == .movie ? "movie" : "tv"
+        let params = UpcomingReleasesQuery.parameters(mediaKind: mediaKind, today: Self.today)
+        let items = await fetchItems(kind: kind, apiKey: key, params: params)
+        persistCache()
+        return items
+    }
+
+    /// Fusion-style "More Like This": titles that share this title's genres, via a
+    /// TMDB Discover query (the two most specific genres AND-joined so results stay
+    /// on-topic — Breaking Bad → Crime + Drama, not just any Drama), ranked by how
+    /// well-known they are. Excludes the source title. Returns [] with no TMDB key
+    /// or no mappable genre.
+    public func discoverSimilar(genres: [String], mediaKind: MediaType, excludingImdbId: String?) async -> [MetaPreview] {
+        guard let key = apiKey, !key.isEmpty else { return [] }
+        let genreIds = genres.compactMap { TMDBGenreIDs.id(for: $0, mediaKind: mediaKind) }
+        guard !genreIds.isEmpty else { return [] }
+        let kind = mediaKind == .movie ? "movie" : "tv"
+        let genreParam = genreIds.prefix(2).map(String.init).joined(separator: ",")
+        var items = await fetchItems(kind: kind, apiKey: key, params: [
+            "with_genres": genreParam,
+            "sort_by": "vote_count.desc",
+            "vote_count.gte": mediaKind == .movie ? "300" : "150",
+        ])
+        persistCache()
+        if let excludingImdbId { items.removeAll { $0.id == excludingImdbId } }
+        return items
     }
 
     /// Default "All" browse rails for a media kind (no genre selected) — the
@@ -467,13 +515,24 @@ public final class TMDBDiscoverService: ObservableObject {
         if let cached = imdbIdCache[cacheKey] { return cached.isEmpty ? nil : cached }
         guard let url = URL(string: "\(base)/\(kind)/\(tmdbId)/external_ids?api_key=\(apiKey)") else { return nil }
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            let (data, response) = try await URLSession.shared.data(from: url)
+            let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
             let decoded = try JSONDecoder().decode(TMDBExternalIdsResponse.self, from: data)
-            imdbIdCache[cacheKey] = decoded.imdbId ?? ""
+            guard let entry = Self.imdbCacheEntry(statusCode: statusCode, imdbId: decoded.imdbId) else { return nil }
+            imdbIdCache[cacheKey] = entry
             return decoded.imdbId
         } catch {
             return nil
         }
+    }
+
+    /// The value to persist in the tmdbId→imdbId cache, or nil for "don't cache".
+    /// Only a 200 counts as a confirmed answer — TMDB error bodies (429 rate
+    /// limit, 401) decode as `imdbId: nil` and would otherwise be cached forever
+    /// as a miss, permanently hiding the title from collection folders.
+    nonisolated static func imdbCacheEntry(statusCode: Int, imdbId: String?) -> String? {
+        guard statusCode == 200 else { return nil }
+        return imdbId ?? ""
     }
 
     func persistCache() {
