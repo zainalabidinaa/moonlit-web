@@ -69,6 +69,9 @@ struct SettingsScreen: View {
                                     .overlay(Capsule().stroke(Color.white.opacity(0.14), lineWidth: 1))
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                         }
                         .padding(14)
                         .background(
@@ -93,6 +96,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         .settingsGroupStyle()
                     }
 
@@ -130,6 +136,9 @@ struct SettingsScreen: View {
                                     .padding(.vertical, 5)
                                     .background(Color.red.opacity(0.1))
                                     .cornerRadius(MoonlitTheme.radiusControl)
+                                    #if os(tvOS)
+                                    .tvosFocusScale()
+                                    #endif
                                 }
                                 .padding(.horizontal, 14)
                                 .padding(.vertical, 12)
@@ -168,6 +177,9 @@ struct SettingsScreen: View {
                                     )
                                 }
                                 .buttonStyle(.plain)
+                                #if os(tvOS)
+                                .tvosFocusScale()
+                                #endif
                                 .disabled(traktAuth.isConnecting || metadataIntegrations.traktClientId.isEmpty)
                             }
                             settingsRowDivider()
@@ -182,6 +194,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                     }
                     .settingsGroupStyle()
 
@@ -196,6 +211,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         settingsRowDivider()
                         Button { showSubtitleAppearance = true } label: {
                             settingsRow(
@@ -205,6 +223,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         if profileManager.isAuthenticated {
                             settingsRowDivider()
                             NavigationLink { StreamAutoplaySettingsScreen() } label: {
@@ -215,6 +236,9 @@ struct SettingsScreen: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                         }
                     }
                     .settingsGroupStyle()
@@ -230,6 +254,9 @@ struct SettingsScreen: View {
                             cinematicModeRow
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         settingsRowDivider()
                         NavigationLink { CollectionDesignScreen() } label: {
                             settingsRow(
@@ -239,6 +266,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         settingsRowDivider()
                         #if os(iOS)
                         NavigationLink { AppIconPickerScreen() } label: {
@@ -259,6 +289,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                     }
                     .settingsGroupStyle()
 
@@ -276,11 +309,17 @@ struct SettingsScreen: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                             settingsRowDivider()
                             Button { showCatalogManagement = true } label: {
                                 settingsRow(icon: "folder", title: "Catalog Management")
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                             settingsRowDivider()
                             NavigationLink { HeroManagementScreen() } label: {
                                 settingsRow(icon: "film", title: "Hero Management")
@@ -291,6 +330,9 @@ struct SettingsScreen: View {
                                 settingsRow(icon: "shield", title: "Admin Dashboard")
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                         }
                         .settingsGroupStyle()
                     } else if roleManager.profileRole.canManageOwnAddons {
@@ -307,6 +349,9 @@ struct SettingsScreen: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                         }
                         .settingsGroupStyle()
                     } else if !profileManager.isAuthenticated {
@@ -320,6 +365,9 @@ struct SettingsScreen: View {
                                 )
                             }
                             .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                         }
                         .settingsGroupStyle()
                     }
@@ -333,11 +381,17 @@ struct SettingsScreen: View {
                             settingsRow(icon: "lock.shield", title: "Privacy Policy")
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         settingsRowDivider()
                         Link(destination: URL(string: "https://trymoonlit.app/terms")!) {
                             settingsRow(icon: "doc.text", title: "Terms of Use")
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         settingsRowDivider()
                         Link(destination: URL(string: "https://www.themoviedb.org")!) {
                             settingsRow(
@@ -347,6 +401,9 @@ struct SettingsScreen: View {
                             )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                     }
                     .settingsGroupStyle()
 
@@ -367,6 +424,9 @@ struct SettingsScreen: View {
                                 )
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         .padding(.horizontal, 16)
                         .padding(.top, 22)
 
@@ -380,6 +440,9 @@ struct SettingsScreen: View {
                                 .padding(.vertical, 12)
                         }
                         .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                         .padding(.top, 4)
                         .confirmationDialog(
                             "Delete Account",
@@ -559,6 +622,23 @@ struct SettingsScreen: View {
         .padding(.vertical, 11)
     }
 }
+
+#if os(tvOS)
+private struct TVFocusModifier: ViewModifier {
+    @Environment(\.isFocused) var isFocused
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isFocused ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: isFocused)
+    }
+}
+
+private extension View {
+    func tvosFocusScale() -> some View {
+        modifier(TVFocusModifier())
+    }
+}
+#endif
 
 @MainActor
 private func settingsGroupLabel(_ text: String) -> some View {

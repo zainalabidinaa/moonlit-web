@@ -145,7 +145,7 @@ struct LibraryScreen: View {
                     }
                 }
                 .frame(width: 100, height: 150)
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
 
                 // Watch progress bar
                 if let entry = watchProgressRepo.getProgress(mediaId: item.mediaId),
@@ -159,12 +159,15 @@ struct LibraryScreen: View {
                         }
                         .frame(height: 3)
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                 }
             }
             .frame(width: 100, height: 150)
         }
         .buttonStyle(.plain)
+        #if os(tvOS)
+        .tvosFocusScale()
+        #endif
         .contextMenu {
             Button(role: .destructive) {
                 Task {
@@ -228,9 +231,12 @@ struct LibraryScreen: View {
                 }
             }
             .frame(width: 100, height: 150)
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
         }
         .buttonStyle(.plain)
+        #if os(tvOS)
+        .tvosFocusScale()
+        #endif
         .contextMenu {
             Button(role: .destructive) {
                 Task { await likedRepo.removeLiked(mediaId: item.mediaId, profileId: profileManager.currentProfile?.id ?? "") }
@@ -265,6 +271,9 @@ struct LibraryScreen: View {
                         upcomingLandscapeCard(item)
                     }
                     .buttonStyle(.plain)
+                    #if os(tvOS)
+                    .tvosFocusScale()
+                    #endif
                 }
             }
             .padding(.horizontal, 16)
@@ -327,9 +336,9 @@ struct LibraryScreen: View {
             .padding(.bottom, 11)
         }
         .frame(width: cardW, height: cardH)
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
+            RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                 .stroke(Color.white.opacity(0.08), lineWidth: 1)
         )
         // Prominent "how soon" badge, top-right.
@@ -413,6 +422,9 @@ struct LibraryScreen: View {
                             .padding(.vertical, 5)
                             .background(selection.wrappedValue == filter ? Color.white.opacity(0.22) : Color.white.opacity(0.08))
                             .cornerRadius(20)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                     }
                 }
             }
@@ -501,6 +513,23 @@ struct LibraryScreen: View {
         upcomingBackdrops = backdrops
     }
 }
+
+#if os(tvOS)
+private struct TVFocusModifier: ViewModifier {
+    @Environment(\.isFocused) var isFocused
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isFocused ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: isFocused)
+    }
+}
+
+private extension View {
+    func tvosFocusScale() -> some View {
+        modifier(TVFocusModifier())
+    }
+}
+#endif
 
 private struct TMDBBackdropResponse: Decodable {
     let backdropPath: String?

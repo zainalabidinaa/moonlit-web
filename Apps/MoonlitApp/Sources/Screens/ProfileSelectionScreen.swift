@@ -52,6 +52,10 @@ struct ProfileSelectionScreen: View {
                                     }
                                 }
                             }
+                            .buttonStyle(.plain)
+                            #if os(tvOS)
+                            .tvosFocusScale()
+                            #endif
                         }
 
                         Button { showCreateProfile = true } label: {
@@ -69,6 +73,10 @@ struct ProfileSelectionScreen: View {
                                     .foregroundColor(MoonlitTheme.textSecondary)
                             }
                         }
+                        .buttonStyle(.plain)
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                     }
                     .padding(.horizontal, 32)
                 }
@@ -78,6 +86,10 @@ struct ProfileSelectionScreen: View {
                         .font(.subheadline)
                         .foregroundColor(MoonlitTheme.textSecondary)
                 }
+                .buttonStyle(.plain)
+                #if os(tvOS)
+                .tvosFocusScale()
+                #endif
 
                 Spacer()
             }
@@ -97,6 +109,23 @@ struct ProfileSelectionScreen: View {
     }
 }
 
+#if os(tvOS)
+private struct TVFocusModifier: ViewModifier {
+    @Environment(\.isFocused) var isFocused
+    func body(content: Content) -> some View {
+        content
+            .scaleEffect(isFocused ? 1.03 : 1.0)
+            .animation(.easeOut(duration: 0.1), value: isFocused)
+    }
+}
+
+private extension View {
+    func tvosFocusScale() -> some View {
+        modifier(TVFocusModifier())
+    }
+}
+#endif
+
 struct CreateProfileSheet: View {
     @Binding var isPresented: Bool
     @Binding var profileName: String
@@ -112,7 +141,7 @@ struct CreateProfileSheet: View {
                     TextField("Profile name", text: $profileName)
                         .padding()
                         .background(MoonlitTheme.surface)
-                        .cornerRadius(12)
+                        .cornerRadius(MoonlitTheme.radiusCard)
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.top, 24)
@@ -130,9 +159,13 @@ struct CreateProfileSheet: View {
                             .padding()
                             .background(MoonlitTheme.accent)
                             .foregroundColor(.white)
-                            .cornerRadius(12)
+                            .cornerRadius(MoonlitTheme.radiusCard)
                     }
                     .disabled(profileName.isEmpty || isLoading)
+                    .buttonStyle(.plain)
+                    #if os(tvOS)
+                    .tvosFocusScale()
+                    #endif
                     .padding(.horizontal, 24)
 
                     Spacer()
@@ -143,6 +176,9 @@ struct CreateProfileSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { isPresented = false }
+                        #if os(tvOS)
+                        .tvosFocusScale()
+                        #endif
                 }
             }
         }
