@@ -527,9 +527,15 @@ struct DetailScreen: View {
             Text("Streaming isn't available on this account.")
         }
         .fullScreenCover(item: $playerLaunch) { launch in
+#if os(tvOS)
+            TVPlayerScreen(launch: launch) {
+                playerLaunch = nil
+            }
+#else
             PlayerScreen(launch: launch) {
                 playerLaunch = nil
             }
+#endif
         }
         .fullScreenCover(item: $streamSelectionLaunch) { launch in
             StreamSelectionScreen(

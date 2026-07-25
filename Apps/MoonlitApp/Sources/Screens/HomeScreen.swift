@@ -465,7 +465,11 @@ struct HomeScreen: View {
             }
             #endif
             .fullScreenCover(item: $playerLaunch) { launch in
+#if os(tvOS)
+                TVPlayerScreen(launch: launch, onDismiss: { playerLaunch = nil })
+#else
                 PlayerScreen(launch: launch, onDismiss: { playerLaunch = nil })
+#endif
             }
             .alert("Streaming unavailable", isPresented: $showFreeUpgradeAlert) {
                 Button("OK", role: .cancel) {}
