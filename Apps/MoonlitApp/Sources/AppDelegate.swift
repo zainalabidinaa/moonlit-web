@@ -1,3 +1,4 @@
+#if os(iOS)
 import UIKit
 
 final class AppDelegate: NSObject, UIApplicationDelegate {
@@ -15,3 +16,4 @@ final class OrientationManager {
     static let shared = OrientationManager()
     var currentMask: UIInterfaceOrientationMask = .portrait
 }
+#endif

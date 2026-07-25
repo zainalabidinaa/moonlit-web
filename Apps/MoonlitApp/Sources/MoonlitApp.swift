@@ -3,7 +3,9 @@ import MoonlitCore
 
 @main
 struct MoonlitApp: App {
+#if os(iOS)
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+#endif
     @StateObject private var profileManager = ProfileManager.shared
     @StateObject private var roleManager = RoleManager.shared
     @StateObject private var themeManager = ThemeManager.shared
@@ -16,6 +18,7 @@ struct MoonlitApp: App {
         // Don't install a custom UITabBarAppearance — on iOS 26 that opts the tab bar out
         // of the system's clear Liquid Glass. Leave it default; tint/unselected colors are
         // driven by SwiftUI (.tint) on the TabView.
+#if os(iOS)
         UITabBar.appearance().tintColor = .systemBlue
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.55)
 
@@ -23,12 +26,14 @@ struct MoonlitApp: App {
         if UITestMode.disableContinuousAnimations {
             UIView.setAnimationsEnabled(false)
         }
+#endif
     }
 
     var body: some Scene {
         WindowGroup {
             // TEMP: paywall design prototype, launch with -PAYWALL_PREVIEW YES.
             // Remove once the paywall design is finalized.
+#if os(iOS)
             if ProcessInfo.processInfo.arguments.contains("PAYWALL_PREVIEW") {
                 PaywallScreen(posterURLs: (0..<12).compactMap {
                     URL(string: "https://picsum.photos/seed/moonlit\($0)/300/450")
@@ -39,6 +44,12 @@ struct MoonlitApp: App {
                     .environmentObject(roleManager)
                     .environmentObject(themeManager)
             }
+#else
+            MoonlitRootView(handleDeepLink: handleDeepLink)
+                .environmentObject(profileManager)
+                .environmentObject(roleManager)
+                .environmentObject(themeManager)
+#endif
         }
     }
 
@@ -70,12 +81,12 @@ private struct MoonlitRootView: View {
             .tint(.blue)
             .accentColor(.blue)
             .onOpenURL { handleDeepLink($0) }
-            .task {
-                AppIconManager.applySelectedIcon(for: colorScheme)
-            }
+#if os(iOS)
+            .task { AppIconManager.applySelectedIcon(for: colorScheme) }
             .onChange(of: colorScheme) { _, newValue in
                 AppIconManager.applySelectedIcon(for: newValue)
             }
+#endif
             .onChange(of: scenePhase) { _, newPhase in
                 if newPhase == .active, let userId = profileManager.currentProfile?.userId {
                     Task {
