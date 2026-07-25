@@ -193,6 +193,53 @@ private struct TabBarMinimizeModifier: ViewModifier {
 }
 #endif
 
+#if os(tvOS)
+private struct TVMainTabView: View {
+    @EnvironmentObject var profileManager: ProfileManager
+    @EnvironmentObject var roleManager: RoleManager
+    @StateObject private var addonRepo = AddonRepository.shared
+    @State private var selectedTab = 0
+
+    var body: some View {
+        TabView(selection: $selectedTab) {
+            NavigationStack {
+                HomeScreen()
+            }
+            .tabItem { Label("Home", systemImage: "house.fill") }
+            .tag(0)
+
+            NavigationStack {
+                SearchScreen()
+            }
+            .tabItem { Label("Search", systemImage: "magnifyingglass") }
+            .tag(1)
+
+            NavigationStack {
+                LibraryScreen()
+            }
+            .tabItem { Label("Library", systemImage: "rectangle.stack.fill") }
+            .tag(2)
+
+            NavigationStack {
+                SettingsScreen()
+            }
+            .tabItem { Label("Settings", systemImage: "gearshape.fill") }
+            .tag(3)
+        }
+        .task {
+            if let profile = profileManager.currentProfile {
+                await addonRepo.loadAddons(profileId: profile.id)
+            }
+        }
+        .onChange(of: profileManager.currentProfile) { _, newProfile in
+            if let profile = newProfile {
+                Task { await addonRepo.loadAddons(profileId: profile.id) }
+            }
+        }
+    }
+}
+#endif
+
 struct MainTabView: View {
     @EnvironmentObject var profileManager: ProfileManager
     @EnvironmentObject var roleManager: RoleManager
@@ -202,6 +249,11 @@ struct MainTabView: View {
     @Environment(\.horizontalSizeClass) private var sizeClass
 
     var body: some View {
+        #if os(tvOS)
+        TVMainTabView()
+            .environmentObject(profileManager)
+            .environmentObject(roleManager)
+        #else
         if sizeClass == .regular {
             NavigationSplitView {
                 List {
@@ -236,26 +288,9 @@ struct MainTabView: View {
                 }
             }
         } else {
-            #if os(tvOS)
-            TabView(selection: $selectedTab) {
-                Tab("Home", systemImage: "house.fill", value: 0) {
-                    HomeScreen()
-                }
-                Tab("Search", systemImage: "magnifyingglass", value: 1) {
-                    SearchScreen()
-                }
-                Tab("Library", systemImage: "rectangle.stack.fill", value: 2) {
-                    LibraryScreen()
-                }
-                Tab("Settings", systemImage: "gearshape.fill", value: 3) {
-                    SettingsScreen()
-                }
-            }
-            #else
             phoneTabView
             .tint(.blue)
             .modifier(TabBarMinimizeModifier())
-            #endif
             .task {
                 if let profile = profileManager.currentProfile {
                     await addonRepo.loadAddons(profileId: profile.id)
@@ -269,6 +304,7 @@ struct MainTabView: View {
                 }
             }
         }
+        #endif
     }
 
     /// iOS 26 gives the search tab a detached, circular presentation to the right
