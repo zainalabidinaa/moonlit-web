@@ -17,6 +17,7 @@ struct HomeScreen: View {
     @StateObject private var heroStore = HeroPreferenceStore.shared
     @StateObject private var libraryRepo = LibraryRepository.shared
     @StateObject private var recsService = RecommendationsService.shared
+    @StateObject private var watchProgressRepo = WatchProgressRepository.shared
     @State private var selectedMedia: MetaPreview?
     @State private var showDetail = false
     @State private var cwDetailTarget: MetaPreview? = nil
@@ -24,20 +25,58 @@ struct HomeScreen: View {
     @State private var selectedFolder: CatalogRow? = nil
     @State private var showFolder = false
     @State private var selectedGenre: String? = nil
+    @State private var selectedGenreMediaKind: MediaType? = nil
     @State private var showGenre = false
-    @State private var showAwards = false
     @State private var selectedRecRow: CatalogRow? = nil
     @State private var showRecFolder = false
+    @State private var categoryState = HomeCategoryState()
+    // Stable snapshots of the browse menu's genre lists. The menu must not read
+    // catalogRepo directly: a background catalog refresh landing mid-interaction
+    // changes the menu's content, rebuilding the toolbar item and tearing down the
+    // live UIMenu — which collapses any open submenu. See refreshMenuGenres().
+    @State private var menuMovieGenres: [String] = []
+    @State private var menuShowGenres: [String] = []
+
+    private var categoryGenres: [String] {
+        availableHomeGenres(in: catalogRepo.catalogRows, category: categoryState.category)
+    }
+
+    private var visibleCatalogRows: [CatalogRow] {
+        switch categoryState.category {
+        case .featured:
+            return catalogRepo.catalogRows.compactMap { filteredHomeRow($0, filter: categoryState) }
+        case .movies:
+            return catalogRepo.rows(for: .movies, collectionRepo: collectionRepo)
+                .compactMap { filteredHomeRow($0, filter: categoryState) }
+        case .shows:
+            return catalogRepo.rows(for: .series, collectionRepo: collectionRepo)
+                .compactMap { filteredHomeRow($0, filter: categoryState) }
+        }
+    }
 
     /// Display rows with because_you_watched merged into one folder tile
     private var recsDisplayRows: [RecommendationRow] {
+        let watchedIds = watchProgressRepo.watchedMediaIds
+        func notWatched(_ item: MetaPreview) -> Bool {
+            let baseId = item.id.split(separator: ":").first.map(String.init) ?? item.id
+            return !watchedIds.contains(item.id) && !watchedIds.contains(baseId)
+        }
         var result: [RecommendationRow] = []
         var becauseRows: [RecommendationRow] = []
         for row in recsService.rows {
+            let filtered = row.items.filter(notWatched)
+            guard !filtered.isEmpty else { continue }
+            let filteredRow = RecommendationRow(
+                rowType: row.rowType,
+                rowTitle: row.rowTitle,
+                coverImage: row.coverImage,
+                sortOrder: row.sortOrder,
+                items: filtered
+            )
             if row.rowType == "because_you_watched" {
-                becauseRows.append(row)
+                becauseRows.append(filteredRow)
             } else {
-                result.append(row)
+                result.append(filteredRow)
             }
         }
         if !becauseRows.isEmpty {
@@ -57,6 +96,8 @@ struct HomeScreen: View {
     @State private var showFreeUpgradeAlert = false
     @State private var ambientColor: Color = .clear
     @State private var ambientColor2: Color = .clear
+    @State private var heroScroll: CGFloat = 0
+    @State private var heroScrollBase: CGFloat? = nil
     @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
     @AppStorage("moonlit.guestMode") private var guestMode = false
 
@@ -68,42 +109,39 @@ struct HomeScreen: View {
     ]
 
     private var featuredItems: [MetaPreview] {
-        let allRows = catalogRepo.catalogRows
-        let heroRows: [CatalogRow]
-        if heroStore.rowOrder.isEmpty {
-            // Default: prefer named rows, fall back to all rows with items
-            let named = allRows.filter { mainRowNames.contains($0.title) }
-            heroRows = named.isEmpty ? allRows.filter { !$0.items.isEmpty } : named
-        } else {
-            // Respect saved order and enabled/disabled state
-            let enabledOrdered = heroStore.rowOrder
-                .filter { heroStore.isEnabled(rowTitle: $0) }
-                .compactMap { title in allRows.first { $0.title == title } }
-            // Also include any mainRow titles not yet in saved order (new defaults)
-            let missing = allRows.filter {
-                mainRowNames.contains($0.title) &&
-                !heroStore.rowOrder.contains($0.title) &&
-                heroStore.isEnabled(rowTitle: $0.title)
-            }
-            let computed = enabledOrdered + missing
-            // Fall back: named rows → any rows with items
-            if computed.isEmpty {
-                let named = allRows.filter { mainRowNames.contains($0.title) }
-                heroRows = named.isEmpty ? allRows.filter { !$0.items.isEmpty } : named
-            } else {
-                heroRows = computed
-            }
+        // Narrow to the active category BEFORE resolving hero rows. The selector
+        // has no notion of categoryState, so handing it every row lets a movie
+        // catalog win under Shows — and the category filter below then strips it
+        // to nothing, leaving Shows with no hero at all.
+        let scopedRows: [CatalogRow]
+        switch categoryState.category {
+        case .featured:
+            scopedRows = catalogRepo.catalogRows
+        case .movies:
+            scopedRows = catalogRepo.rows(for: .movies, collectionRepo: collectionRepo)
+        case .shows:
+            scopedRows = catalogRepo.rows(for: .series, collectionRepo: collectionRepo)
         }
-        // Cap per row so a single row can't fill the whole carousel.
-        let perRowCap = 8
+        // Fusion-style hero source: the user-selected catalog if set, else a
+        // single trending/popular catalog, else the legacy named-row fallback.
+        // The pinned hero is a Featured-page choice — a hero pinned to a movie
+        // catalog must not govern Shows.
+        let heroRows = HeroCatalogSelector.heroRows(
+            from: scopedRows.compactMap { filteredHomeRow($0, filter: categoryState) },
+            selectedId: categoryState.category == .featured ? heroStore.heroCatalogId : nil,
+            fallbackNamedTitles: Array(mainRowNames)
+        )
+        // A single selected catalog may fill the carousel; a blend is capped per
+        // row so one row can't dominate.
         let totalCap = 20
+        let perRowCap = heroRows.count == 1 ? totalCap : 8
         var seen = Set<String>()
         var candidates: [MetaPreview] = []
         for row in heroRows {
             let rowItems = row.items
                 .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
             var taken = 0
-            for item in rowItems where !seen.contains(item.id) {
+            for item in rowItems where !seen.contains(item.id) && matchesHomeCategory(item, filter: categoryState) {
                 guard taken < perRowCap, candidates.count < totalCap else { break }
                 seen.insert(item.id)
                 candidates.append(item)
@@ -131,13 +169,6 @@ struct HomeScreen: View {
         return profileManager.currentProfile == nil && guestMode ? catalogMetadataAddons : addonRepo.enabledAddons
     }
 
-    private var currentHeroBackdropURL: URL? {
-        guard featuredItems.indices.contains(heroIndex) else { return nil }
-        let item = featuredItems[heroIndex]
-        return HeroArtworkProvider.shared.heroArtURL(for: item)
-            ?? (item.banner ?? item.poster).flatMap(URL.init)
-    }
-
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
@@ -146,14 +177,13 @@ struct HomeScreen: View {
                     FusionAmbientBackground(
                         ambientColor: ambientColor,
                         ambientColor2: ambientColor2,
-                        heroBackdropURL: currentHeroBackdropURL,
                         isEnabled: cinematicModeEnabled,
-                        screenWidth: geo.size.width,
-                        screenHeight: geo.size.height
+                        heroHeight: ParallaxHero.heroHeight,
+                        screenHeight: geo.size.height,
+                        scrollOffset: heroScroll
                     )
                     .animation(.easeInOut(duration: 0.9), value: ambientColor)
                     .animation(.easeInOut(duration: 0.9), value: ambientColor2)
-                    .animation(.easeInOut(duration: 0.6), value: currentHeroBackdropURL)
                     .animation(.easeInOut(duration: 0.35), value: cinematicModeEnabled)
 
                     ScrollView {
@@ -186,6 +216,10 @@ struct HomeScreen: View {
                                 .onChange(of: heroIndex) { _, _ in
                                     Task { await updateAmbientColorIfNeeded() }
                                 }
+
+                                Color.clear
+                                    .frame(height: 8)
+                                    .onChange(of: categoryState) { _, _ in heroIndex = 0 }
                             }
 
                     // Continue Watching
@@ -231,63 +265,62 @@ struct HomeScreen: View {
                         .padding(.top, 16)
                     }
 
-                    // For You — Personalized Recommendations
-                    if !recsService.rows.isEmpty {
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text("For You")
-                                .font(.system(size: 20, weight: .semibold))
-                                .foregroundColor(.white)
-                                .padding(.horizontal)
+                #if os(macOS)
+                // For You — Personalized Recommendations
+                if !recsService.rows.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("For You")
+                            .font(.system(size: 20, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal)
 
-                            ScrollView(.horizontal, showsIndicators: false) {
-                                LazyHStack(spacing: 10) {
-                                    ForEach(recsDisplayRows) { row in
-                                        Button {
-                                            let catalogRow = CatalogRow(
-                                                id: row.id,
-                                                title: row.rowTitle,
-                                                items: row.items,
-                                                tileShape: "landscape",
-                                                coverImage: row.coverImage
-                                            )
-                                            selectedRecRow = catalogRow
-                                            showRecFolder = true
-                                        } label: {
-                                            FolderCell(row: CatalogRow(
-                                                id: row.id,
-                                                title: row.rowTitle,
-                                                items: row.items,
-                                                tileShape: "landscape",
-                                                coverImage: row.coverImage
-                                            ), onTap: { _ in })
-                                        }
-                                        .buttonStyle(.plain)
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            LazyHStack(spacing: 10) {
+                                ForEach(recsDisplayRows) { row in
+                                    Button {
+                                        let catalogRow = CatalogRow(
+                                            id: row.id,
+                                            title: row.rowTitle,
+                                            items: row.items,
+                                            tileShape: "landscape",
+                                            coverImage: row.coverImage
+                                        )
+                                        selectedRecRow = catalogRow
+                                        showRecFolder = true
+                                    } label: {
+                                        FolderCell(row: CatalogRow(
+                                            id: row.id,
+                                            title: row.rowTitle,
+                                            items: row.items,
+                                            tileShape: "landscape",
+                                            coverImage: row.coverImage
+                                        ), onTap: { _ in })
                                     }
+                                    .buttonStyle(.plain)
                                 }
-                                .padding(.horizontal)
                             }
+                            .padding(.horizontal)
                         }
-                        .padding(.top, 16)
                     }
+                    .padding(.top, 16)
+                }
+                #endif
 
                     if !catalogRepo.catalogRows.isEmpty {
                         LazyVStack(spacing: 28) {
-                            ForEach(catalogRepo.catalogRows) { row in
+                            ForEach(visibleCatalogRows) { row in
                                 CollectionRowContainer(row: row, style: rowStyleStore.style(forRowTitle: row.title), onTap: { item in
                                     if item.id.hasPrefix("folder_"),
                                        let genre = collectionRepo.genreName(forFolderRowId: item.id) {
                                         selectedGenre = genre
                                         showGenre = true
-                                    } else if item.id.hasPrefix("folder_"),
-                                              collectionRepo.isAwardsFolder(forFolderRowId: item.id) {
-                                        showAwards = true
                                     } else if item.id.hasPrefix("folder_") {
                                         selectedFolder = catalogRepo.allFolderRows[item.id] ?? CatalogRow(
                                             id: item.id,
                                             title: item.name,
                                             items: [],
                                             tileShape: item.posterShape?.rawValue ?? "poster",
-                                            coverImage: item.poster ?? item.banner
+                                            coverImage: item.artworkString(preferring: .portrait)
                                         )
                                         showFolder = true
                                     } else {
@@ -314,19 +347,19 @@ struct HomeScreen: View {
                     } else if catalogRepo.isLoading {
                         VStack(spacing: 24) {
                             Spacer().frame(height: 20)
-                            ShimmerCard(width: 375, height: 200, cornerRadius: 12)
+                            ShimmerCard(width: 375, height: 200, cornerRadius: MoonlitTheme.radiusCard)
                                 .padding(.horizontal)
-                            ShimmerCard(width: 120, height: 16, cornerRadius: 4)
+                            ShimmerCard(width: 120, height: 16, cornerRadius: MoonlitTheme.radiusSmall)
                                 .padding(.horizontal)
                             HStack(spacing: 12) {
                                 ForEach(0..<3, id: \.self) { _ in
-                                    ShimmerCard(width: 180, height: 100, cornerRadius: 8)
+                                    ShimmerCard(width: 180, height: 100, cornerRadius: MoonlitTheme.radiusControl)
                                 }
                             }
                             .padding(.horizontal)
                             HStack(spacing: 12) {
                                 ForEach(0..<4, id: \.self) { _ in
-                                    ShimmerCard(width: 105, height: 158, cornerRadius: 8)
+                                    ShimmerCard(width: 105, height: 158, cornerRadius: MoonlitTheme.radiusControl)
                                 }
                             }
                             .padding(.horizontal)
@@ -345,6 +378,37 @@ struct HomeScreen: View {
                     Spacer().frame(height: 32)
                 }
             }
+            .onScrollGeometryChange(for: CGFloat.self) { geo in
+                geo.contentOffset.y
+            } action: { _, value in
+                if heroScrollBase == nil { heroScrollBase = value }
+                heroScroll = value - (heroScrollBase ?? 0)
+            }
+            .task(id: featuredItems.map(\.id)) {
+                // Resolve textless hero posters as soon as the featured set is
+                // known, so the first hero render already has the clean poster
+                // (or fades it in shortly after) instead of waiting on the hero's
+                // own onAppear.
+                HeroArtworkProvider.shared.prefetch(items: featuredItems)
+            }
+#if os(tvOS)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button {
+                        Task {
+                            guard let profile = profileManager.currentProfile else {
+                                await loadCatalogRowsForGuest()
+                                return
+                            }
+                            await reloadCatalogRows()
+                            await homeRepo.loadContinueWatching(profileId: profile.id)
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                    }
+                }
+            }
+#else
             .refreshable {
                 guard let profile = profileManager.currentProfile else {
                     await loadCatalogRowsForGuest()
@@ -353,10 +417,15 @@ struct HomeScreen: View {
                 await reloadCatalogRows()
                 await homeRepo.loadContinueWatching(profileId: profile.id)
             }
+#endif
                 }
             }
             .ignoresSafeArea(edges: .top)
+#if os(iOS)
             .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    homeBrowseMenu
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     if let profile = profileManager.currentProfile {
                         Button {
@@ -367,6 +436,7 @@ struct HomeScreen: View {
                     }
                 }
             }
+#endif
             .navigationDestination(isPresented: $showDetail) {
                 if let media = selectedMedia {
                     DetailScreen(mediaId: media.id, type: media.type.rawValue, name: media.name)
@@ -384,17 +454,16 @@ struct HomeScreen: View {
             }
             .navigationDestination(isPresented: $showGenre) {
                 if let genre = selectedGenre {
-                    GenreHubScreen(genre: genre)
+                    GenreHubScreen(genre: genre, mediaKind: selectedGenreMediaKind)
                 }
             }
-            .navigationDestination(isPresented: $showAwards) {
-                AwardsHubScreen()
-            }
+            #if os(macOS)
             .navigationDestination(isPresented: $showRecFolder) {
                 if let folder = selectedRecRow {
                     FolderScreen(row: folder)
                 }
             }
+            #endif
             .fullScreenCover(item: $playerLaunch) { launch in
                 PlayerScreen(launch: launch, onDismiss: { playerLaunch = nil })
             }
@@ -435,7 +504,9 @@ struct HomeScreen: View {
                     return
                 }
                 async let continueWatching: Void = homeRepo.loadContinueWatching(profileId: profile.id)
+                #if os(macOS)
                 Task { await recsService.load(profileId: profile.id) }
+                #endif
                 _ = await loadGlobalOrganizer()
                 await libraryRepo.loadLibrary(profileId: profile.id)
                 if catalogRepo.catalogRows.isEmpty {
@@ -469,11 +540,83 @@ struct HomeScreen: View {
                 guard phase == .active, let profile = profileManager.currentProfile else { return }
                 Task {
                 await homeRepo.loadContinueWatching(profileId: profile.id)
+                #if os(macOS)
                 await recsService.load(profileId: profile.id)
+                #endif
                     warmupContinueWatching()
                 }
             }
         }
+    }
+
+    @ViewBuilder
+    private var homeBrowseMenu: some View {
+        if #available(iOS 26, *) {
+            GlassEffectContainer {
+                browseMenu
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .glassEffect(.regular.interactive(), in: .capsule)
+            }
+        } else {
+            browseMenu
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .glassCapsule(interactive: true)
+        }
+    }
+
+    private var browseMenu: some View {
+        Menu {
+            Button("Featured") { categoryState = HomeCategoryState(category: .featured) }
+            Button("Movies") { categoryState = HomeCategoryState(category: .movies) }
+            Button("Shows") { categoryState = HomeCategoryState(category: .shows) }
+
+            Menu("Movie categories") {
+                ForEach(menuMovieGenres, id: \.self) { genre in
+                    Button(genre) { openGenre(genre, as: .movie) }
+                }
+            }
+            Menu("Show categories") {
+                ForEach(menuShowGenres, id: \.self) { genre in
+                    Button(genre) { openGenre(genre, as: .series) }
+                }
+            }
+        } label: {
+            Label("Browse", systemImage: "rectangle.grid.2x2")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(.white)
+        }
+        .accessibilityLabel("Browse content")
+        .onAppear { refreshMenuGenres() }
+        .onChange(of: catalogRowsFingerprint) { _, _ in refreshMenuGenres() }
+    }
+
+    /// Cheap Equatable stand-in for `catalogRepo.catalogRows`, which holds
+    /// non-Equatable `CatalogRow`s. Row identity plus item count is enough to
+    /// catch every change that could alter the available genres.
+    private var catalogRowsFingerprint: [String] {
+        catalogRepo.catalogRows.map { "\($0.id):\($0.items.count)" }
+    }
+
+    /// Recomputes the browse menu's genre lists, assigning only on a real change.
+    ///
+    /// HomeScreen's body re-evaluates on every catalog publish regardless, so what
+    /// keeps the open menu alive is the toolbar item's *content* staying identical
+    /// across those evaluations — SwiftUI then has no reason to rebuild the UIMenu.
+    /// A redundant assignment here would republish @State and defeat that, so the
+    /// equality guard is load-bearing, not an optimisation.
+    private func refreshMenuGenres() {
+        let movies = availableHomeGenres(in: catalogRepo.catalogRows, category: .movies)
+        if movies != menuMovieGenres { menuMovieGenres = movies }
+        let shows = availableHomeGenres(in: catalogRepo.catalogRows, category: .shows)
+        if shows != menuShowGenres { menuShowGenres = shows }
+    }
+
+    private func openGenre(_ genre: String, as mediaType: MediaType) {
+        selectedGenreMediaKind = mediaType
+        selectedGenre = genre
+        showGenre = true
     }
 
     private func warmupContinueWatching() {
@@ -597,6 +740,13 @@ struct HomeScreen: View {
                 logger.warning("home-organizer background refresh failed")
                 return
             }
+            // Re-applying an identical layout republishes collectionRepo and then
+            // refetches every catalog row for nothing. That churn is what tears
+            // down and rebuilds the toolbar — collapsing an open browse menu.
+            guard refreshed != collectionRepo.organized else {
+                logger.info("home-organizer unchanged — skipping re-apply")
+                return
+            }
             let oldCount = collectionRepo.collections.count
             collectionRepo.apply(refreshed)
             logger.info("home-organizer applied: \(collectionRepo.collections.count) collections (was \(oldCount))")
@@ -620,7 +770,7 @@ struct HomeScreen: View {
         }
         let item = featuredItems[heroIndex]
         guard let url = HeroArtworkProvider.shared.heroArtURL(for: item)
-                ?? (item.banner ?? item.poster).flatMap(URL.init) else {
+                ?? item.artworkURL(preferring: .portrait) else {
             ambientColor = .clear
             ambientColor2 = .clear
             return
@@ -630,8 +780,8 @@ struct HomeScreen: View {
             let (data, _) = try await URLSession.shared.data(from: url)
             guard let image = UIImage(data: data),
                   let (c1, c2) = image.moonlitAmbientColors() else { return }
-            ambientColor  = c1.moonlitBoostedForAmbient
-            ambientColor2 = c2.moonlitBoostedForAmbient
+            ambientColor  = c1.moonlitMutedForAmbient
+            ambientColor2 = c2.moonlitMutedForAmbient
         } catch {
             ambientColor = .clear
             ambientColor2 = .clear
@@ -678,89 +828,120 @@ private struct FreeNoContentState: View {
 
 // MARK: - Folder Grid
 
-private struct FusionAmbientBackground: View {
+/// Art-tinted wash shared by HomeScreen and DetailScreen. Module-internal
+/// rather than private so the detail page can reuse the same treatment.
+struct FusionAmbientBackground: View {
     let ambientColor: Color
     let ambientColor2: Color
-    let heroBackdropURL: URL?
     let isEnabled: Bool
-    let screenWidth: CGFloat
+    /// On-screen hero content height in points (excluding the top safe-area inset,
+    /// which is added internally). The color band sits just below this line.
+    let heroHeight: CGFloat
     let screenHeight: CGFloat
+    /// Vertical scroll amount (points). Subtracted from the band's offset so the
+    /// color hugs the hero's lower edge and scrolls up with the content.
+    var scrollOffset: CGFloat = 0
 
     var body: some View {
         ZStack(alignment: .top) {
-            MoonlitTheme.background
+            if isEnabled {
+                // Fusion-style base: a vertical charcoal gradient that never
+                // resolves to pure black, so the page keeps depth even before
+                // any art color loads.
+                FusionAmbientBackground.baseGradient
+            } else {
+                MoonlitTheme.background
+            }
 
-            if isEnabled, let url = heroBackdropURL {
-                CachedAsyncImage(url: url) { phase in
-                    if case .success(let image) = phase {
-                        image.resizable().scaledToFill()
-                    } else {
-                        Color.clear
-                    }
+            if isEnabled {
+                // Ambient wash — an animated MeshGradient of the extracted hero
+                // colors, sized to a band and offset to sit just under the hero's
+                // lower edge. Because the offset subtracts the scroll amount, the
+                // band hugs the hero and scrolls up with the content, so it reads
+                // as the artwork bleeding down and never draws over the hero. The
+                // band's own top/bottom fade blends the seams.
+                TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
+                    let t = timeline.date.timeIntervalSinceReferenceDate
+                    MeshGradient(
+                        width: 3,
+                        height: 3,
+                        points: meshPoints(t),
+                        colors: meshColors
+                    )
                 }
-                .frame(width: screenWidth, height: screenHeight * 0.72)
-                .clipped()
-                .scaleEffect(1.1)
-                .blur(radius: 30)
-                .saturation(0.28)
-                .brightness(0.14)
-                .opacity(0.90)
-                .frame(width: screenWidth, height: screenHeight * 0.72, alignment: .top)
-                .clipped()
+                .frame(height: screenHeight * 0.62)
+                .blur(radius: 24)
                 .mask(
                     LinearGradient(
                         stops: [
-                            .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.50),
-                            .init(color: .black.opacity(0.5), location: 0.72),
+                            .init(color: .clear, location: 0.0),
+                            .init(color: .black, location: 0.18),
+                            .init(color: .black, location: 0.72),
                             .init(color: .clear, location: 1.0),
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .id(url)
-                .transition(.opacity)
-            }
-
-            if isEnabled {
-                // Primary glow — left-region color, centered at top.
-                RadialGradient(
-                    stops: [
-                        .init(color: ambientColor.opacity(0.75), location: 0.0),
-                        .init(color: ambientColor.opacity(0.45), location: 0.30),
-                        .init(color: ambientColor.opacity(0.18), location: 0.60),
-                        .init(color: .clear, location: 1.0),
-                    ],
-                    center: .top,
-                    startRadius: 0,
-                    endRadius: screenHeight * 0.80
-                )
-                .blur(radius: 28)
-
-                // Accent glow — right-region color, off-center right.
-                RadialGradient(
-                    colors: [ambientColor2.opacity(0.45), .clear],
-                    center: UnitPoint(x: 0.80, y: 0.05),
-                    startRadius: 0,
-                    endRadius: screenHeight * 0.50
-                )
-
-                // Dark overlay: transparent at top, opaque at bottom.
-                LinearGradient(
-                    stops: [
-                        .init(color: .black.opacity(0.0),  location: 0.00),
-                        .init(color: .black.opacity(0.10), location: 0.30),
-                        .init(color: MoonlitTheme.background.opacity(0.60), location: 0.65),
-                        .init(color: MoonlitTheme.background, location: 1.00)
-                    ],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
+                .offset(y: (heroHeight + Self.topSafeInset) - scrollOffset)
+                .allowsHitTesting(false)
             }
         }
         .ignoresSafeArea()
     }
+
+    // 3×3 mesh control points. The 4 corners and the 4 edge mid-points keep the
+    // boundary pinned (so the rect always fills — no gaps), while the interior
+    // and the free axis of each edge mid-point drift on slow, out-of-phase sines
+    // for an organic, non-repeating motion.
+    private func meshPoints(_ t: Double) -> [SIMD2<Float>] {
+        func osc(_ period: Double, _ phase: Double, _ amp: Float) -> Float {
+            Float(sin(t * (.pi * 2 / period) + phase)) * amp
+        }
+        func cl(_ v: Float) -> Float { min(max(v, 0.08), 0.92) }
+        return [
+            SIMD2<Float>(0.0, 0.0),
+            SIMD2<Float>(0.5, 0.0),
+            SIMD2<Float>(1.0, 0.0),
+            SIMD2<Float>(0.0, cl(0.5 + osc(17, 0.0, 0.06))),
+            SIMD2<Float>(cl(0.5 + osc(19, 1.3, 0.07)), cl(0.5 + osc(23, 0.5, 0.05))),
+            SIMD2<Float>(1.0, cl(0.5 + osc(21, 2.1, 0.06))),
+            SIMD2<Float>(0.0, 1.0),
+            SIMD2<Float>(cl(0.5 + osc(15, 3.0, 0.06)), 1.0),
+            SIMD2<Float>(1.0, 1.0),
+        ]
+    }
+
+    // Mesh colors, row-major. The band's own mask fades its top and bottom edges,
+    // so every row carries color: the two extracted tints (color1 left, color2
+    // right) at moderate opacity, letting the charcoal base still read through.
+    private var meshColors: [Color] {
+        [
+            ambientColor.opacity(0.55), ambientColor2.opacity(0.45), ambientColor2.opacity(0.55),
+            ambientColor.opacity(0.60), ambientColor.opacity(0.50), ambientColor2.opacity(0.60),
+            ambientColor.opacity(0.40), ambientColor2.opacity(0.34), ambientColor2.opacity(0.40),
+        ]
+    }
+
+    // Current key window's top safe-area inset, so the color line can be placed
+    // just past the hero's true on-screen bottom on any device.
+    private static var topSafeInset: CGFloat {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap { $0.windows }
+            .first { $0.isKeyWindow }?
+            .safeAreaInsets.top ?? 0
+    }
+
+    // Fusion-style charcoal base — top #3D3D3D, bottom #161616 (never pure black).
+    private static let baseGradient = LinearGradient(
+        stops: [
+            .init(color: Color(hex: "3D3D3D"), location: 0.0),
+            .init(color: Color(hex: "161616"), location: 1.0)
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
 }
 
 struct CollectionRowContainer: View {
@@ -780,41 +961,67 @@ struct CollectionRowContainer: View {
             CardStackRow(row: row, onTap: onTap, onHeaderTap: onHeaderTap, metrics: metrics)
         case .carouselCinematic:
             CarouselCinematicRow(row: row, onTap: onTap, metrics: metrics)
+        case .topTen:
+            TopTenRow(row: row, onTap: onTap, onHeaderTap: onHeaderTap, metrics: metrics)
         }
     }
 }
 
-private extension UIImage {
-    // Samples left and right regions of the top 60% of the image to extract two
-    // distinct ambient colors. Avoids dark letterbox bars at the bottom.
+extension UIImage {
+    // Extracts two ambient colors from the left/right of the artwork's top region.
+    // Uses a *saturation-weighted* average over a downscaled copy rather than a flat
+    // mean: weighting each pixel by saturation² × brightness pulls the result toward
+    // the artwork's vivid, dominant hues instead of the muddy gray a plain average
+    // collapses to. Falls back to a plain average for near-grayscale images.
     func moonlitAmbientColors() -> (Color, Color)? {
-        guard let ci = CIImage(image: self) else { return nil }
-        let e = ci.extent
-        let topH = e.height * 0.6
+        guard let cg = cgImage else { return nil }
+        let w = 48, h = 48
+        var buf = [UInt8](repeating: 0, count: w * h * 4)
+        let cs = CGColorSpaceCreateDeviceRGB()
+        guard let ctx = CGContext(
+            data: &buf, width: w, height: h, bitsPerComponent: 8,
+            bytesPerRow: w * 4, space: cs,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        ctx.draw(cg, in: CGRect(x: 0, y: 0, width: w, height: h))
 
-        func avgColor(in rect: CGRect) -> Color? {
-            guard let filter = CIFilter(name: "CIAreaAverage", parameters: [
-                kCIInputImageKey: ci,
-                kCIInputExtentKey: CIVector(cgRect: rect)
-            ]), let out = filter.outputImage else { return nil }
-            var px = [UInt8](repeating: 0, count: 4)
-            let ctx = CIContext(options: [.workingColorSpace: kCFNull as Any])
-            ctx.render(out, toBitmap: &px, rowBytes: 4,
-                       bounds: CGRect(x: 0, y: 0, width: 1, height: 1),
-                       format: .RGBA8, colorSpace: nil)
-            return Color(red: Double(px[0]) / 255, green: Double(px[1]) / 255, blue: Double(px[2]) / 255)
+        // In a CGContext row 0 is the bottom, so the artwork's top 60% is the high
+        // rows. Skipping the bottom avoids dark letterbox bars muddying the color.
+        let topStart = Int(Double(h) * 0.4)
+
+        func dominant(xRange: Range<Int>) -> Color {
+            var wr = 0.0, wg = 0.0, wb = 0.0, wsum = 0.0     // saturation-weighted
+            var ar = 0.0, ag = 0.0, ab = 0.0, an = 0.0        // plain-average fallback
+            for y in topStart..<h {
+                for x in xRange {
+                    let i = (y * w + x) * 4
+                    let r = Double(buf[i]) / 255, g = Double(buf[i + 1]) / 255, b = Double(buf[i + 2]) / 255
+                    let mx = max(r, g, b), mn = min(r, g, b)
+                    let sat = mx <= 0 ? 0 : (mx - mn) / mx
+                    let weight = sat * sat * mx
+                    wr += r * weight; wg += g * weight; wb += b * weight; wsum += weight
+                    ar += r; ag += g; ab += b; an += 1
+                }
+            }
+            if wsum > 0.0001 {
+                return Color(red: wr / wsum, green: wg / wsum, blue: wb / wsum)
+            } else if an > 0 {
+                return Color(red: ar / an, green: ag / an, blue: ab / an)
+            }
+            return .clear
         }
 
-        let leftRect  = CGRect(x: e.minX,                    y: e.minY, width: e.width * 0.45, height: topH)
-        let rightRect = CGRect(x: e.minX + e.width * 0.55,   y: e.minY, width: e.width * 0.45, height: topH)
-
-        guard let c1 = avgColor(in: leftRect), let c2 = avgColor(in: rightRect) else { return nil }
-        return (c1, c2)
+        let left  = dominant(xRange: 0 ..< (w * 45 / 100))
+        let right = dominant(xRange: (w * 55 / 100) ..< w)
+        return (left, right)
     }
 }
 
-private extension Color {
-    var moonlitBoostedForAmbient: Color {
+extension Color {
+    // Muted transform for Fusion-style ambient tint: keep the hue but pull the
+    // color toward a soft, desaturated wash so the glow reads as a whisper of
+    // color over the charcoal base rather than a vivid spotlight.
+    var moonlitMutedForAmbient: Color {
         #if canImport(UIKit)
         let uiColor = UIColor(self)
         var hue: CGFloat = 0, saturation: CGFloat = 0, brightness: CGFloat = 0, alpha: CGFloat = 0
@@ -823,8 +1030,8 @@ private extension Color {
         }
         return Color(
             hue: Double(hue),
-            saturation: Double(min(max(saturation * 2.2, 0.60), 1.0)),
-            brightness: Double(min(max(brightness * 1.3, 0.40), 0.75))
+            saturation: Double(min(saturation * 0.85, 0.70)),
+            brightness: Double(min(max(brightness, 0.40), 0.66))
         )
         #else
         return self
@@ -873,7 +1080,7 @@ struct FolderCell: View {
             if let first = row.items.first { onTap(first) }
         } label: {
             ZStack(alignment: .bottom) {
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                     .fill(MoonlitTheme.surfaceElevated)
                     .aspectRatio(2/3, contentMode: .fit)
 
@@ -885,7 +1092,7 @@ struct FolderCell: View {
                     }
                     .aspectRatio(2/3, contentMode: .fit)
                     .clipped()
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                    .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                 }
 
                 LinearGradient(
@@ -893,7 +1100,7 @@ struct FolderCell: View {
                     startPoint: .bottom,
                     endPoint: .top
                 )
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+                .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                 .aspectRatio(2/3, contentMode: .fit)
 
                 Text(row.title)

@@ -8,6 +8,16 @@ struct ContentCard: View {
     var width: CGFloat? = nil
     var height: CGFloat? = nil
     @State private var primaryFailed = false
+    // Observe the poster-badge config so tiles restyle when it changes; `posterRating`
+    // also hides the separate IMDb pill once the rating is baked into the poster.
+    @AppStorage(PosterService.Key.trend)   private var posterTrend   = true
+    @AppStorage(PosterService.Key.genre)   private var posterGenre   = true
+    @AppStorage(PosterService.Key.rating)  private var posterRating  = true
+    @AppStorage(PosterService.Key.quality) private var posterQuality = false
+    @AppStorage(PosterService.Key.age)     private var posterAge     = false
+#if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+#endif
 
     init(item: MetaPreview, row: CatalogRow? = nil, index: Int? = nil, width: CGFloat? = nil, height: CGFloat? = nil) {
         self.item = item
@@ -26,7 +36,7 @@ struct ContentCard: View {
                         AnimatedRemoteImage(url: url, contentMode: .scaleAspectFill)
                             .frame(width: cardWidth, height: cardHeight)
                             .scaleEffect(groupArtworkScale)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                     } else {
                         CachedAsyncImage(url: url) { phase in
                             switch phase {
@@ -37,13 +47,15 @@ struct ContentCard: View {
                                     .frame(width: cardWidth, height: cardHeight)
                                     .scaleEffect(groupArtworkScale)
                                     .clipped()
-                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                             case .failure:
                                 placeholderView.onAppear {
                                     if !primaryFailed { primaryFailed = true }
                                 }
                             case .empty:
                                 MoonlitTheme.surfaceElevated
+                                    .frame(width: cardWidth, height: cardHeight)
+                                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
                             @unknown default:
                                 placeholderView
                             }
@@ -55,13 +67,22 @@ struct ContentCard: View {
 
             }
 
-            Text(item.name)
-                .font(.system(size: 12, weight: .regular))
-                .foregroundColor(.white)
-                .lineLimit(1)
-                .frame(width: cardWidth, alignment: .leading)
+            // Fusion-style caption: title on top, dimmed year beneath.
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.name)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
+                if let year = item.releaseInfo, !year.isEmpty {
+                    Text(year)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                        .lineLimit(1)
+                }
+            }
+            .frame(width: cardWidth, alignment: .leading)
 
-            if let rating = item.imdbRating, resolvedShape != .landscape {
+            if let rating = item.imdbRating, resolvedShape != .landscape, !posterRating {
                 IMDbRatingBadge(rating: rating)
             }
         }
@@ -69,6 +90,11 @@ struct ContentCard: View {
         .onChange(of: item.id) { _, _ in
             primaryFailed = false
         }
+#if os(tvOS)
+        .scaleEffect(isFocused ? 1.05 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+#endif
     }
 
     private var placeholderView: some View {
@@ -81,6 +107,8 @@ struct ContentCard: View {
                 .multilineTextAlignment(.center)
         }
         .frame(width: cardWidth, height: cardHeight)
+        .background(MoonlitTheme.surfaceElevated)
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
     }
 
     private var resolvedShape: PosterShape? {
@@ -102,10 +130,16 @@ struct ContentCard: View {
     }
 
     private var primaryImageURL: URL? {
-        if resolvedShape == .landscape {
-            return (item.banner ?? item.poster).flatMap(URL.init)
+        // Portrait media tiles use the live-configured btttr badge poster so the
+        // Poster Badges setting applies to every tile — not just the ones whose
+        // item.poster happened to be baked through PosterService at catalog-parse
+        // time. Non-imdb ids (folders, tmdb, anime) return nil and fall back to the
+        // item's own artwork.
+        if resolvedShape != .landscape,
+           let configured = PosterService.posterURL(forImdbId: item.id).flatMap(URL.init) {
+            return configured
         }
-        return (item.poster ?? item.banner).flatMap(URL.init)
+        return item.artworkURL(preferring: resolvedShape == .landscape ? .landscape : .portrait)
     }
 
     /// Secondary image tried when the primary URL fails to load.
@@ -132,7 +166,7 @@ struct ContentCard: View {
         switch resolvedShape {
         case .landscape: return 230
         case .square:    return 140
-        case .poster, nil: return 110
+        case .poster, nil: return 120
         }
     }
 
@@ -141,7 +175,16 @@ struct ContentCard: View {
         switch resolvedShape {
         case .landscape: return 130
         case .square:    return 140
-        case .poster, nil: return 163
+        case .poster, nil: return 180
+        }
+    }
+
+    /// Poster tiles use a generous ~16%-of-width corner (matches Omni's poster
+    /// styling); other shapes keep the shared card radius.
+    private var cornerRadius: CGFloat {
+        switch resolvedShape {
+        case .poster, nil: return cardWidth * 0.16
+        default: return MoonlitTheme.radiusCard
         }
     }
 }

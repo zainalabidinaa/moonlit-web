@@ -41,10 +41,13 @@ private struct CinematicTile: View {
     let item: MetaPreview
     let width: CGFloat
     let height: CGFloat
+#if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+#endif
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let url = (item.banner ?? item.poster).flatMap(URL.init) {
+            if let url = item.artworkURL(preferring: .landscape) {
                 CachedAsyncImage(url: url) { phase in
                     switch phase {
                     case .success(let image):
@@ -70,6 +73,11 @@ private struct CinematicTile: View {
                 .padding(10)
         }
         .frame(width: width, height: height)
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
+#if os(tvOS)
+        .scaleEffect(isFocused ? 1.05 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+#endif
     }
 }

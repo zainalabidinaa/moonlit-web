@@ -6,6 +6,9 @@ struct HeroBannerRow: View {
     let onTap: (MetaPreview) -> Void
     var onHeaderTap: (() -> Void)? = nil
     var metrics: ResponsiveMetrics? = nil
+#if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+#endif
 
     private var leadItem: MetaPreview? { row.items.first }
     private var secondaryItems: ArraySlice<MetaPreview> { row.items.dropFirst().prefix(3) }
@@ -44,6 +47,11 @@ struct HeroBannerRow: View {
                         }
                     }
                     .buttonStyle(.plain)
+#if os(tvOS)
+                    .scaleEffect(isFocused ? 1.05 : 1.0)
+                    .animation(.easeOut(duration: 0.15), value: isFocused)
+                    .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+#endif
 
                     HStack(alignment: .top, spacing: 10) {
                         ForEach(Array(secondaryItems.enumerated()), id: \.element.id) { _, item in
@@ -52,7 +60,7 @@ struct HeroBannerRow: View {
                                     HeroBannerArtwork(item: item)
                                         .frame(height: thumbnailHeight)
                                         .frame(maxWidth: .infinity)
-                                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
 
                                     Text(item.name)
                                         .font(.system(size: 11, weight: .semibold))
@@ -68,6 +76,11 @@ struct HeroBannerRow: View {
                                 }
                             }
                             .buttonStyle(.plain)
+#if os(tvOS)
+                            .scaleEffect(isFocused ? 1.05 : 1.0)
+                            .animation(.easeOut(duration: 0.15), value: isFocused)
+                            .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+#endif
                         }
                     }
                     .padding(12)
@@ -117,7 +130,7 @@ private struct HeroBannerArtwork: View {
     let item: MetaPreview
 
     var body: some View {
-        if let url = (item.banner ?? item.poster).flatMap(URL.init) {
+        if let url = item.artworkURL(preferring: .landscape) {
             CachedAsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):

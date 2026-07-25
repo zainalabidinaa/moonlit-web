@@ -6,6 +6,9 @@ struct CardStackRow: View {
     let onTap: (MetaPreview) -> Void
     var onHeaderTap: (() -> Void)? = nil
     var metrics: ResponsiveMetrics? = nil
+#if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+#endif
 
     // Start in the middle of the array so cards fan on both sides
     @State private var frontOffset: Int = -1  // -1 = uninitialized, set on appear
@@ -85,9 +88,9 @@ struct CardStackRow: View {
 
         StackPosterArtwork(item: item)
             .frame(width: posterWidth, height: posterHeight)
-            .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
                     .stroke(Color.white.opacity(isFront ? 0.20 : 0.10), lineWidth: 1)
             )
             .shadow(color: .black.opacity(isFront ? 0.46 : 0.28), radius: isFront ? 22 : 12, x: 0, y: 12)
@@ -107,6 +110,11 @@ struct CardStackRow: View {
                     }
                 }
             }
+#if os(tvOS)
+            .scaleEffect(isFocused ? 1.05 : 1.0)
+            .animation(.easeOut(duration: 0.15), value: isFocused)
+            .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+#endif
     }
 
     // Signed shortest circular distance from `from` to `to`
@@ -159,7 +167,11 @@ private struct StackPosterArtwork: View {
     let item: MetaPreview
 
     var body: some View {
-        if let url = (item.poster ?? item.banner).flatMap(URL.init) {
+        // Prefer the live-configured btttr badge poster (imdb id); fall back to the
+        // item's own portrait art for non-imdb ids.
+        let url = PosterService.posterURL(forImdbId: item.id).flatMap(URL.init)
+            ?? item.artworkURL(preferring: .portrait)
+        if let url {
             CachedAsyncImage(url: url) { phase in
                 switch phase {
                 case .success(let image):
