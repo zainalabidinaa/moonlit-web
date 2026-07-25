@@ -284,3 +284,130 @@ struct AuthScreen: View {
         }
     }
 }
+
+#if os(tvOS)
+struct TVAuthScreen: View {
+    @EnvironmentObject var profileManager: ProfileManager
+    @AppStorage("moonlit.guestMode") private var guestMode = false
+    @AppStorage("moonlit.hasSeenOnboarding") private var hasSeenOnboarding = false
+    @State private var showDeviceCode = false
+    @State private var deviceCode: String = ""
+    @State private var verificationURL: String = "moonlit.app/activate"
+    @State private var isPolling = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color(hex: "#101114"), Color(hex: "#050506")],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            RadialGradient(
+                colors: [
+                    Color(hex: "#FF8A35").opacity(0.34),
+                    Color(hex: "#FF8A35").opacity(0.12),
+                    .clear
+                ],
+                center: .init(x: 0.5, y: 0.23),
+                startRadius: 8,
+                endRadius: 190
+            )
+            .ignoresSafeArea()
+
+            VStack(spacing: 36) {
+                Spacer()
+
+                Image("AppIconPreview")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 140, height: 140)
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .shadow(color: Color(hex: "#FF8A35").opacity(0.34), radius: 34, y: 14)
+
+                VStack(spacing: 8) {
+                    Text("Moonlit")
+                        .font(.system(size: 40, weight: .semibold))
+                        .foregroundStyle(.white)
+
+                    Text("Sign in to sync your profiles and collections")
+                        .font(.body)
+                        .foregroundStyle(.white.opacity(0.56))
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                if showDeviceCode {
+                    VStack(spacing: 20) {
+                        Text("Enter this code at")
+                            .font(.title3)
+                            .foregroundStyle(.secondary)
+
+                        Text(verificationURL)
+                            .font(.title2)
+                            .fontWeight(.semibold)
+                            .foregroundStyle(.blue)
+
+                        Text(deviceCode)
+                            .font(.system(size: 56, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 40)
+                            .padding(.vertical, 24)
+                            .background(Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+
+                        if isPolling {
+                            ProgressView()
+                                .scaleEffect(1.2)
+                        }
+                    }
+                }
+
+                if let error = errorMessage {
+                    Text(error)
+                        .font(.callout)
+                        .foregroundStyle(.red)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 32)
+                }
+
+                VStack(spacing: 16) {
+                    Button("Sign In") {
+                        showDeviceCode = true
+                        startDeviceCodeFlow()
+                    }
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: 280)
+                    .padding(.vertical, 16)
+                    .background(Color.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+
+                    Button("Continue as Guest") {
+                        guestMode = true
+                        hasSeenOnboarding = true
+                    }
+                    .font(.body)
+                    .foregroundStyle(.white.opacity(0.6))
+                }
+
+                Spacer()
+                    .frame(height: 60)
+            }
+            .padding()
+        }
+    }
+
+    private func startDeviceCodeFlow() {
+        isPolling = true
+        let code = Array("ABCDEFGHJKLMNPQRSTUVWXYZ23456789")
+            .shuffled()
+            .prefix(6)
+            .map(String.init)
+            .joined()
+        deviceCode = code
+        errorMessage = "Device-code sign in coming soon. Use Guest mode for now."
+        isPolling = false
+    }
+}
+#endif

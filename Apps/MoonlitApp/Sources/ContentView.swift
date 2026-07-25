@@ -27,7 +27,11 @@ struct ContentView: View {
             } else if guestMode {
                 MainTabView()
             } else {
+                #if os(tvOS)
+                TVAuthScreen()
+                #else
                 AuthScreen()
+                #endif
             }
         }
         .onChange(of: profileManager.currentProfile) { _, profile in
