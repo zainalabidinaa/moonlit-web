@@ -6,10 +6,10 @@ public struct MoonlitTheme {
     public static var secondary: Color { .white.opacity(0.82) }
     public static var accent: Color { ThemeManager.shared.accent }
 
-    /// Warm gold used for ratings, laurel badges, and other "Harbor" accents.
+    /// Warm gold used for ratings, laurel badges, and other accents.
     /// Kept separate from `accent` (which stays white by design) so gold usage
     /// is opt-in per element instead of recoloring the whole app.
-    public static let harborGold = Color(red: 0.831, green: 0.686, blue: 0.216)
+    public static let ratingGold = Color(red: 0.831, green: 0.686, blue: 0.216)
 
     public static var background: Color { ThemeManager.shared.background }
     public static var surface: Color { ThemeManager.shared.surface }
@@ -68,7 +68,7 @@ public enum AppCardSurface {
     case darkGlass
 }
 
-@available(iOS 26, macOS 26, *)
+@available(iOS 26, macOS 26, tvOS 26, *)
 private struct GlassCardModifier: ViewModifier {
     let cornerRadius: CGFloat
     let interactive: Bool
@@ -99,7 +99,7 @@ private struct GlassCardFallback: ViewModifier {
     }
 }
 
-@available(iOS 26, macOS 26, *)
+@available(iOS 26, macOS 26, tvOS 26, *)
 private struct GlassCapsuleModifier: ViewModifier {
     let interactive: Bool
     let clear: Bool
@@ -143,7 +143,7 @@ private struct GlassCapsuleFallback: ViewModifier {
     }
 }
 
-@available(iOS 26, macOS 26, *)
+@available(iOS 26, macOS 26, tvOS 26, *)
 private struct GlassCircleModifier: ViewModifier {
     let clear: Bool
 
@@ -179,7 +179,7 @@ private struct GlassCircleFallback: ViewModifier {
 extension View {
     @ViewBuilder
     public func glassCard(cornerRadius: CGFloat = 12, interactive: Bool = false) -> some View {
-        if #available(iOS 26, macOS 26, *) {
+        if #available(iOS 26, macOS 26, tvOS 26, *) {
             self.modifier(GlassCardModifier(cornerRadius: cornerRadius, interactive: interactive))
         } else {
             self.modifier(GlassCardFallback(cornerRadius: cornerRadius))
@@ -188,7 +188,7 @@ extension View {
 
     @ViewBuilder
     public func glassCapsule(interactive: Bool = false, clear: Bool = false) -> some View {
-        if #available(iOS 26, macOS 26, *) {
+        if #available(iOS 26, macOS 26, tvOS 26, *) {
             self.modifier(GlassCapsuleModifier(interactive: interactive, clear: clear))
         } else {
             self.modifier(GlassCapsuleFallback(clear: clear))
@@ -197,7 +197,7 @@ extension View {
 
     @ViewBuilder
     public func glassCircle(clear: Bool = false) -> some View {
-        if #available(iOS 26, macOS 26, *) {
+        if #available(iOS 26, macOS 26, tvOS 26, *) {
             self.modifier(GlassCircleModifier(clear: clear))
         } else {
             self.modifier(GlassCircleFallback(clear: clear))
@@ -209,7 +209,7 @@ extension View {
         surfaceStyle: AppCardSurface = .regular,
         cornerRadius: CGFloat = 14
     ) -> some View {
-        if #available(iOS 26, macOS 26, *) {
+        if #available(iOS 26, macOS 26, tvOS 26, *) {
             switch surfaceStyle {
             case .regular:
                 self.glassEffect(
