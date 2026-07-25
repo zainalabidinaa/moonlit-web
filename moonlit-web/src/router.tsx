@@ -80,6 +80,15 @@ const authRoute = createRoute({
   component: lazily(() => import('@/routes/auth')),
 });
 
+const activateRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/activate',
+  validateSearch: (search: Record<string, unknown>) => ({
+    code: search.code ? String(search.code) : undefined as string | undefined,
+  }),
+  component: lazily(() => import('@/routes/activate')),
+});
+
 const profilesRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/profiles',
@@ -151,6 +160,7 @@ const adminRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   authRoute,
+  activateRoute,
   profilesRoute,
   protectedLayout.addChildren([
     homeRoute,

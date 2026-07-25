@@ -10,6 +10,7 @@ struct ContentView: View {
 
     var body: some View {
         Group {
+#if os(iOS)
             if !profileManager.hasRestoredSession {
                 SessionRestoreView()
             } else if !hasSeenOnboarding {
@@ -27,12 +28,27 @@ struct ContentView: View {
             } else if guestMode {
                 MainTabView()
             } else {
-                #if os(tvOS)
-                TVAuthScreen()
-                #else
                 AuthScreen()
-                #endif
             }
+#else
+            if !profileManager.hasRestoredSession {
+                SessionRestoreView()
+            } else if profileManager.isAuthenticated {
+                if let profile = profileManager.currentProfile, profile.profileRole.isRestricted {
+                    RestrictedAccessView()
+                } else if profileManager.currentProfile != nil {
+                    MainTabView()
+                } else if !profileManager.profiles.isEmpty {
+                    ProfilePickerScreen()
+                } else {
+                    CreateFirstProfileScreen()
+                }
+            } else if guestMode {
+                MainTabView()
+            } else {
+                TVAuthScreen()
+            }
+#endif
         }
         .onChange(of: profileManager.currentProfile) { _, profile in
             roleManager.evaluateRole(profile: profile)
@@ -233,11 +249,17 @@ private struct TVMainTabView: View {
         .task {
             if let profile = profileManager.currentProfile {
                 await addonRepo.loadAddons(profileId: profile.id)
+            } else {
+                await addonRepo.resetToDefaults()
             }
         }
         .onChange(of: profileManager.currentProfile) { _, newProfile in
-            if let profile = newProfile {
-                Task { await addonRepo.loadAddons(profileId: profile.id) }
+            Task {
+                if let profile = newProfile {
+                    await addonRepo.loadAddons(profileId: profile.id)
+                } else {
+                    await addonRepo.resetToDefaults()
+                }
             }
         }
     }
@@ -282,12 +304,16 @@ struct MainTabView: View {
             .task {
                 if let profile = profileManager.currentProfile {
                     await addonRepo.loadAddons(profileId: profile.id)
+                } else {
+                    await addonRepo.resetToDefaults()
                 }
             }
             .onChange(of: profileManager.currentProfile) { _, newProfile in
-                if let profile = newProfile {
-                    Task {
+                Task {
+                    if let profile = newProfile {
                         await addonRepo.loadAddons(profileId: profile.id)
+                    } else {
+                        await addonRepo.resetToDefaults()
                     }
                 }
             }
@@ -298,12 +324,16 @@ struct MainTabView: View {
             .task {
                 if let profile = profileManager.currentProfile {
                     await addonRepo.loadAddons(profileId: profile.id)
+                } else {
+                    await addonRepo.resetToDefaults()
                 }
             }
             .onChange(of: profileManager.currentProfile) { _, newProfile in
-                if let profile = newProfile {
-                    Task {
+                Task {
+                    if let profile = newProfile {
                         await addonRepo.loadAddons(profileId: profile.id)
+                    } else {
+                        await addonRepo.resetToDefaults()
                     }
                 }
             }
