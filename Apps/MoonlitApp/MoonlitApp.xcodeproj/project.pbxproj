@@ -13,17 +13,21 @@
 		1C9A51FA9CECAE298BB04064 /* CardStackRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3ABA1ECFCFEEE457ADD4285B /* CardStackRow.swift */; };
 		2200B9DF09C0C28090E0ADA2 /* ParallaxHero.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A61326AFFC924FB7472BC3E /* ParallaxHero.swift */; };
 		227600E90A26BBFCB8C81F78 /* LoadingAnimationResourceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5360E44DA85AC39404A0093 /* LoadingAnimationResourceTests.swift */; };
+		250541C135E6093E3964A026 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = FD32483EEAAF1D547FCEDD56 /* PrivacyInfo.xcprivacy */; };
 		269B761C6655E503304649AE /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 808EE2808BD7FD2F0FDF00D2 /* LaunchScreen.storyboard */; };
 		26DFE94CDD098FB709F54D2F /* loading-animation-gradient-line-2-colors-1.json in Resources */ = {isa = PBXBuildFile; fileRef = 9FB4705B8651ADF7A3943FE5 /* loading-animation-gradient-line-2-colors-1.json */; };
 		296A88F98C47A17D58F5B65A /* ProfileSelectionScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD23FA11F622F961713E9700 /* ProfileSelectionScreen.swift */; };
 		2E393DF027DFF2EAF63F39C9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A609D34BE6395142FD23538 /* AppDelegate.swift */; };
 		2F2679A93BE5E2282C55BC39 /* VideoPlayerSettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17492B8FFE56FBF054AA2C51 /* VideoPlayerSettingsScreen.swift */; };
 		326EC093EF7EDF49ECB84D6A /* DetailScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 532D17EC36DEA1F076618B38 /* DetailScreen.swift */; };
+		BAD978B9C6DBF9495940365B /* PaywallScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B316E079C5740D4754D698D /* PaywallScreen.swift */; };
 		356294F190B16C1E28E71745 /* ThemeChip.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F7E513EF483FAE2095FB723 /* ThemeChip.swift */; };
 		35A950FA114B9AA245FBA5F0 /* HomeScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9FAB3B9A7704099D9CF50F4 /* HomeScreen.swift */; };
 		390E297B9C7A06C9614E7378 /* LibraryScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A90F9975A60F8019F08779D /* LibraryScreen.swift */; };
+		3AB5E2D08284BC6D1BBC0B12 /* ConnectAppleIDButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B1B5AA2FF85E4EBF63894E4 /* ConnectAppleIDButton.swift */; };
 		3F960BEE1A6FE81C92417587 /* JetBrainsSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8B86996A6D1AE3DA5FB5A11D /* JetBrainsSans-Regular.ttf */; };
 		3FAD17E74E4BFFE90292F973 /* SubtitleAppearanceScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54F36CE428F94517E4ED887E /* SubtitleAppearanceScreen.swift */; };
+		FA11BAD6C0DE0001A1B2C3D4 /* PosterBadgesScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA11BAD6C0DE0002A1B2C3D5 /* PosterBadgesScreen.swift */; };
 		409370222C369B8F4947D749 /* StreamPlaybackDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B9E8D033DF8432078EF253F /* StreamPlaybackDiagnostics.swift */; };
 		45E1D3C1349490486DD39384 /* ProfilePickerScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E000F19923FF3010A128612 /* ProfilePickerScreen.swift */; };
 		478DA9C5E3A1B9B23935A995 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7B664F89149CD989E3F5EA63 /* ContentView.swift */; };
@@ -51,6 +55,7 @@
 		9D09385E401BA9E32C18E5A1 /* SubtitleCueIndexTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DE29877843E754A42DCC676 /* SubtitleCueIndexTests.swift */; };
 		9F59594098A14B8A2A94C526 /* SubtitleModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC9B059B328ED9BB221CAF61 /* SubtitleModal.swift */; };
 		A0130151F6854EDFEDEB6A68 /* PlayerLockMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61EA4E0163FAC5F825B51D07 /* PlayerLockMode.swift */; };
+		A6D8B99D7826188CD5B7A5B0 /* AppleSignInCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5700978E9E5B99636125FB14 /* AppleSignInCoordinator.swift */; };
 		A6E263BC7CDE8A81D294B1BD /* AppIntents.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E8A0681C37485477FBA5440 /* AppIntents.framework */; };
 		A988A09704D26EFD170C31C1 /* MPVPlayerViewRepresentable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 565FBD9F3CD0526ED4D91A48 /* MPVPlayerViewRepresentable.swift */; };
 		AEC30C7BB46A9B7FDBE6F2C4 /* AuthScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5895BCE62FC561D14337FDE3 /* AuthScreen.swift */; };
@@ -59,9 +64,18 @@
 		B991FB9F7B09FCB5A65A2E53 /* OnboardingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 675221CB650AE95653228069 /* OnboardingView.swift */; };
 		BE91ED6E39A30B33992E4F92 /* ProfileAvatarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4C60429A5D2CE8F6E941038 /* ProfileAvatarView.swift */; };
 		C432152B366FEF77C32B1EA1 /* FolderScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = E97CC2BD599BA82CC6BF4A7A /* FolderScreen.swift */; };
+		ABCDEF0123456789BBBB0001 /* GenreHubScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = ABCDEF0123456789BBBB0002 /* GenreHubScreen.swift */; };
 		DA03121008C39CA9318CDE5F /* Lottie in Frameworks */ = {isa = PBXBuildFile; productRef = B3E3C6BF03E18C37C3C26160 /* Lottie */; };
 		DAE15A3D156D7132E90817D9 /* HeroManagementScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96F6D2F6C2FD3D645E9C1A77 /* HeroManagementScreen.swift */; };
 		DB2C20908468AA1E0D044DC9 /* ContentCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9A9EA825CFE98B2C7830821 /* ContentCard.swift */; };
+		733FB53B446EB98F93868378 /* CrewInfoGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 930EF66C469367526B7ACF0E /* CrewInfoGrid.swift */; };
+		2B48E21258BFD31A01B8D310 /* InformationGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3EF0B43704A754771E825F3C /* InformationGrid.swift */; };
+		9C684E6D1399986F6134A594 /* AwardsRecognitionSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AA6A8669612DDD965FE6888 /* AwardsRecognitionSection.swift */; };
+		EE59C03324FE81400FA8D214 /* MediaGallerySection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 568042746E4EF76DDD506F92 /* MediaGallerySection.swift */; };
+		877DA003BF17D9FBBDB396D3 /* CreditCardRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBB980E2A3CF6A99D489BE9 /* CreditCardRow.swift */; };
+		D386ADA758D2A595D3769BBF /* AwardBadgeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4023323E49380DDF0D667010 /* AwardBadgeView.swift */; };
+		DD6791DC746E818600505D81 /* TopTenRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = B973466A99226213BB25D2A9 /* TopTenRow.swift */; };
+		91191757D92FACA3227F40AA /* CategoryPillsRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DAFC3CFB711A1BC5E086E9F /* CategoryPillsRow.swift */; };
 		E61E608F91AA0A36D35AC8EE /* SettingsScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 43ADC2C1074EB186DFC89016 /* SettingsScreen.swift */; };
 		E79083474B7691AF52B537DA /* AudioTrackModal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B01C2F265B93431168971C /* AudioTrackModal.swift */; };
 		F2026D69213C27B3B4467AFD /* ToastOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = 036D73D01FD333E130BA700D /* ToastOverlay.swift */; };
@@ -70,6 +84,7 @@
 		F8A43D4433231965FA0AEFC7 /* MPVPlayerEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC7E1A3218ADC3D649BED60 /* MPVPlayerEngine.swift */; };
 		FA31904665B3F92367EE9F47 /* CachedAsyncImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089A0B5D340876F4B47C7A21 /* CachedAsyncImage.swift */; };
 		FACE13A9C257948D2EF0F9D0 /* MoonlitApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 655EBF907C93CDB9CC4FE2BE /* MoonlitApp.swift */; };
+		FBBDFA26F73C96859CE693E2 /* UITestMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = BA6DA4F3494C2D0E2DE5ED36 /* UITestMode.swift */; };
 		FED83724F50E41288AAC69AA /* ActorBioScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9014B4D0D362A5760B5697C9 /* ActorBioScreen.swift */; };
 		FF882740E2330845F04F1D73 /* HeroBannerRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1824F7122E134961EBACF005 /* HeroBannerRow.swift */; };
 /* End PBXBuildFile section */
@@ -109,8 +124,11 @@
 		4A61326AFFC924FB7472BC3E /* ParallaxHero.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParallaxHero.swift; sourceTree = "<group>"; };
 		4B9E8D033DF8432078EF253F /* StreamPlaybackDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StreamPlaybackDiagnostics.swift; sourceTree = "<group>"; };
 		532D17EC36DEA1F076618B38 /* DetailScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailScreen.swift; sourceTree = "<group>"; };
+		3B316E079C5740D4754D698D /* PaywallScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaywallScreen.swift; sourceTree = "<group>"; };
 		54F36CE428F94517E4ED887E /* SubtitleAppearanceScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleAppearanceScreen.swift; sourceTree = "<group>"; };
+		FA11BAD6C0DE0002A1B2C3D5 /* PosterBadgesScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PosterBadgesScreen.swift; sourceTree = "<group>"; };
 		565FBD9F3CD0526ED4D91A48 /* MPVPlayerViewRepresentable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerViewRepresentable.swift; sourceTree = "<group>"; };
+		5700978E9E5B99636125FB14 /* AppleSignInCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInCoordinator.swift; sourceTree = "<group>"; };
 		5895BCE62FC561D14337FDE3 /* AuthScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AuthScreen.swift; sourceTree = "<group>"; };
 		5C2D3DB661FBE16F9C503157 /* PlayerBottomBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerBottomBar.swift; sourceTree = "<group>"; };
 		5F906EF45D9E9679741828E8 /* AdminDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdminDashboard.swift; sourceTree = "<group>"; };
@@ -120,6 +138,7 @@
 		67ADC01A21725EC74F0427C0 /* MoonlitApp.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = MoonlitApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6E000F19923FF3010A128612 /* ProfilePickerScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfilePickerScreen.swift; sourceTree = "<group>"; };
 		734F53F45D339EF25BE460D9 /* MPVKit */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MPVKit; path = ../../Vendor/MPVKit; sourceTree = SOURCE_ROOT; };
+		7B1B5AA2FF85E4EBF63894E4 /* ConnectAppleIDButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAppleIDButton.swift; sourceTree = "<group>"; };
 		7B664F89149CD989E3F5EA63 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7F6518E589521F9672CD9318 /* JetBrainsSans-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "JetBrainsSans-Bold.ttf"; sourceTree = "<group>"; };
 		808EE2808BD7FD2F0FDF00D2 /* LaunchScreen.storyboard */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; path = LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -133,6 +152,7 @@
 		96F6D2F6C2FD3D645E9C1A77 /* HeroManagementScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroManagementScreen.swift; sourceTree = "<group>"; };
 		9A609D34BE6395142FD23538 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		9D67CF4ED30DC48D3DDDAC82 /* home-organizer.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "home-organizer.json"; sourceTree = "<group>"; };
+		9E7B4AD65FBD7CB1A8885355 /* MoonlitApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = MoonlitApp.entitlements; sourceTree = "<group>"; };
 		9EC7E1A3218ADC3D649BED60 /* MPVPlayerEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MPVPlayerEngine.swift; sourceTree = "<group>"; };
 		9FB4705B8651ADF7A3943FE5 /* loading-animation-gradient-line-2-colors-1.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "loading-animation-gradient-line-2-colors-1.json"; sourceTree = "<group>"; };
 		9FC4D9EDF6E2FFC44EB0F0AB /* CollectionDesignScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollectionDesignScreen.swift; sourceTree = "<group>"; };
@@ -141,16 +161,27 @@
 		A4C60429A5D2CE8F6E941038 /* ProfileAvatarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileAvatarView.swift; sourceTree = "<group>"; };
 		A8A1E46F08B3DC62B69184D1 /* HeroArtworkProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HeroArtworkProvider.swift; sourceTree = "<group>"; };
 		B9FAB3B9A7704099D9CF50F4 /* HomeScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeScreen.swift; sourceTree = "<group>"; };
+		BA6DA4F3494C2D0E2DE5ED36 /* UITestMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UITestMode.swift; sourceTree = "<group>"; };
 		BD23FA11F622F961713E9700 /* ProfileSelectionScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSelectionScreen.swift; sourceTree = "<group>"; };
 		C8AED53CC987FE353422241D /* MetalLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetalLayer.swift; sourceTree = "<group>"; };
 		C9A9EA825CFE98B2C7830821 /* ContentCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentCard.swift; sourceTree = "<group>"; };
+		930EF66C469367526B7ACF0E /* CrewInfoGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CrewInfoGrid.swift; sourceTree = "<group>"; };
+		3EF0B43704A754771E825F3C /* InformationGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InformationGrid.swift; sourceTree = "<group>"; };
+		7AA6A8669612DDD965FE6888 /* AwardsRecognitionSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AwardsRecognitionSection.swift; sourceTree = "<group>"; };
+		568042746E4EF76DDD506F92 /* MediaGallerySection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MediaGallerySection.swift; sourceTree = "<group>"; };
+		6CBB980E2A3CF6A99D489BE9 /* CreditCardRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardRow.swift; sourceTree = "<group>"; };
+		4023323E49380DDF0D667010 /* AwardBadgeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AwardBadgeView.swift; sourceTree = "<group>"; };
+		B973466A99226213BB25D2A9 /* TopTenRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TopTenRow.swift; sourceTree = "<group>"; };
+		5DAFC3CFB711A1BC5E086E9F /* CategoryPillsRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CategoryPillsRow.swift; sourceTree = "<group>"; };
 		CFE44254173128757BE04E8E /* SearchScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchScreen.swift; sourceTree = "<group>"; };
 		D430FB682FBADE1B88758B64 /* PlayerGestureSystem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerGestureSystem.swift; sourceTree = "<group>"; };
 		D5360E44DA85AC39404A0093 /* LoadingAnimationResourceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingAnimationResourceTests.swift; sourceTree = "<group>"; };
 		DC9B059B328ED9BB221CAF61 /* SubtitleModal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleModal.swift; sourceTree = "<group>"; };
 		E97CC2BD599BA82CC6BF4A7A /* FolderScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FolderScreen.swift; sourceTree = "<group>"; };
+		ABCDEF0123456789BBBB0002 /* GenreHubScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GenreHubScreen.swift; sourceTree = "<group>"; };
 		EC84A7D1A87D8B2FFE2C9CA4 /* AnimatedRemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnimatedRemoteImage.swift; sourceTree = "<group>"; };
 		F00276FE2C3E07C859E07601 /* MoonlitCore */ = {isa = PBXFileReference; lastKnownFileType = folder; name = MoonlitCore; path = ../../Packages/MoonlitCore; sourceTree = SOURCE_ROOT; };
+		FD32483EEAAF1D547FCEDD56 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -180,10 +211,20 @@
 			isa = PBXGroup;
 			children = (
 				EC84A7D1A87D8B2FFE2C9CA4 /* AnimatedRemoteImage.swift */,
+				5700978E9E5B99636125FB14 /* AppleSignInCoordinator.swift */,
 				089A0B5D340876F4B47C7A21 /* CachedAsyncImage.swift */,
 				3ABA1ECFCFEEE457ADD4285B /* CardStackRow.swift */,
 				186356FB2760772428AA2987 /* CarouselCinematicRow.swift */,
+				7B1B5AA2FF85E4EBF63894E4 /* ConnectAppleIDButton.swift */,
 				C9A9EA825CFE98B2C7830821 /* ContentCard.swift */,
+				930EF66C469367526B7ACF0E /* CrewInfoGrid.swift */,
+				3EF0B43704A754771E825F3C /* InformationGrid.swift */,
+				7AA6A8669612DDD965FE6888 /* AwardsRecognitionSection.swift */,
+				568042746E4EF76DDD506F92 /* MediaGallerySection.swift */,
+				6CBB980E2A3CF6A99D489BE9 /* CreditCardRow.swift */,
+				4023323E49380DDF0D667010 /* AwardBadgeView.swift */,
+				B973466A99226213BB25D2A9 /* TopTenRow.swift */,
+				5DAFC3CFB711A1BC5E086E9F /* CategoryPillsRow.swift */,
 				A8A1E46F08B3DC62B69184D1 /* HeroArtworkProvider.swift */,
 				1824F7122E134961EBACF005 /* HeroBannerRow.swift */,
 				275616B6DC1FB4B0EE76FFB2 /* LottieLoadingView.swift */,
@@ -251,7 +292,10 @@
 				7B664F89149CD989E3F5EA63 /* ContentView.swift */,
 				1043D0D8811EF35916943360 /* Info.plist */,
 				808EE2808BD7FD2F0FDF00D2 /* LaunchScreen.storyboard */,
+				9E7B4AD65FBD7CB1A8885355 /* MoonlitApp.entitlements */,
 				655EBF907C93CDB9CC4FE2BE /* MoonlitApp.swift */,
+				FD32483EEAAF1D547FCEDD56 /* PrivacyInfo.xcprivacy */,
+				BA6DA4F3494C2D0E2DE5ED36 /* UITestMode.swift */,
 				00F326C0DB58541A9A86DB01 /* Components */,
 				17A67508E4D4B5A277954E97 /* Diagnostics */,
 				F2D7FCB2D86E0FE609F0B4FC /* Screens */,
@@ -333,7 +377,9 @@
 				9FC4D9EDF6E2FFC44EB0F0AB /* CollectionDesignScreen.swift */,
 				3F9C48F5E734959C9B9C413A /* CreateFirstProfileScreen.swift */,
 				532D17EC36DEA1F076618B38 /* DetailScreen.swift */,
+				3B316E079C5740D4754D698D /* PaywallScreen.swift */,
 				E97CC2BD599BA82CC6BF4A7A /* FolderScreen.swift */,
+				ABCDEF0123456789BBBB0002 /* GenreHubScreen.swift */,
 				96F6D2F6C2FD3D645E9C1A77 /* HeroManagementScreen.swift */,
 				B9FAB3B9A7704099D9CF50F4 /* HomeScreen.swift */,
 				2A90F9975A60F8019F08779D /* LibraryScreen.swift */,
@@ -355,6 +401,7 @@
 			children = (
 				376943333F7D4950C489846E /* AppIconPickerScreen.swift */,
 				54F36CE428F94517E4ED887E /* SubtitleAppearanceScreen.swift */,
+				FA11BAD6C0DE0002A1B2C3D5 /* PosterBadgesScreen.swift */,
 				17492B8FFE56FBF054AA2C51 /* VideoPlayerSettingsScreen.swift */,
 			);
 			path = Settings;
@@ -461,6 +508,7 @@
 				3F960BEE1A6FE81C92417587 /* JetBrainsSans-Regular.ttf in Resources */,
 				49834376187789C1A16B69F3 /* JetBrainsSans-SemiBold.ttf in Resources */,
 				269B761C6655E503304649AE /* LaunchScreen.storyboard in Resources */,
+				250541C135E6093E3964A026 /* PrivacyInfo.xcprivacy in Resources */,
 				6C5E65A118AA02763D0DD4F8 /* home-organizer.json in Resources */,
 				26DFE94CDD098FB709F54D2F /* loading-animation-gradient-line-2-colors-1.json in Resources */,
 			);
@@ -500,18 +548,30 @@
 				987D113402BD537CE17EB2E3 /* AnimatedRemoteImage.swift in Sources */,
 				2E393DF027DFF2EAF63F39C9 /* AppDelegate.swift in Sources */,
 				B195928C70D6C41CF8FE4E6E /* AppIconPickerScreen.swift in Sources */,
+				A6D8B99D7826188CD5B7A5B0 /* AppleSignInCoordinator.swift in Sources */,
 				E79083474B7691AF52B537DA /* AudioTrackModal.swift in Sources */,
 				AEC30C7BB46A9B7FDBE6F2C4 /* AuthScreen.swift in Sources */,
 				FA31904665B3F92367EE9F47 /* CachedAsyncImage.swift in Sources */,
 				1C9A51FA9CECAE298BB04064 /* CardStackRow.swift in Sources */,
 				967E91628E0CA54B54FDF9E0 /* CarouselCinematicRow.swift in Sources */,
 				7501FD85BD652074410C6525 /* CollectionDesignScreen.swift in Sources */,
+				3AB5E2D08284BC6D1BBC0B12 /* ConnectAppleIDButton.swift in Sources */,
 				DB2C20908468AA1E0D044DC9 /* ContentCard.swift in Sources */,
+				733FB53B446EB98F93868378 /* CrewInfoGrid.swift in Sources */,
+				2B48E21258BFD31A01B8D310 /* InformationGrid.swift in Sources */,
+				9C684E6D1399986F6134A594 /* AwardsRecognitionSection.swift in Sources */,
+				EE59C03324FE81400FA8D214 /* MediaGallerySection.swift in Sources */,
+				877DA003BF17D9FBBDB396D3 /* CreditCardRow.swift in Sources */,
+				D386ADA758D2A595D3769BBF /* AwardBadgeView.swift in Sources */,
+				DD6791DC746E818600505D81 /* TopTenRow.swift in Sources */,
+				91191757D92FACA3227F40AA /* CategoryPillsRow.swift in Sources */,
 				478DA9C5E3A1B9B23935A995 /* ContentView.swift in Sources */,
 				754377250E2209D737A03535 /* CreateFirstProfileScreen.swift in Sources */,
 				326EC093EF7EDF49ECB84D6A /* DetailScreen.swift in Sources */,
+				BAD978B9C6DBF9495940365B /* PaywallScreen.swift in Sources */,
 				79361A6631BECE4A1F5AF6A2 /* EpisodesPanel.swift in Sources */,
 				C432152B366FEF77C32B1EA1 /* FolderScreen.swift in Sources */,
+				ABCDEF0123456789BBBB0001 /* GenreHubScreen.swift in Sources */,
 				163E650B9DD3472F87C6E313 /* HeroArtworkProvider.swift in Sources */,
 				FF882740E2330845F04F1D73 /* HeroBannerRow.swift in Sources */,
 				DAE15A3D156D7132E90817D9 /* HeroManagementScreen.swift in Sources */,
@@ -540,10 +600,12 @@
 				409370222C369B8F4947D749 /* StreamPlaybackDiagnostics.swift in Sources */,
 				91BCA827DECDA38A2A203A1A /* StreamSelectionScreen.swift in Sources */,
 				3FAD17E74E4BFFE90292F973 /* SubtitleAppearanceScreen.swift in Sources */,
+				FA11BAD6C0DE0001A1B2C3D4 /* PosterBadgesScreen.swift in Sources */,
 				765064CB97B9FD0F6B85C851 /* SubtitleCue.swift in Sources */,
 				9F59594098A14B8A2A94C526 /* SubtitleModal.swift in Sources */,
 				356294F190B16C1E28E71745 /* ThemeChip.swift in Sources */,
 				F2026D69213C27B3B4467AFD /* ToastOverlay.swift in Sources */,
+				FBBDFA26F73C96859CE693E2 /* UITestMode.swift in Sources */,
 				2F2679A93BE5E2282C55BC39 /* VideoPlayerSettingsScreen.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -624,7 +686,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Moonlit;
-				INFOPLIST_KEY_CFBundleURLTypes = "[[\"CFBundleURLSchemes\": [\"moonlit\"]], [\"CFBundleURLSchemes\": [\"stremio\"]]]";
+				INFOPLIST_KEY_CFBundleURLTypes = "[[\"CFBundleURLSchemes\": [\"moonlit\"]]]";
 				INFOPLIST_KEY_UIAppFonts = (
 					"JetBrainsSans-Regular.ttf",
 					"JetBrainsSans-SemiBold.ttf",
@@ -700,7 +762,7 @@
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = Moonlit;
-				INFOPLIST_KEY_CFBundleURLTypes = "[[\"CFBundleURLSchemes\": [\"moonlit\"]], [\"CFBundleURLSchemes\": [\"stremio\"]]]";
+				INFOPLIST_KEY_CFBundleURLTypes = "[[\"CFBundleURLSchemes\": [\"moonlit\"]]]";
 				INFOPLIST_KEY_UIAppFonts = (
 					"JetBrainsSans-Regular.ttf",
 					"JetBrainsSans-SemiBold.ttf",
@@ -737,7 +799,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.app.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MoonlitApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MoonlitApp";
@@ -747,9 +809,9 @@
 		B6D88B06BEF01207BD7CA980 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconOnePiece AppIconOnePieceDark";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Sources/MoonlitApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5TWS8P597N;
@@ -760,7 +822,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.app;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_WORKSPACE = NO;
@@ -770,9 +832,9 @@
 		E5D0195C08C832B3423887C2 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = "AppIconOnePiece AppIconOnePieceDark";
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
+				CODE_SIGN_ENTITLEMENTS = Sources/MoonlitApp.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_TEAM = 5TWS8P597N;
@@ -783,7 +845,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.app;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VALIDATE_WORKSPACE = NO;
@@ -801,7 +863,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.moonlit.app.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = app.trymoonlit.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MoonlitApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MoonlitApp";

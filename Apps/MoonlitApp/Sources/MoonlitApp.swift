@@ -10,26 +10,42 @@ struct MoonlitApp: App {
 
     init() {
         MoonlitTypography.registerFonts()
+        // Seed the poster-badge defaults (Genre + Rating + Trend on) so PosterService's
+        // non-isolated UserDefaults reads match the @AppStorage defaults on a fresh install.
+        PosterService.registerDefaults()
         // Don't install a custom UITabBarAppearance — on iOS 26 that opts the tab bar out
         // of the system's clear Liquid Glass. Leave it default; tint/unselected colors are
         // driven by SwiftUI (.tint) on the TabView.
         UITabBar.appearance().tintColor = .systemBlue
         UITabBar.appearance().unselectedItemTintColor = UIColor.white.withAlphaComponent(0.55)
+
+        // Quiesce UIKit-backed animations under UI automation so XCUITest can sync.
+        if UITestMode.disableContinuousAnimations {
+            UIView.setAnimationsEnabled(false)
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            MoonlitRootView(handleDeepLink: handleDeepLink)
-                .environmentObject(profileManager)
-                .environmentObject(roleManager)
-                .environmentObject(themeManager)
+            // TEMP: paywall design prototype, launch with -PAYWALL_PREVIEW YES.
+            // Remove once the paywall design is finalized.
+            if ProcessInfo.processInfo.arguments.contains("PAYWALL_PREVIEW") {
+                PaywallScreen(posterURLs: (0..<12).compactMap {
+                    URL(string: "https://picsum.photos/seed/moonlit\($0)/300/450")
+                })
+            } else {
+                MoonlitRootView(handleDeepLink: handleDeepLink)
+                    .environmentObject(profileManager)
+                    .environmentObject(roleManager)
+                    .environmentObject(themeManager)
+            }
         }
     }
 
     private func handleDeepLink(_ url: URL) {
         guard let scheme = url.scheme else { return }
 
-        if scheme == "stremio" || scheme == "moonlit",
+        if scheme == "moonlit",
            url.host == "install-addon",
            let addonURL = URLComponents(url: url, resolvingAgainstBaseURL: true)?
                .queryItems?.first(where: { $0.name == "url" })?.value {
