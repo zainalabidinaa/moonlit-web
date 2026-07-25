@@ -27,20 +27,29 @@ struct DetailScreen: View {
     @State private var isLiked = false
     @State private var descriptionSheet: DescriptionSheetData?
     @State private var showGuestStreamingAlert = false
-    @State private var showFullOverview = false
     @State private var autoScrollEpisodeID: String?
     @State private var ambientColor: Color = .clear
     @State private var ambientColor2: Color = .clear
+    @State private var detailScroll: CGFloat = 0
+    @State private var detailScrollBase: CGFloat? = nil
     /// Season awaiting a mark/unmark confirmation. Non-nil drives the dialog.
     @State private var seasonWatchPrompt: SeasonWatchPrompt?
     @StateObject private var likedRepo = LikedRepository.shared
     @StateObject private var awardsMeta = AwardsMetadataService.shared
+    @ObservedObject private var heroArtwork = HeroArtworkProvider.shared
+    @State private var resolvedBackdrop: String?
+    /// Source for the ambient page colors — the textless poster the hero
+    /// actually renders, falling back to the addon backdrop until it resolves.
+    private var effectiveBackdrop: String? { resolvedBackdrop ?? metaRepo.detail?.background }
     @AppStorage("moonlit.guestMode") private var guestMode = false
     @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
 
     private static let streailerBaseURL = "https://streailer.elfhosted.com/%7B%22language%22%3A%22en-US%22%2C%22externalLink%22%3Afalse%2C%22showRecap%22%3Afalse%2C%22onlyRecaps%22%3Afalse%7D"
     private static let mltBaseURL = "https://bbab4a35b833-more-like-this.baby-beamup.club/%7B%22iv%22%3A%226eccbcc6a9db21bd4cb1fef5f30b4892%22%2C%22salt%22%3Anull%2C%22authTag%22%3A%22017bc87cc819a77554085544340d58ee%22%2C%22data%22%3A%22d270093abcf6a558d135729ff8b3b1f799809a1b7bcf8e42b77a79357857b567587078990ef4e3668c550ee8b53b3219b6b9d39a201b768bf39dd3516762994348df48afdf938ad363cdf3bf2c620fb2014ee02826dac096aaa4e23da726f2b5de5467874ff0a51a87567354a45e23daf41cddbac084ed0f72000bf89b4d66acbf6908349fa70d0106a0e803001766e4a8635343e348c523061beabaa612a054ca63730898aa357d37af353db6ebf07dc415bb4de0064ef88f13c308a8bf8a64c620b9433575b7dd6a3b135d2aa0db02a82e434a0a713dd00e2c23efe2938ffcb5bcefe24fb2b7b70e2d0749029c88e2f9c4eb72af2cdd7162a706fccd56cc4f81d470fd9d3518f8d6d0d79943de3bafb4bc83de616f236f4e111bfad494bdb50426351aaaeb7df0573f4dc195c87f18094466b490bb9c8d9547ed3a82f2a0930cd55d177b03df493591470b75f4c7fe179b4725e40aafc21cfe7593e0d72dc825598b2c083854a60c284c0582f75736904a8b35842cc44872c8c294b9bec96421288ab2d80f6cb5c824eec1aff65e485193083a66da91022dffa55f9059b986ad65e2f09902648fc197a076773f29136b2c1df1b2af9e7334b3c0285d397602abc0ffd6bcdecf5d5318093dce2b8b2922d8ac1215e8ec4385e3eef554f21f6e49fa1fd6d37544530f3dd41a3bcd2f3febe53dd3a3390a6ce5a4748fa600a9466b425901e5e05500c941882ecce958e40f30256c02eedfccc5f7b630b214c9e61795bdba0481abd9160b901a014ac4d4cddf57a83ca8529ce5c30bf368ff8740ce7b757313cce9f0b73567897250ab333bfa%22%7D"
     @Environment(\.openURL) private var openURL
+    #if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+    #endif
 
     private let heroHeight: CGFloat = 520
     private let contentRailInset: CGFloat = 16
@@ -68,40 +77,13 @@ struct DetailScreen: View {
                     // page layer carries through the bottom of the hero.
                     GeometryReader { geo in
                         let topInset = geo.safeAreaInsets.top
-                        let backdropURL = detail.background.flatMap(URL.init)
 
                         ZStack(alignment: .bottom) {
-                            if let url = backdropURL {
-                                ZStack(alignment: .top) {
-                                    CachedAsyncImage(url: url) { phase in
-                                        if case .success(let image) = phase {
-                                            image.resizable().scaledToFill()
-                                        } else {
-                                            Color(MoonlitTheme.surfaceElevated)
-                                        }
-                                    }
-
-                                    LinearGradient(
-                                        stops: [
-                                            .init(color: MoonlitTheme.background.opacity(0.85), location: 0.0),
-                                            .init(color: MoonlitTheme.background.opacity(0.45), location: 0.28),
-                                            .init(color: .clear, location: 0.62)
-                                        ],
-                                        startPoint: .leading,
-                                        endPoint: .trailing
-                                    )
-                                }
-                                .frame(width: geo.size.width, height: heroHeight + topInset)
-                                .clipped()
+                            heroPoster(for: detail, width: geo.size.width, height: heroHeight + topInset)
                                 .mask(heroArtworkMask)
-                            } else {
-                                Color(MoonlitTheme.surfaceElevated)
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: heroHeight + topInset)
-                            }
 
-                            // Tagline + logo + metadata chips, Mac-style.
-                            VStack(alignment: .leading, spacing: 10) {
+                            // Tagline, centered logo, then a single metadata line.
+                            VStack(spacing: 10) {
                                 if let tagline = detail.tagline, !tagline.isEmpty {
                                     Text(tagline)
                                         .font(.system(size: 10, weight: .medium))
@@ -109,13 +91,14 @@ struct DetailScreen: View {
                                         .textCase(.uppercase)
                                         .foregroundColor(.white.opacity(0.48))
                                         .lineLimit(1)
+                                        .multilineTextAlignment(.center)
                                 }
 
                                 heroLogo(for: detail)
 
-                                heroMetadataChips(for: detail)
+                                heroMetaLine(for: detail)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxWidth: .infinity)
                             .padding(.horizontal, 16)
                             .padding(.bottom, 20)
                         }
@@ -144,7 +127,7 @@ struct DetailScreen: View {
                         let activeProgress = watchedRepo.getProgress(mediaId: detail.id)
                         let watched = watchedRepo.isWatched(mediaId: detail.id)
 
-                        Button { preparePlayback(detail: detail, progress: activeProgress) } label: {
+                         Button { preparePlayback(detail: detail, progress: activeProgress) } label: {
                             HStack(spacing: 8) {
                                 Image(systemName: activeProgress == nil ? "play.fill" : "play.circle.fill")
                                     .font(.subheadline)
@@ -154,7 +137,12 @@ struct DetailScreen: View {
                             .foregroundColor(.black)
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 14)
-                            .background(Capsule().fill(.white))
+                            .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(.white))
+                            #if os(tvOS)
+                            .scaleEffect(isFocused ? 1.05 : 1.0)
+                            .animation(.easeOut(duration: 0.15), value: isFocused)
+                            .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                            #endif
                         }
 
                         let inLibrary = libraryRepo.isInLibrary(mediaId: detail.id)
@@ -175,7 +163,12 @@ struct DetailScreen: View {
                                 .foregroundColor(inLibrary ? MoonlitTheme.accent : .white)
                                 .frame(width: 50, height: 50)
                         }
-                        .glassCard(cornerRadius: 25)
+                        .glassCard(cornerRadius: 14)
+                        #if os(tvOS)
+                        .scaleEffect(isFocused ? 1.05 : 1.0)
+                        .animation(.easeOut(duration: 0.15), value: isFocused)
+                        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                        #endif
                         .sensoryFeedback(.impact(weight: .light), trigger: inLibrary)
 
                         Button {
@@ -200,7 +193,12 @@ struct DetailScreen: View {
                                 .foregroundColor(isLiked ? .red : .white)
                                 .frame(width: 50, height: 50)
                         }
-                        .glassCard(cornerRadius: 25)
+                        .glassCard(cornerRadius: 14)
+                        #if os(tvOS)
+                        .scaleEffect(isFocused ? 1.05 : 1.0)
+                        .animation(.easeOut(duration: 0.15), value: isFocused)
+                        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                        #endif
                         .onAppear { isLiked = likedRepo.isLiked(detail.id) }
                         .sensoryFeedback(.impact(weight: .light), trigger: isLiked)
                     }
@@ -208,33 +206,27 @@ struct DetailScreen: View {
                     .padding(.top, 16)
 
                     // ── OVERVIEW ──────────────────────────────────────────
-                    // Expands in place rather than opening a sheet — one fewer
-                    // context switch to read a synopsis.
+                    // Clamped to two centered lines; the full text opens in a
+                    // sheet rather than expanding in place, so tapping it never
+                    // pushes the episode list down the page.
                     if let description = detail.description, !description.isEmpty {
                         Button {
-                            withAnimation(.easeInOut(duration: 0.22)) { showFullOverview.toggle() }
+                            descriptionSheet = DescriptionSheetData(
+                                title: detail.name,
+                                text: description
+                            )
                         } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("Overview")
-                                    .font(.system(size: 15, weight: .bold))
-                                    .foregroundColor(.white)
-                                Text(description)
-                                    .font(.subheadline)
-                                    .foregroundColor(MoonlitTheme.textSecondary)
-                                    .lineLimit(showFullOverview ? nil : 3)
-                                    .multilineTextAlignment(.leading)
-                                if !showFullOverview && description.count > 220 {
-                                    Text("Show more")
-                                        .font(.caption.bold())
-                                        .foregroundColor(.white.opacity(0.9))
-                                }
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            Text(description)
+                                .font(.subheadline)
+                                .foregroundColor(MoonlitTheme.textSecondary)
+                                .lineLimit(2)
+                                .multilineTextAlignment(.center)
+                                .frame(maxWidth: .infinity)
+                                .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                         .padding(.horizontal, 16)
-                        .padding(.top, 20)
+                        .padding(.top, 18)
                     }
 
                     // ── DETAILS CHIPS ─────────────────────────────────────
@@ -310,6 +302,9 @@ struct DetailScreen: View {
                                                     )
                                                 }
                                             }
+                                            #if os(tvOS)
+                                            .focusable(true)
+                                            #endif
                                             .id(ep.id)
                                         }
                                     }
@@ -369,6 +364,11 @@ struct DetailScreen: View {
                                         ForEach(related.prefix(20)) { item in
                                             ContentCard(item: item, width: m.posterWidth, height: m.posterHeight)
                                                 .onTapGesture { selectedMedia = item }
+                                                #if os(tvOS)
+                                                .scaleEffect(isFocused ? 1.05 : 1.0)
+                                                .animation(.easeOut(duration: 0.15), value: isFocused)
+                                                .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                                                #endif
                                         }
                                     }
                                     .padding(.horizontal, 16)
@@ -430,6 +430,11 @@ struct DetailScreen: View {
                                             .frame(width: 104)
                                         }
                                         .buttonStyle(.plain)
+                                        #if os(tvOS)
+                                        .scaleEffect(isFocused ? 1.05 : 1.0)
+                                        .animation(.easeOut(duration: 0.15), value: isFocused)
+                                        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                                        #endif
                                     }
                                 }
                                 .padding(.horizontal, 16)
@@ -484,14 +489,20 @@ struct DetailScreen: View {
             }
         }
         .ignoresSafeArea(edges: .top)
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentOffset.y
+        } action: { _, value in
+            if detailScrollBase == nil { detailScrollBase = value }
+            detailScroll = value - (detailScrollBase ?? 0)
+        }
         .background {
             FusionAmbientBackground(
                 ambientColor: ambientColor,
                 ambientColor2: ambientColor2,
-                heroBackdropURL: metaRepo.detail?.background.flatMap(URL.init),
                 isEnabled: cinematicModeEnabled,
-                screenWidth: UIScreen.main.bounds.width,
-                screenHeight: UIScreen.main.bounds.height
+                heroHeight: heroHeight,
+                screenHeight: UIScreen.main.bounds.height,
+                scrollOffset: detailScroll
             )
             .animation(.easeInOut(duration: 0.9), value: ambientColor)
             .animation(.easeInOut(duration: 0.9), value: ambientColor2)
@@ -561,12 +572,27 @@ struct DetailScreen: View {
                  ? "This marks all \(count) episodes as watched."
                  : "This clears the watched mark from all \(count) episodes.")
         }
-        .task(id: metaRepo.detail?.background) {
-            await updateAmbientColors(from: metaRepo.detail?.background)
+        .task(id: effectiveBackdrop) {
+            await updateAmbientColors(from: effectiveBackdrop)
         }
         .task(id: metaRepo.detail?.id) {
             guard let detail = metaRepo.detail, detail.id.hasPrefix("tt") else { return }
             await awardsMeta.fetch(id: detail.id)
+        }
+        .task(id: metaRepo.detail?.id) {
+            resolvedBackdrop = nil
+            // The hero always shows the textless portrait poster (like the home
+            // hero), so resolve it for every title — not just ones the addon
+            // left without a backdrop.
+            guard let detail = metaRepo.detail else { return }
+            let preview = MetaPreview(id: detail.id, type: detail.type, name: detail.name)
+            HeroArtworkProvider.shared.prefetch(items: [preview])
+        }
+        .onChange(of: heroArtwork.posterPaths) { _, _ in
+            guard let detail = metaRepo.detail else { return }
+            let preview = MetaPreview(id: detail.id, type: detail.type, name: detail.name)
+            guard let url = heroArtwork.heroArtURL(for: preview), resolvedBackdrop != url.absoluteString else { return }
+            resolvedBackdrop = url.absoluteString
         }
         .task {
             selectedSeasonId = nil
@@ -617,6 +643,33 @@ struct DetailScreen: View {
         }
     }
 
+    /// Fixed-size, center-cropped hero art — the same treatment as the home
+    /// hero (`ParallaxHero.heroImage`): the textless TMDB *portrait* poster, so
+    /// the overlaid title logo isn't duplicated by text baked into the art. The
+    /// placeholder is the base layer and the poster fades in on top once
+    /// resolved, so the addon's landscape backdrop never shows.
+    private func heroPoster(for detail: MetaDetail, width: CGFloat, height: CGFloat) -> some View {
+        let preview = MetaPreview(id: detail.id, type: detail.type, name: detail.name)
+        let candidates = heroArtwork.heroArtCandidates(for: preview)
+        return ZStack {
+            MoonlitTheme.surfaceContainer
+            if !candidates.isEmpty {
+                LadderedCachedImage(urls: candidates) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .transition(.opacity)
+                    } else {
+                        Color.clear
+                    }
+                }
+            }
+        }
+        .frame(width: width, height: height)
+        .clipped()
+    }
+
     private var heroArtworkMask: some View {
         LinearGradient(
             stops: [
@@ -648,8 +701,8 @@ struct DetailScreen: View {
                 ambientColor2 = .clear
                 return
             }
-            ambientColor = primary.moonlitBoostedForAmbient
-            ambientColor2 = secondary.moonlitBoostedForAmbient
+            ambientColor = primary.moonlitMutedForAmbient
+            ambientColor2 = secondary.moonlitMutedForAmbient
         } catch {
             ambientColor = .clear
             ambientColor2 = .clear
@@ -657,29 +710,51 @@ struct DetailScreen: View {
     }
 
     private func fetchMoreLikeThis() async {
-        // 1. Try the dedicated MLT addon first (Trakt-powered, best semantic results)
-        if let mltURL = URL(string: "\(Self.mltBaseURL)/catalog/\(type)/mlt/\(mediaId).json"),
+        guard let detail = metaRepo.detail else { return }
+        // Build a title-relevant list, most-relevant sources first, deduped and never
+        // including the title itself.
+        var seen: Set<String> = [mediaId]
+        var combined: [MetaPreview] = []
+        func add(_ items: [MetaPreview]?) {
+            for item in items ?? [] where !seen.contains(item.id) {
+                seen.insert(item.id)
+                combined.append(item)
+            }
+        }
+
+        // 1. TMDB recommendations — algorithmic "recommended for fans of this title"
+        //    (resolved with real IMDb ids/posters during detail load).
+        add(detail.recommendations)
+
+        // 2. Fusion-style: TMDB Discover seeded by THIS title's own genres.
+        if combined.count < 20, let genres = detail.genres, !genres.isEmpty {
+            add(await TMDBDiscoverService.shared.discoverSimilar(
+                genres: genres, mediaKind: detail.type, excludingImdbId: mediaId))
+        }
+
+        // 3. TMDB similar (weaker genre/keyword match) as fill.
+        add(detail.moreLikeThis)
+
+        // 4. Dedicated MLT addon (Trakt semantic) — best-effort extra fill when the
+        //    TMDB sources came up short (e.g. addon-only titles with no TMDB id).
+        if combined.count < 12,
+           let mltURL = URL(string: "\(Self.mltBaseURL)/catalog/\(type)/mlt/\(mediaId).json"),
            let data = try? await URLSession.shared.data(from: mltURL).0,
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let metas = json["metas"] as? [[String: Any]], !metas.isEmpty {
-            moreLikeThisItems = metas.compactMap { m -> MetaPreview? in
+           let metas = json["metas"] as? [[String: Any]] {
+            add(metas.compactMap { m -> MetaPreview? in
                 guard let id = m["id"] as? String, let name = m["name"] as? String else { return nil }
-                let typeStr = m["type"] as? String ?? type
                 return MetaPreview(
                     id: id,
-                    type: MediaType(rawValue: typeStr) ?? .movie,
+                    type: MediaType(rawValue: m["type"] as? String ?? type) ?? .movie,
                     name: name,
                     poster: m["poster"] as? String,
                     imdbRating: m["imdbRating"] as? String
                 )
-            }
-            return
+            })
         }
 
-        // 2. TMDB similar — already resolved with real IMDb IDs and posters during detail load
-        if let tmdbSimilar = metaRepo.detail?.moreLikeThis, !tmdbSimilar.isEmpty {
-            moreLikeThisItems = tmdbSimilar
-        }
+        moreLikeThisItems = combined
     }
 
     private func fetchStreailerTrailers() async {
@@ -816,6 +891,11 @@ struct DetailScreen: View {
                 .padding(.vertical, 8)
                 .background(Color.white.opacity(0.10), in: Capsule())
                 .overlay(Capsule().stroke(Color.white.opacity(0.12), lineWidth: 0.5))
+                #if os(tvOS)
+                .scaleEffect(isFocused ? 1.05 : 1.0)
+                .animation(.easeOut(duration: 0.15), value: isFocused)
+                .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                #endif
             }
 
             if let activeSeason {
@@ -843,6 +923,11 @@ struct DetailScreen: View {
                     )
                 }
                 .buttonStyle(.plain)
+                #if os(tvOS)
+                .scaleEffect(isFocused ? 1.05 : 1.0)
+                .animation(.easeOut(duration: 0.15), value: isFocused)
+                .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+                #endif
                 .sensoryFeedback(.impact(weight: .light), trigger: allWatched)
             }
 
@@ -960,9 +1045,9 @@ struct DetailScreen: View {
         autoScrollEpisodeID = nextUpEpisodeId(in: season, detail: detail)
     }
 
-    /// The title's stylized clearlogo. Deliberately has NO text fallback: when
-    /// the addon supplies no logo the hero shows tagline + chips only. Mac keeps
-    /// a serif fallback here; iOS does not, by request.
+    /// The title's stylized clearlogo, centered in the hero. Deliberately has NO
+    /// text fallback: when the addon supplies no logo the hero shows the meta
+    /// line only. Mac keeps a serif fallback here; iOS does not, by request.
     @ViewBuilder
     private func heroLogo(for detail: MetaDetail) -> some View {
         if let logoURL = detail.logo.flatMap(URL.init) {
@@ -970,62 +1055,70 @@ struct DetailScreen: View {
                 // Must return a real view in every phase — CachedAsyncImage hangs
                 // its fetch off `.task` applied to this closure's result, and an
                 // empty ViewBuilder result has no lifecycle to attach it to.
-                ZStack(alignment: .leading) {
+                ZStack {
                     Color.clear
                     if case .success(let img) = phase {
                         img.resizable()
                             .scaledToFit()
-                            .frame(maxWidth: 260, maxHeight: 104, alignment: .leading)
+                            .frame(maxWidth: 260, maxHeight: 104)
                             .shadow(color: .black.opacity(0.65), radius: 10, x: 0, y: 4)
                     }
                 }
-                .frame(height: 104, alignment: .leading)
+                .frame(height: 104)
             }
             .id(detail.logo)
         }
     }
 
-    /// Mac-style metadata pills. Wraps to a second line rather than scrolling —
-    /// six chips don't fit a 390pt width on one row.
+    /// A single centered metadata line under the logo: IMDb rating, then year,
+    /// genre, age rating and runtime separated by dots. Replaces the old pill
+    /// row — six bordered chips wrapped to two lines and fought the poster for
+    /// attention. The IMDb wordmark and star stay so the score is still
+    /// attributable; only the pill around it is gone.
     @ViewBuilder
-    private func heroMetadataChips(for detail: MetaDetail) -> some View {
-        let genres = Array((detail.genres ?? []).prefix(3))
-        FlowLayout(spacing: 6) {
-            if let year = releaseYear(from: detail.releaseInfo) {
-                metadataChip { Text(year) }
-            }
+    private func heroMetaLine(for detail: MetaDetail) -> some View {
+        let parts: [String] = [
+            releaseYear(from: detail.releaseInfo),
+            (detail.genres ?? []).first,
+            detail.ageRating,
+            seasonSummary(for: detail) ?? detail.runtime
+        ].compactMap { $0 }.filter { !$0.isEmpty }
+
+        HStack(spacing: 6) {
             if let rating = detail.imdbRating {
-                metadataChip {
-                    Text("IMDb")
-                        .font(.system(size: 9, weight: .black))
-                        .foregroundColor(MoonlitTheme.harborGold)
-                    Image(systemName: "star.fill")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(MoonlitTheme.harborGold)
-                    Text(rating)
+                Text("IMDb")
+                    .font(.system(size: 9, weight: .black))
+                    .foregroundColor(MoonlitTheme.ratingGold)
+                Rectangle()
+                    .fill(Color.white.opacity(0.2))
+                    .frame(width: 1, height: 9)
+                Image(systemName: "star.fill")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundColor(MoonlitTheme.ratingGold)
+                Text(rating.replacingOccurrences(of: "/10", with: ""))
+                    .fontWeight(.bold)
+                if !parts.isEmpty {
+                    metaDot
                 }
             }
-            if let seasons = seasonSummary(for: detail) {
-                metadataChip { Text(seasons) }
-            } else if let runtime = detail.runtime {
-                metadataChip { Text(runtime) }
-            }
-            ForEach(genres, id: \.self) { genre in
-                metadataChip { Text(genre) }
+
+            ForEach(Array(parts.enumerated()), id: \.offset) { index, part in
+                Text(part)
+                if index < parts.count - 1 {
+                    metaDot
+                }
             }
         }
+        .font(.system(size: 12.5, weight: .medium))
+        .foregroundColor(.white.opacity(0.85))
+        .lineLimit(1)
+        .minimumScaleFactor(0.8)
     }
 
-    private func metadataChip<Content: View>(@ViewBuilder content: () -> Content) -> some View {
-        HStack(spacing: 4) {
-            content()
-        }
-        .font(.system(size: 10.5, weight: .semibold))
-        .foregroundColor(.white.opacity(0.9))
-        .padding(.horizontal, 9)
-        .padding(.vertical, 4)
-        .background(Color.white.opacity(0.10), in: Capsule())
-        .overlay(Capsule().stroke(Color.white.opacity(0.10), lineWidth: 0.5))
+    private var metaDot: some View {
+        Text("•")
+            .font(.system(size: 11))
+            .foregroundColor(.white.opacity(0.38))
     }
 
     private func releaseYear(from releaseInfo: String?) -> String? {
@@ -1362,43 +1455,17 @@ struct DetailScreen: View {
 
     @ViewBuilder
     private func detailChips(detail: MetaDetail) -> some View {
-        let hasGenres  = !(detail.genres ?? []).isEmpty
-        let hasDirector = !(detail.director ?? []).isEmpty
-        if hasGenres || hasDirector {
-            VStack(alignment: .leading, spacing: 14) {
-                if hasGenres {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("GENRES")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(MoonlitTheme.textTertiary)
-                            .tracking(1.5)
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(detail.genres!, id: \.self) { genre in
-                                    Text(genre)
-                                        .font(.footnote.weight(.medium))
-                                        .foregroundColor(.white.opacity(0.9))
-                                        .padding(.horizontal, 14).padding(.vertical, 7)
-                                        .background(Color.white.opacity(0.06), in: Capsule())
-                                        .overlay(
-                                            Capsule().stroke(Color.white.opacity(0.14), lineWidth: 0.5)
-                                        )
-                                }
-                            }
-                        }
-                    }
-                }
-                if hasDirector {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("DIRECTOR")
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundColor(MoonlitTheme.textTertiary)
-                            .tracking(1.5)
-                        Text(detail.director!.map(\.name).joined(separator: ", "))
-                            .font(.subheadline)
-                            .foregroundColor(.white)
-                    }
-                }
+        // Genre pills removed — the primary genre already appears in the hero
+        // meta line, and a second listing here was pure duplication.
+        if let director = detail.director, !director.isEmpty {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("DIRECTOR")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(MoonlitTheme.textTertiary)
+                    .tracking(1.5)
+                Text(director.map(\.name).joined(separator: ", "))
+                    .font(.subheadline)
+                    .foregroundColor(.white)
             }
             .padding(.horizontal, 16)
             .padding(.top, 20)
@@ -1433,6 +1500,9 @@ struct DetailScreen: View {
 private struct TrailerCard: View {
     let trailer: Trailer
     @Environment(\.openURL) private var openURL
+    #if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+    #endif
 
     private var thumbnailURL: URL? {
         if let t = trailer.thumbnail { return URL(string: t) }
@@ -1492,6 +1562,11 @@ private struct TrailerCard: View {
             }
         }
         .buttonStyle(.plain)
+        #if os(tvOS)
+        .scaleEffect(isFocused ? 1.05 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+        #endif
     }
 
     private var trailerPlaceholder: some View {
@@ -1517,34 +1592,24 @@ struct DescriptionSheetData: Identifiable {
 struct DescriptionSheet: View {
     let title: String
     let text: String
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            HStack {
-                Text(title)
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .lineLimit(2)
-                Spacer()
-                Button {
-                    dismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
-                }
-                .glassCircle(clear: true)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 12)
+            // No close button — the drag indicator is the affordance, and a
+            // glass panel reads cleaner without a control fighting the title.
+            Text(title)
+                .font(.system(size: 17, weight: .bold))
+                .foregroundColor(.white)
+                .lineLimit(2)
+                .padding(.horizontal, 20)
+                .padding(.top, 22)
+                .padding(.bottom, 14)
 
             ScrollView {
                 Text(text)
                     .font(.subheadline)
-                    .foregroundColor(.white.opacity(0.85))
+                    .foregroundColor(.white.opacity(0.88))
+                    .lineSpacing(3)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 20)
                     .padding(.bottom, 24)
@@ -1552,7 +1617,29 @@ struct DescriptionSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
-        .presentationBackground(.ultraThinMaterial)
+        .presentationBackground { DescriptionSheetGlassBackground() }
+    }
+}
+
+/// Real Liquid Glass (`.glassEffect`, iOS 26+) rather than a material-plus-
+/// gradient approximation — the system renders the specular highlight and
+/// refraction itself. Falls back to `.ultraThinMaterial` pre-iOS 26.
+private struct DescriptionSheetGlassBackground: View {
+    /// Only the top corners round — the sheet's bottom edge sits flush with
+    /// the screen edge, so rounding it too would cut a visible notch there.
+    private var shape: UnevenRoundedRectangle {
+        .rect(topLeadingRadius: 26, bottomLeadingRadius: 0, bottomTrailingRadius: 0, topTrailingRadius: 26)
+    }
+
+    var body: some View {
+        if #available(iOS 26, *) {
+            Color.clear
+                .glassEffect(.regular, in: shape)
+                .ignoresSafeArea()
+        } else {
+            shape.fill(.ultraThinMaterial)
+                .ignoresSafeArea()
+        }
     }
 }
 
@@ -1633,6 +1720,9 @@ struct EpisodeCard: View {
     var onToggleWatched: (() -> Void)? = nil
     var onShowDescription: (() -> Void)? = nil
     let onPlay: () -> Void
+    #if os(tvOS)
+    @Environment(\.isFocused) var isFocused
+    #endif
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1727,6 +1817,12 @@ struct EpisodeCard: View {
                     .onTapGesture { onShowDescription?() }
             }
         }
+        #if os(tvOS)
+        .focusable(true)
+        .scaleEffect(isFocused ? 1.05 : 1.0)
+        .animation(.easeOut(duration: 0.15), value: isFocused)
+        .shadow(color: isFocused ? Color.white.opacity(0.3) : .clear, radius: isFocused ? 10 : 0)
+        #endif
     }
 
     private var episodePlaceholder: some View {
