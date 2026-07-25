@@ -16,10 +16,10 @@ struct RatingBadge: View {
         HStack(spacing: compact ? 3 : 4) {
             Text("IMDb")
                 .font(.system(size: compact ? 8 : 10, weight: .black))
-                .foregroundColor(MoonlitTheme.harborGold)
+                .foregroundColor(MoonlitTheme.ratingGold)
             Image(systemName: "star.fill")
                 .font(.system(size: compact ? 8 : 10, weight: .bold))
-                .foregroundColor(MoonlitTheme.harborGold)
+                .foregroundColor(MoonlitTheme.ratingGold)
             Text(displayRating)
                 .font(.system(size: compact ? 10 : 13, weight: .semibold))
                 .foregroundColor(.white)
@@ -27,6 +27,6 @@ struct RatingBadge: View {
         .padding(.horizontal, compact ? 7 : 10)
         .padding(.vertical, compact ? 4 : 6)
         .background(.black.opacity(0.45), in: Capsule())
-        .overlay(Capsule().strokeBorder(MoonlitTheme.harborGold.opacity(0.28), lineWidth: 0.75))
+        .overlay(Capsule().strokeBorder(MoonlitTheme.ratingGold.opacity(0.28), lineWidth: 0.75))
     }
 }

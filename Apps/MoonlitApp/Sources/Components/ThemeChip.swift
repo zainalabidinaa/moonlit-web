@@ -23,7 +23,7 @@ struct ThemeChip: View {
                     .font(.caption2)
                     .foregroundColor(isSelected ? MoonlitTheme.accent : MoonlitTheme.textSecondary)
                 if isSelected {
-                    RoundedRectangle(cornerRadius: 2)
+                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
                         .fill(MoonlitTheme.accent)
                         .frame(width: 20, height: 3)
                 } else {

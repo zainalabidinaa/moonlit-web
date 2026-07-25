@@ -20,16 +20,15 @@ public enum StreamMatchGuard {
         let text = searchableText(for: stream)
         let expectedImdbId = id.components(separatedBy: ":").first ?? id
 
-        // IMDB cross-check removed — addons like AIOStreams aggregate from multiple
+        // IMDB cross-check removed — meta-aggregator addons pull from multiple
         // providers and descriptions often reference other IMDB IDs legitimately.
-        // Harbor has no equivalent filter.
 
         // ── Series: show title cross-check from filename ──────────────────────
         // Only rejects when title is passed and filename clearly belongs to
         // another show (conservative 40% token overlap threshold).
-        // Episode-number matching removed — meta-aggregator addons like
-        // AIOStreams surface filenames from many providers that reference
-        // different episodes legitimately. Harbor has no equivalent filter.
+        // Episode-number matching removed — meta-aggregator addons surface
+        // filenames from many providers that reference different episodes
+        // legitimately.
         if type == "series",
            let ep = expectedSeriesEpisode(from: id),
            let filename = stream.behaviorHints?.filename,

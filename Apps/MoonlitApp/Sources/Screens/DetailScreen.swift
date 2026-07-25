@@ -514,7 +514,9 @@ struct DetailScreen: View {
                 addons: addonRepo.findAddonWithMetaResource(type: type, id: mediaId)
             )
         }
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
         .navigationDestination(item: $selectedMedia) { media in
             DetailScreen(mediaId: media.id, type: media.type.rawValue, name: media.name)
         }
@@ -1638,6 +1640,7 @@ private struct DescriptionSheetGlassBackground: View {
     }
 
     var body: some View {
+#if os(iOS)
         if #available(iOS 26, *) {
             Color.clear
                 .glassEffect(.regular, in: shape)
@@ -1646,6 +1649,10 @@ private struct DescriptionSheetGlassBackground: View {
             shape.fill(.ultraThinMaterial)
                 .ignoresSafeArea()
         }
+#else
+        shape.fill(.ultraThinMaterial)
+            .ignoresSafeArea()
+#endif
     }
 }
 
@@ -1874,7 +1881,9 @@ struct SeasonDetailScreen: View {
                 }
             }
         }
+#if os(iOS)
         .scrollContentBackground(.hidden)
+#endif
         .background(MoonlitTheme.background)
         .navigationTitle(season.name ?? "Season \(season.number)")
     }

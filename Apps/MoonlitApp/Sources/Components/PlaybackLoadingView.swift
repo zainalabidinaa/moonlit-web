@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// Nuvio-style branded pre-roll shown while a stream resolves and the first
+///  branded pre-roll shown while a stream resolves and the first
 /// video frame buffers.
 ///
 /// A full-bleed crisp backdrop of the title with the original stylized logo
@@ -35,7 +35,7 @@ struct PlaybackLoadingView: View {
 
             backdrop
 
-            // Nuvio-style full-height vertical gradient over a solid black base.
+            //  full-height vertical gradient over a solid black base.
             // Top → bottom: 0% → 30% → 60% → 80% → 90% black.
             LinearGradient(
                 colors: [
@@ -53,13 +53,7 @@ struct PlaybackLoadingView: View {
             VStack(spacing: 18) {
                 logoOrTitle
                     .opacity(logoVisible ? 1.0 : 0.0)
-                    .scaleEffect(isLoading ? (pulse ? 1.04 : 1.0) : 1.0)
-                    .animation(
-                        isLoading
-                            ? .linear(duration: 2.0).repeatForever(autoreverses: true)
-                            : nil,
-                        value: pulse
-                    )
+                    .scaleEffect(isLoading ? (pulse ? 1.06 : 0.98) : 1.0)
 
                 if let statusOverride {
                     Text(statusOverride)
@@ -72,10 +66,19 @@ struct PlaybackLoadingView: View {
         }
         .onAppear {
             NSLog("[Moonlit][Loading] backdropURL=\(backgroundURL ?? "nil") logoURL=\(logoURL?.absoluteString ?? "nil")")
-            pulse = true
             Task {
                 try? await Task.sleep(for: .milliseconds(400))
                 withAnimation(.easeIn(duration: 0.7)) { logoVisible = true }
+            }
+            guard isLoading, !UITestMode.disableContinuousAnimations else { return }
+            // Deferred a turn so the pulse animates away from a rendered resting
+            // state. Setting `pulse` inline folds the change into the same
+            // transaction as the first layout pass, and the view simply appears
+            // at the end scale with no animation at all.
+            DispatchQueue.main.async {
+                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
             }
         }
     }
@@ -85,15 +88,30 @@ struct PlaybackLoadingView: View {
     @ViewBuilder private var backdrop: some View {
         if let url = wideBackdropURL {
             CachedAsyncImage(url: url) { phase in
-                if case .success(let img) = phase {
-                    img.resizable()
-                        .aspectRatio(contentMode: .fill)
-                        .ignoresSafeArea()
-                        .transition(.opacity)
+                // `CachedAsyncImage` hangs its fetch off `.task` applied to this
+                // closure's result, so every phase must return a real view. An
+                // empty ViewBuilder result (no `else`) has no lifecycle to attach
+                // to, the task never fires, and the phase stays `.empty` forever —
+                // which is why the backdrop never loaded while the logo, which
+                // does have a fallback branch, did.
+                ZStack {
+                    Color.clear
+                    if case .success(let img) = phase {
+                        img.resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .transition(.opacity)
+                    }
                 }
+                .animation(.easeIn(duration: 0.5), value: isLoaded(phase))
             }
             .ignoresSafeArea()
+            .clipped()
         }
+    }
+
+    private func isLoaded(_ phase: AsyncImagePhase) -> Bool {
+        if case .success = phase { return true }
+        return false
     }
 
     // MARK: - Logo

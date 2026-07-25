@@ -9,7 +9,7 @@ public enum HomeCategoryFilter: String, Sendable, Hashable {
 
 /// Category pill state: a top-level media-type filter, optionally refined by a
 /// genre picked from the secondary genre menu that appears once Movies or Shows
-/// is selected (Harbor-style focused browsing).
+/// is selected (focused browsing).
 public struct HomeCategoryState: Equatable, Sendable {
     public var category: HomeCategoryFilter
     public var genre: String?

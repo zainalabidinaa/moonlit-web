@@ -46,6 +46,7 @@ struct CardStackRow: View {
             .onAppear {
                 if frontOffset < 0 { frontOffset = count / 2 }
             }
+#if os(iOS)
             .gesture(
                 DragGesture(minimumDistance: 20)
                     .onEnded { value in
@@ -59,6 +60,7 @@ struct CardStackRow: View {
                         }
                     }
             )
+#endif
         }
     }
 

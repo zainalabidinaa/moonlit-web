@@ -23,8 +23,6 @@ settings:
     INFOPLIST_KEY_CFBundleURLTypes:
       - CFBundleURLSchemes:
         - moonlit
-      - CFBundleURLSchemes:
-        - stremio
     INFOPLIST_KEY_UIAppFonts:
       - JetBrainsSans-Regular.ttf
       - JetBrainsSans-SemiBold.ttf
@@ -53,14 +51,14 @@ targets:
       - sdk: AppIntents.framework
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "com.moonlit.app"
+        PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit"
         DEVELOPMENT_TEAM: 5TWS8P597N
         CODE_SIGN_STYLE: Automatic
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES: "AppIconOnePiece AppIconOnePieceDark"
         ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS: YES
         INFOPLIST_KEY_CFBundleIconName: AppIcon
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: false
+        CODE_SIGN_ENTITLEMENTS: Sources/MoonlitApp.entitlements
         VALIDATE_WORKSPACE: NO
     postBuildScripts:
       - name: Generate Missing Framework Info.plist
@@ -109,7 +107,7 @@ targets:
         product: SnapshottingTests
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: "com.moonlit.app.tests"
+        PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit.tests"
         DEVELOPMENT_TEAM: 5TWS8P597N
         CODE_SIGN_STYLE: Automatic
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/MoonlitApp.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MoonlitApp"

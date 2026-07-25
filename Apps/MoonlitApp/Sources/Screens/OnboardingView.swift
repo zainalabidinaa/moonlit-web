@@ -233,7 +233,7 @@ private struct OnboardingCollectionsPage: View {
                                     ForEach(row.1) { poster in
                                         PosterImage(url: poster.url)
                                             .frame(width: 82, height: 123)
-                                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                                            .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
                                     }
                                 }
                                 .padding(.horizontal, 24)
@@ -300,7 +300,7 @@ private struct OnboardingLoginPage: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 17)
                     }
-                    .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                     .opacity(0.42)
                     .disabled(true)
 
@@ -313,9 +313,9 @@ private struct OnboardingLoginPage: View {
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 16)
                     }
-                    .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .background(.white.opacity(0.045), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
                     .overlay(
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
                             .stroke(.white.opacity(0.08), lineWidth: 1)
                     )
 
@@ -389,9 +389,9 @@ private struct FloatingPosterCard: View {
     var body: some View {
         PosterImage(url: poster.url)
             .frame(width: 96, height: 144)
-            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                     .stroke(.white.opacity(isSelected ? 0.28 : 0.08), lineWidth: 1)
             )
             .shadow(color: .black.opacity(isSelected ? 0.62 : 0.38), radius: isSelected ? 22 : 12, y: isSelected ? 14 : 8)
@@ -524,7 +524,7 @@ private struct OnboardingPrimaryButton: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 17)
         }
-        .background(.white, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .background(.white, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
         .shadow(color: .white.opacity(0.08), radius: 18, y: 8)
     }
 }

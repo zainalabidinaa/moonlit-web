@@ -23,7 +23,12 @@ public struct PersonCredits: Sendable {
     }
 
     public var knownFor: [PersonCredit] {
-        cast.sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }.prefix(5).map { $0 }
+        var seen = Set<String>()
+        return cast
+            .sorted { ($0.popularity ?? 0) > ($1.popularity ?? 0) }
+            .filter { seen.insert("\($0.mediaType):\($0.id)").inserted }
+            .prefix(12)
+            .map { $0 }
     }
 }
 

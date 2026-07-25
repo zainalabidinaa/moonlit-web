@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 public enum DownloadState: String, Codable, Sendable {
@@ -31,3 +32,4 @@ public struct DownloadItem: Codable, Identifiable, Equatable, Sendable {
         totalBytes > 0 ? Double(receivedBytes) / Double(totalBytes) : 0
     }
 }
+#endif

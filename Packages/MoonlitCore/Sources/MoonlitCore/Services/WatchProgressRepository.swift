@@ -59,7 +59,12 @@ public class WatchProgressRepository: ObservableObject {
             progressEntries.append(entry)
         }
 
-        try? await syncService.pushWatchProgress(entry: entry)
+        do {
+            try await syncService.pushWatchProgress(entry: entry)
+        } catch {
+            NSLog("[Moonlit][Sync] pushWatchProgress FAILED for %@: %@",
+                  mediaId, String(describing: error))
+        }
     }
 
     public func getProgress(mediaId: String) -> WatchProgressEntry? {
@@ -107,7 +112,12 @@ public class WatchProgressRepository: ObservableObject {
             markedAt: Date()
         )
         watchedItems.append(item)
-        try? await syncService.pushWatchedItem(item: item)
+        do {
+            try await syncService.pushWatchedItem(item: item)
+        } catch {
+            NSLog("[Moonlit][Sync] pushWatchedItem FAILED for %@ S%d E%d: %@",
+                  mediaId, season ?? -1, episode ?? -1, String(describing: error))
+        }
     }
 
     /// Marks every episode of a season as watched in one batch — used by the
@@ -141,7 +151,12 @@ public class WatchProgressRepository: ObservableObject {
         guard !newItems.isEmpty else { return }
         watchedItems.append(contentsOf: newItems)
         for item in newItems {
-            try? await syncService.pushWatchedItem(item: item)
+            do {
+                try await syncService.pushWatchedItem(item: item)
+            } catch {
+                NSLog("[Moonlit][Sync] pushWatchedItem (season batch) FAILED for %@ S%d E%d: %@",
+                      item.mediaId, item.season ?? -1, item.episode ?? -1, String(describing: error))
+            }
         }
     }
 

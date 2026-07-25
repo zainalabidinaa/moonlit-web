@@ -1,0 +1,312 @@
+<h2>Genre Selection — 6 Redesign Concepts</h2>
+<p class="subtitle">Current: single-row horizontal pills that feel dense and monotonous. Select up to 3 you like.</p>
+
+<div class="options" data-multiselect>
+
+<div class="option" data-choice="a" onclick="toggleSelect(this)">
+  <div class="letter">A</div>
+  <div class="content">
+    <h3>Sidebar Genre Panel</h3>
+    <p>Fixed left sidebar with genre list. Always visible, no scrolling needed. Navigation-like feel.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="display:flex;gap:0;background:#0d0d0f;border-radius:10px;overflow:hidden">
+        <div style="width:140px;min-width:140px;background:#151518;padding:12px;border-right:1px solid #222">
+          <div style="color:#aaa;font-size:9px;font-weight:700;letter-spacing:2px;margin-bottom:8px">GENRES</div>
+          <div style="color:#f5c842;font-size:11px;font-weight:600;padding:5px 8px;background:rgba(245,200,66,0.12);border-radius:6px;margin-bottom:2px">All</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Action</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Adventure</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Animation</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Comedy</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Crime</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Documentary</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Drama</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Family</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Fantasy</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Horror</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Mystery</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Romance</div>
+          <div style="color:#ccc;font-size:11px;padding:5px 8px">Sci-Fi</div>
+        </div>
+        <div style="flex:1;padding:12px">
+          <div style="color:#fff;font-size:13px;font-weight:700;margin-bottom:4px">Popular Movies</div>
+          <div style="color:#666;font-size:9px;font-weight:700;letter-spacing:3px;margin-bottom:8px">WHAT'S HOT RIGHT NOW</div>
+          <div style="display:flex;gap:8px">
+            <div style="width:80px;height:120px;background:#1a1a20;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px">Poster</div>
+            <div style="width:80px;height:120px;background:#1a1a20;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px">Poster</div>
+            <div style="width:80px;height:120px;background:#1a1a20;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px">Poster</div>
+            <div style="width:80px;height:120px;background:#1a1a20;border-radius:6px;display:flex;align-items:center;justify-content:center;color:#444;font-size:9px">Poster</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="b" onclick="toggleSelect(this)">
+  <div class="letter">B</div>
+  <div class="content">
+    <h3>Genre Card Grid</h3>
+    <p>Replaces pills with larger colored cards in a wrapping grid. Each card has a genre name, icon/emoji, and distinct tint. Visually rich, no scrolling.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;padding:16px">
+        <div style="color:#fff;font-size:13px;font-weight:700;margin-bottom:10px">Browse Movies</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px">
+          <div style="background:rgba(245,200,66,0.18);color:#f5c842;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600;display:flex;align-items:center;gap:4px;border:1px solid rgba(245,200,66,0.25)">All</div>
+          <div style="background:rgba(239,68,68,0.08);color:#f87171;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600;display:flex;align-items:center;gap:4px">💥 Action</div>
+          <div style="background:rgba(34,197,94,0.08);color:#4ade80;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600;display:flex;align-items:center;gap:4px">🗺 Adventure</div>
+          <div style="background:rgba(168,85,247,0.08);color:#a78bfa;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">✦ Animation</div>
+          <div style="background:rgba(251,191,36,0.08);color:#fbbf24;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">😂 Comedy</div>
+          <div style="background:rgba(59,130,246,0.08);color:#60a5fa;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">🔪 Crime</div>
+          <div style="background:rgba(236,72,153,0.08);color:#f472b6;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">🎬 Documentary</div>
+          <div style="background:rgba(14,165,233,0.08);color:#38bdf8;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">🎭 Drama</div>
+          <div style="background:rgba(132,204,22,0.08);color:#a3e635;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">👨‍👩‍👧 Family</div>
+          <div style="background:rgba(250,204,21,0.08);color:#fde047;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">🐉 Fantasy</div>
+          <div style="background:rgba(249,115,22,0.08);color:#fb923c;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">👻 Horror</div>
+          <div style="background:rgba(20,184,166,0.08);color:#2dd4bf;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">🔍 Mystery</div>
+          <div style="background:rgba(217,70,239,0.08);color:#e879f9;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">💕 Romance</div>
+          <div style="background:rgba(56,189,248,0.08);color:#7dd3fc;padding:5px 10px;border-radius:8px;font-size:10px;font-weight:600">🚀 Sci-Fi</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="c" onclick="toggleSelect(this)">
+  <div class="letter">C</div>
+  <div class="content">
+    <h3>Dropdown Picker</h3>
+    <p>Minimal: single "Genre: All ▾" button that opens a grid dropdown. Saves vertical space, clean look. Inspired by macOS menus.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;padding:16px">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="display:flex;align-items:center;gap:6px;background:rgba(245,200,66,0.12);color:#f5c842;padding:7px 14px;border-radius:20px;font-size:11px;font-weight:600;border:1px solid rgba(245,200,66,0.2)">
+            Genre: All <span style="font-size:9px">▾</span>
+          </div>
+          <div style="font-size:9px;color:#666;letter-spacing:2px;font-weight:600">CLICK TO BROWSE</div>
+        </div>
+        <div style="margin-top:8px;display:grid;grid-template-columns:repeat(6,1fr);gap:4px;background:#151518;border-radius:8px;padding:10px;border:1px solid #2a2a2e">
+          <div style="background:rgba(245,200,66,0.15);color:#f5c842;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center;font-weight:600">All</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Action</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Adventure</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Animation</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Comedy</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Crime</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Doc.</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Drama</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Family</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Fantasy</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Horror</div>
+          <div style="color:#ccc;padding:5px 8px;border-radius:6px;font-size:10px;text-align:center">Mystery</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="d" onclick="toggleSelect(this)">
+  <div class="letter">D</div>
+  <div class="content">
+    <h3>Segmented Tabs + Overflow</h3>
+    <p>A narrow tab bar with 4-5 top genres plus a "More ▾" for the rest. Compact, familiar macOS segmented control feel, genre rail disappears into a clean row.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;padding:16px">
+        <div style="color:#fff;font-size:13px;font-weight:700;margin-bottom:10px">Browse Movies</div>
+        <div style="display:flex;gap:2px;background:#1a1a20;border-radius:10px;padding:3px">
+          <div style="background:rgba(245,200,66,0.2);color:#f5c842;padding:7px 16px;border-radius:8px;font-size:11px;font-weight:600">All</div>
+          <div style="color:#999;padding:7px 16px;border-radius:8px;font-size:11px;font-weight:500">Action</div>
+          <div style="color:#999;padding:7px 16px;border-radius:8px;font-size:11px;font-weight:500">Comedy</div>
+          <div style="color:#999;padding:7px 16px;border-radius:8px;font-size:11px;font-weight:500">Drama</div>
+          <div style="color:#999;padding:7px 16px;border-radius:8px;font-size:11px;font-weight:500">Sci-Fi</div>
+          <div style="color:#666;padding:7px 12px;font-size:11px;font-weight:500;display:flex;align-items:center;gap:4px">More ▾</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="e" onclick="toggleSelect(this)">
+  <div class="letter">E</div>
+  <div class="content">
+    <h3>Glass Panel Overlay</h3>
+    <p>A translucent glass/blur overlay that slides in or appears on hover. Shows all genres in a beautiful grid, dismisses on selection. Cinematic, premium feel.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;padding:16px;position:relative">
+        <div style="color:#fff;font-size:13px;font-weight:700;margin-bottom:10px">Browse Movies</div>
+        <div style="display:flex;align-items:center;gap:6px;opacity:0.7">
+          <div style="background:rgba(245,200,66,0.15);color:#f5c842;padding:5px 12px;border-radius:6px;font-size:10px;font-weight:600">All</div>
+          <div style="width:60px;height:1px;background:#333"></div>
+          <div style="font-size:9px;color:#666;letter-spacing:2px;font-weight:600">HOVER TO EXPLORE</div>
+        </div>
+        <!-- Mock overlay -->
+        <div style="margin-top:8px;background:rgba(20,20,28,0.92);backdrop-filter:blur(20px);border-radius:10px;border:1px solid rgba(255,255,255,0.08);padding:12px;display:grid;grid-template-columns:repeat(4,1fr);gap:6px">
+          <div style="background:rgba(245,200,66,0.15);color:#f5c842;padding:8px;border-radius:8px;font-size:10px;font-weight:600;text-align:center;border:1px solid rgba(245,200,66,0.2)">✦ All</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">💥 Action</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">🗺 Adventure</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">✦ Animation</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">😂 Comedy</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">🔪 Crime</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">🎬 Documentary</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">🎭 Drama</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">👨‍👩‍👧 Family</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">🐉 Fantasy</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">👻 Horror</div>
+          <div style="color:#ddd;padding:8px;border-radius:8px;font-size:10px;font-weight:500;text-align:center">🔍 Mystery</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="f" onclick="toggleSelect(this)">
+  <div class="letter">F</div>
+  <div class="content">
+    <h3>Vertical Scroll Strip</h3>
+    <p>Takes the hero's right margin space — a slim vertical strip of genre labels alongside the hero. Hero stays full-width, genre navigation becomes a subtle companion column.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;overflow:hidden">
+        <div style="display:flex">
+          <div style="flex:1;height:180px;background:linear-gradient(135deg,#1a2a3a,#0d1520);display:flex;flex-direction:column;justify-content:center;padding:20px">
+            <div style="color:#aaa;font-size:9px;letter-spacing:2px;font-weight:600">DOCUMENTARY</div>
+            <div style="color:#fff;font-size:20px;font-weight:800;margin:4px 0">Worst Neighbor Ever</div>
+            <div style="color:#999;font-size:10px">⭐ 6.8 &bull; 2026- &bull; Documentary</div>
+          </div>
+          <div style="width:110px;min-width:110px;background:#111116;border-left:1px solid #1e1e24;padding:10px 0;display:flex;flex-direction:column;gap:1px">
+            <div style="background:rgba(245,200,66,0.1);color:#f5c842;padding:6px 12px;font-size:10px;font-weight:600;border-radius:0 4px 4px 0;margin-right:8px">All</div>
+            <div style="color:#999;padding:6px 12px;font-size:10px">Action</div>
+            <div style="color:#999;padding:6px 12px;font-size:10px">Adventure</div>
+            <div style="color:#999;padding:6px 12px;font-size:10px">Animation</div>
+            <div style="color:#999;padding:6px 12px;font-size:10px">Comedy</div>
+            <div style="color:#999;padding:6px 12px;font-size:10px">Crime</div>
+            <div style="color:#999;padding:6px 12px;font-size:10px">Drama</div>
+            <div style="color:#666;padding:6px 12px;font-size:9px">✦ 10 more</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="g" onclick="toggleSelect(this)">
+  <div class="letter">G</div>
+  <div class="content">
+    <h3>Animated Genre Banner (Hybrid)</h3>
+    <p>No standalone genre row. Each content rail has its own inline genre filter — just a subtle label row inside the section header. Genres flow naturally into the browsing experience.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;padding:16px">
+        <div style="display:flex;align-items:baseline;gap:16px;margin-bottom:10px">
+          <div style="color:#fff;font-size:18px;font-weight:800">Action</div>
+          <div style="display:flex;gap:4px;align-items:center">
+            <div style="background:rgba(245,200,66,0.15);color:#f5c842;padding:4px 10px;border-radius:12px;font-size:9px;font-weight:600">Action</div>
+            <div style="color:#555;font-size:9px;font-weight:600;padding:4px 8px">Adventure</div>
+            <div style="color:#555;font-size:9px;font-weight:600;padding:4px 8px">Thriller</div>
+            <div style="color:#555;font-size:9px;font-weight:600;padding:4px 8px">Sci-Fi</div>
+            <div style="color:#555;font-size:9px">···</div>
+          </div>
+        </div>
+        <div style="color:#666;font-size:9px;font-weight:700;letter-spacing:3px;margin-bottom:8px">WHAT'S HOT RIGHT NOW</div>
+        <div style="display:flex;gap:8px">
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+        </div>
+        <div style="margin-top:16px;display:flex;align-items:baseline;gap:16px">
+          <div style="color:#fff;font-size:18px;font-weight:800">Comedy</div>
+          <div style="display:flex;gap:4px">
+            <div style="background:rgba(245,200,66,0.15);color:#f5c842;padding:4px 10px;border-radius:12px;font-size:9px;font-weight:600">Comedy</div>
+            <div style="color:#555;font-size:9px;font-weight:600;padding:4px 8px">Romance</div>
+            <div style="color:#555;font-size:9px;font-weight:600;padding:4px 8px">Family</div>
+          </div>
+        </div>
+        <div style="color:#666;font-size:9px;font-weight:700;letter-spacing:3px;margin:6px 0 8px">BINGE WORTHY</div>
+        <div style="display:flex;gap:8px">
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+          <div style="width:90px;height:130px;background:#1a1a20;border-radius:6px"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="option" data-choice="h" onclick="toggleSelect(this)">
+  <div class="letter">H</div>
+  <div class="content">
+    <h3>Split Genre Grid Below Hero</h3>
+    <p>A compact 2-row grid of genre tiles directly below the hero. All genres visible at a glance, each with a colored dot. Feels like a curated directory, not a filter bar.</p>
+    <div class="mockup" style="margin-top:12px">
+      <div style="background:#0d0d0f;border-radius:10px;padding:16px">
+        <div style="color:#fff;font-size:14px;font-weight:700;margin-bottom:10px">Browse by Genre</div>
+        <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-bottom:10px">
+          <div style="background:rgba(245,200,66,0.2);border:1px solid rgba(245,200,66,0.3);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="color:#f5c842;font-size:10px;font-weight:700">All</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#ef4444;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Action</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#22c55e;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Adventure</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#a855f7;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Animation</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#fbbf24;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Comedy</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#3b82f6;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Crime</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#ec4899;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Doc.</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#06b6d4;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Drama</div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(8,1fr);gap:6px">
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#84cc16;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Family</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#eab308;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Fantasy</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#f97316;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Horror</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#14b8a6;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Mystery</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#c026d3;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Romance</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#0ea5e9;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Sci-Fi</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#ef4444;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">Thriller</div>
+          </div>
+          <div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.04);border-radius:8px;padding:8px 6px;text-align:center">
+            <div style="width:6px;height:6px;background:#64748b;border-radius:50%;margin:0 auto 3px"></div>
+            <div style="color:#ccc;font-size:10px;font-weight:500">War</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div>

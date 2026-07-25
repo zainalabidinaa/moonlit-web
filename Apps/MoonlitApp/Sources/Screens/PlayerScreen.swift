@@ -110,6 +110,7 @@ struct PlayerScreen: View {
                         showControls: $showControls,
                         isLocked: $isLocked
                     )
+#if os(iOS)
                     .gesture(
                         MagnificationGesture()
                             .onEnded { scale in
@@ -119,6 +120,7 @@ struct PlayerScreen: View {
                                 revealControls(scheduleAutoHide: true)
                             }
                     )
+#endif
             }
 
             PlayerFeedbackPill(mode: gestureState.mode, value: feedbackText)
@@ -466,6 +468,7 @@ struct PlayerScreen: View {
     }
 
     @ViewBuilder private var playerTopBar: some View {
+#if os(iOS)
         if #available(iOS 26.0, *) {
             GlassEffectContainer(spacing: 12) {
                 playerTopBarContent
@@ -473,6 +476,9 @@ struct PlayerScreen: View {
         } else {
             playerTopBarContent
         }
+#else
+        playerTopBarContent
+#endif
     }
 
     private var playerTopBarContent: some View {

@@ -59,8 +59,8 @@ public class MPVPlayerEngine: ObservableObject {
     public let bufferedPositionPublisher = PassthroughSubject<Double, Never>()
 
     private var mpv: OpaquePointer?
-    private var metalLayer: MetalLayer?
-    private var displayLink: CVDisplayLink?
+    private var mpvGL: OpaquePointer?
+    private weak var glView: MPVGLView?
     private var eventQueue = DispatchQueue(label: "mpv", qos: .userInitiated)
 
     private var subtitleTrackIds: [String: Int64] = [:]
@@ -77,6 +77,10 @@ public class MPVPlayerEngine: ObservableObject {
     public init() {}
 
     deinit {
+        if let renderCtx = mpvGL {
+            mpvGL = nil
+            mpv_render_context_free(renderCtx)
+        }
         guard let ctx = mpv else { return }
         mpv = nil
         mpv_terminate_destroy(ctx)
@@ -229,7 +233,16 @@ public class MPVPlayerEngine: ObservableObject {
 
     public func setVideoFill(_ fill: Bool) {
         isFillingVideo = fill
-        setFlag("keepaspect", !fill)
+        // "Fill" = zoom the video to cover the whole window, cropping the
+        // overflow while keeping the aspect ratio (panscan=1). "Fit" = classic
+        // letterbox (panscan=0). We keep keepaspect on for both so the image is
+        // never stretched — matching the fit/fill toggle in players like Fusion.
+        var value = fill ? 1.0 : 0.0
+        mpv_set_property(mpv, "panscan", MPV_FORMAT_DOUBLE, &value)
+    }
+
+    public func toggleVideoFill() {
+        setVideoFill(!isFillingVideo)
     }
 
     public func selectAudioTrack(id: Int64) {
@@ -308,18 +321,54 @@ public class MPVPlayerEngine: ObservableObject {
 
     // MARK: - mpv Setup
 
+    /// Creates the libmpv OpenGL render context bound to `glView`'s CGL context,
+    /// then wires the render-update callback so mpv can ask the view to redraw
+    /// (new frame decoded, or a repaint needed after resize). Must run after
+    /// `mpv_initialize` and on the main thread (the GL context lives here).
+    private func setupRenderContext(for glView: MPVGLView) {
+        guard let mpv, let cglContext = glView.openGLContext?.cglContextObj else { return }
+        CGLLockContext(cglContext)
+        CGLSetCurrentContext(cglContext)
+        defer { CGLUnlockContext(cglContext) }
+
+        let apiType = UnsafeMutableRawPointer(mutating: (MPV_RENDER_API_TYPE_OPENGL as NSString).utf8String)
+        var initParams = mpv_opengl_init_params(
+            get_proc_address: { ctx, name in MPVGLView.getProcAddress(ctx, name) },
+            get_proc_address_ctx: nil
+        )
+
+        withUnsafeMutablePointer(to: &initParams) { initParamsPtr in
+            var params = [
+                mpv_render_param(type: MPV_RENDER_PARAM_API_TYPE, data: apiType),
+                mpv_render_param(type: MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, data: initParamsPtr),
+                mpv_render_param()
+            ]
+            var renderCtx: OpaquePointer?
+            let result = mpv_render_context_create(&renderCtx, mpv, &params)
+            if result < 0 {
+                NSLog("[Moonlit][MPV] render context create failed: %d %s", result, mpv_error_string(result))
+                return
+            }
+            self.mpvGL = renderCtx
+            glView.mpvGL = renderCtx
+            mpv_render_context_set_update_callback(renderCtx, { ctx in
+                let engine = Unmanaged<MPVPlayerEngine>.fromOpaque(ctx!).takeUnretainedValue()
+                engine.glView?.requestRedraw()
+            }, Unmanaged.passUnretained(self).toOpaque())
+        }
+    }
+
     private func setupPlayer(with url: URL) {
         mpv = mpv_create()
         guard let mpv else { return }
 
-        checkError("vo", mpv_set_option_string(mpv, "vo", "gpu-next"))
-        checkError("gpu-api", mpv_set_option_string(mpv, "gpu-api", "vulkan"))
-        checkError("gpu-context", mpv_set_option_string(mpv, "gpu-context", "moltenvk"))
-
-        checkError("vulkan-swap-mode", mpv_set_option_string(mpv, "vulkan-swap-mode", "fifo"))
-        checkError("vulkan-queue-count", mpv_set_option_string(mpv, "vulkan-queue-count", "1"))
-        checkError("vulkan-async-compute", mpv_set_option_string(mpv, "vulkan-async-compute", "no"))
-        checkError("vulkan-async-transfer", mpv_set_option_string(mpv, "vulkan-async-transfer", "no"))
+        // Render via the libmpv OpenGL render API (app-owned render loop), not
+        // wid/MoltenVK embedding. This is what makes live window resize work: we
+        // hand mpv a freshly-sized FBO on every draw, so the render target can
+        // never go stale (unlike MoltenVK's swapchain on the wid path). The
+        // matching render context is created against `MPVGLView`'s GL context in
+        // `setupRenderContext(for:)` after `mpv_initialize`.
+        checkError("vo", mpv_set_option_string(mpv, "vo", "libmpv"))
 
         checkError("hwdec", mpv_set_option_string(mpv, "hwdec", "videotoolbox"))
         checkError("target-colorspace-hint", mpv_set_option_string(mpv, "target-colorspace-hint", "yes"))
@@ -335,7 +384,24 @@ public class MPVPlayerEngine: ObservableObject {
         // start together instead of audio running over a black screen.
         checkError("pause", mpv_set_option_string(mpv, "pause", "yes"))
         checkError("video-rotate", mpv_set_option_string(mpv, "video-rotate", "no"))
-        checkError("subs-match-os", mpv_set_option_string(mpv, "subs-match-os-language", "yes"))
+
+        // Preferred audio/subtitle languages. mpv natively auto-selects a
+        // matching embedded track on load — no scanning. When set, the
+        // subtitle preference takes over from the OS-language fallback.
+        let prefs = VideoPlayerPreferenceStore.shared
+        if let audioLang = prefs.preferredAudioLanguage,
+           let language = PlaybackLanguage.named(audioLang) {
+            let value = ([language.code] + language.aliases).joined(separator: ",")
+            checkError("alang", mpv_set_option_string(mpv, "alang", value))
+        }
+        if let subLang = prefs.preferredSubtitleLanguage,
+           let language = PlaybackLanguage.named(subLang) {
+            let value = ([language.code] + language.aliases).joined(separator: ",")
+            checkError("slang", mpv_set_option_string(mpv, "slang", value))
+            checkError("subs-match-os", mpv_set_option_string(mpv, "subs-match-os-language", "no"))
+        } else {
+            checkError("subs-match-os", mpv_set_option_string(mpv, "subs-match-os-language", "yes"))
+        }
         checkError("subs-fallback", mpv_set_option_string(mpv, "subs-fallback", "yes"))
         checkError("log", mpv_request_log_messages(mpv, "warn"))
 
@@ -378,25 +444,16 @@ public class MPVPlayerEngine: ObservableObject {
             checkError("http-header-fields", mpv_set_option_string(mpv, "http-header-fields", serialized))
         }
 
-        let container = MPVContainerView(frame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
-        container.autoresizingMask = [.width, .height]
-        let layer = container.metalLayer
-        self.metalLayer = layer
-        self.playerView = container
-
-        // Force layout on the container so metalLayer inherits real bounds
-        // before mpv_initialize. MoltenVK (gpu-context=moltenvk) reads the
-        // CAMetalLayer's bounds on init to size its Vulkan swapchain — if the
-        // layer is still at .zero, the swapchain is created at zero-size and
-        // garbled frames (or black) show until the first on-screen resize.
-        container.layout()
-
-        var metalLayerPtr = Unmanaged.passUnretained(layer).toOpaque()
-        checkError(mpv_set_option(mpv, "wid", MPV_FORMAT_INT64, &metalLayerPtr))
+        let glView = MPVGLView(frame: NSRect(x: 0, y: 0, width: 1920, height: 1080))
+        glView.autoresizingMask = [.width, .height]
+        self.glView = glView
+        self.playerView = glView
 
         let initResult = mpv_initialize(mpv)
         checkError(initResult)
         NSLog("[Moonlit][MPV] initialize result=%d (0=ok, <0=failed)", initResult)
+
+        setupRenderContext(for: glView)
 
         mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "paused-for-cache", MPV_FORMAT_FLAG)
@@ -765,6 +822,7 @@ public class MPVPlayerEngine: ObservableObject {
         progressTimer = Timer.scheduledTimer(withTimeInterval: 10, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, let launch = self.currentLaunch,
+                      !Self.isLivePlayback(launch),
                       let profile = ProfileManager.shared.currentProfile else { return }
                 await WatchProgressRepository.shared.updateProgress(
                     profileId: profile.id, mediaId: launch.videoId,
@@ -781,6 +839,15 @@ public class MPVPlayerEngine: ObservableObject {
         progressTimer?.invalidate(); progressTimer = nil
         positionTimer?.cancel(); positionTimer = nil
         teardownLifecycle()
+        // Free the render context before terminating mpv, on the main thread where
+        // the GL context lives. This unbinds mpv from the GL view so no further
+        // draws touch a dead context.
+        if let renderCtx = mpvGL {
+            mpvGL = nil
+            glView?.mpvGL = nil
+            mpv_render_context_free(renderCtx)
+        }
+        glView = nil
         if let ctx = mpv {
             mpv = nil
             eventQueue.async {
@@ -840,8 +907,15 @@ public class MPVPlayerEngine: ObservableObject {
         lifecycleObservers = []
     }
 
+    /// Live IPTV channels have no meaningful resume position, so we don't persist
+    /// watch-progress for them — otherwise they'd pollute "Continue Watching".
+    private static func isLivePlayback(_ launch: PlayerLaunch) -> Bool {
+        launch.contentType == .channel || launch.contentType == .tv
+    }
+
     private func persistProgress(launch: PlayerLaunch?, positionSeconds: Double, durationSeconds: Double, completed: Bool) async {
-        guard let launch, let profile = ProfileManager.shared.currentProfile,
+        guard let launch, !Self.isLivePlayback(launch),
+              let profile = ProfileManager.shared.currentProfile,
               positionSeconds > 0 || durationSeconds > 0 else { return }
         let repo = WatchProgressRepository.shared
         await repo.updateProgress(

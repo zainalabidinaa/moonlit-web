@@ -58,10 +58,6 @@ public class MPVPlayerEngine: ObservableObject {
     private var didScheduleFirstFrameReveal = false
     private var launchStartedAt = CACurrentMediaTime()
     private var didReachReadyToPlay = false
-    private var lifecycleObservers: [NSObjectProtocol] = []
-    private var lastStallPosition: Double = 0
-    private var lastStallPositionTime: TimeInterval = 0
-    private var wasUserPaused = false
 
     @Published public var isPlaying = false
     @Published public var isLoading = true
@@ -98,9 +94,11 @@ public class MPVPlayerEngine: ObservableObject {
     public init() {}
 
     deinit {
-        guard let ctx = mpv else { return }
-        mpv = nil  // nil first so the event loop stops reading
-        mpv_terminate_destroy(ctx)
+        // Safety net: if a player screen is torn down without stop()/cleanup() running,
+        // make sure this engine's mpv instance (and its audio) doesn't keep playing.
+        if let mpv {
+            mpv_terminate_destroy(mpv)
+        }
     }
 
     public var displayView: UIView? { playerView }
@@ -122,7 +120,6 @@ public class MPVPlayerEngine: ObservableObject {
         didReachReadyToPlay = false
 
         setupPlayer(with: url)
-        setupLifecycle()
         loadSubtitles(from: launch.subtitles ?? [])
         startProgressTimer()
         print("[Moonlit][MPV] launch.done host=\(url.host ?? "nil") format=\(fmt)")
@@ -132,54 +129,15 @@ public class MPVPlayerEngine: ObservableObject {
         scheduleOpenTimeout(for: launchToken, launch: launch, isHLS: isLikelyHLS(launch))
     }
 
-    /// Nuvio-style source switch: tells mpv to replace the current stream with a new
-    /// URL without destroying the MetalLayer or mpv handle. The old frame is flushed
-    /// internally; the new stream starts loading into the same render surface.
-    public func loadURL(_ urlString: String, headers: [String: String] = [:]) {
-        guard let mpv else { return }
-        didEncounterError = false
-        isLoading = true
-        isPlaying = false
-        isEnded = false
-        hasRenderedFrame = false
-        didReachReadyToPlay = false
-        didScheduleFirstFrameReveal = false
-        lastStallPosition = 0
-        lastStallPositionTime = 0
-        applyRequestHeaders(headers)
-        let rawUrl = urlString
-        command("loadfile", args: [rawUrl, "replace"])
-        print("[Moonlit][MPV] reload.done url=\(rawUrl)")
-    }
-
-    /// Serialize and apply HTTP headers, matching the logic in setupPlayer().
-    private func applyRequestHeaders(_ headers: [String: String]) {
-        guard let mpv else { return }
-        if headers.isEmpty {
-            checkError(mpv_set_property_string(mpv, "http-header-fields", ""))
-            return
-        }
-        let serialized = headers
-            .sorted { $0.key.localizedCaseInsensitiveCompare($1.key) == .orderedAscending }
-            .map { key, value in
-                let escaped = value
-                    .replacingOccurrences(of: "\\", with: "\\\\")
-                    .replacingOccurrences(of: ",", with: "\\,")
-                return "\(key): \(escaped)"
-            }
-            .joined(separator: ",")
-        checkError("http-header-fields", mpv_set_property_string(mpv, "http-header-fields", serialized))
-    }
-
     public func play() {
         setFlag("pause", false)
-        isPlaying = true; isEnded = false; wasUserPaused = false
+        isPlaying = true; isEnded = false
         print("[Moonlit][MPV] play")
     }
 
     public func pause() {
         setFlag("pause", true)
-        isPlaying = false; wasUserPaused = true
+        isPlaying = false
         print("[Moonlit][MPV] pause")
     }
 
@@ -295,47 +253,20 @@ public class MPVPlayerEngine: ObservableObject {
         checkError("vo", mpv_set_option_string(mpv, "vo", "gpu-next"))
         checkError("gpu-api", mpv_set_option_string(mpv, "gpu-api", "vulkan"))
         checkError("gpu-context", mpv_set_option_string(mpv, "gpu-context", "moltenvk"))
-
-        // Vulkan sync — prevents GPU pipeline from blocking the main thread.
-        // NOTE: vulkan-disable-interop=yes is intentionally NOT set here — on
-        // standard MPVKit it creates a Metal device conflict with SwiftUI's
-        // CoreAnimation compositor, causing GPU deadlock + blank screen on relaunch.
-        checkError("vulkan-swap-mode", mpv_set_option_string(mpv, "vulkan-swap-mode", "fifo"))
-        checkError("vulkan-queue-count", mpv_set_option_string(mpv, "vulkan-queue-count", "1"))
-        checkError("vulkan-async-compute", mpv_set_option_string(mpv, "vulkan-async-compute", "no"))
-        checkError("vulkan-async-transfer", mpv_set_option_string(mpv, "vulkan-async-transfer", "no"))
-
-        checkError("hwdec", mpv_set_option_string(mpv, "hwdec", "videotoolbox"))
-        checkError("target-colorspace-hint", mpv_set_option_string(mpv, "target-colorspace-hint", "yes"))
-        checkError("tone-mapping", mpv_set_option_string(mpv, "tone-mapping", "auto"))
-        checkError("hdr-compute-peak", mpv_set_option_string(mpv, "hdr-compute-peak", "yes"))
-        checkError("ao", mpv_set_option_string(mpv, "ao", "avfoundation,audiounit,"))
-        checkError("audio-fallback-to-null", mpv_set_option_string(mpv, "audio-fallback-to-null", "yes"))
-        checkError("audio-channels", mpv_set_option_string(mpv, "audio-channels", "auto"))
-        checkError("keep-open", mpv_set_option_string(mpv, "keep-open", "yes"))
-        checkError("video-rotate", mpv_set_option_string(mpv, "video-rotate", "no"))
+        checkError("hwdec", mpv_set_option_string(mpv, "hwdec", "videotoolbox-copy"))
+        checkError("ao", mpv_set_option_string(mpv, "ao", "audiounit"))
         checkError("subs-match-os", mpv_set_option_string(mpv, "subs-match-os-language", "yes"))
         checkError("subs-fallback", mpv_set_option_string(mpv, "subs-fallback", "yes"))
-        checkError("log", mpv_request_log_messages(mpv, "warn"))
+        checkError("log", mpv_request_log_messages(mpv, "v"))
 
-        // Network timeout so mpv_initialize + loadfile don't block main forever
-        // on a host that accepts TCP but never sends data.
-        checkError("network-timeout", mpv_set_option_string(mpv, "network-timeout", "15"))
-
-        // Mid-playback stall prevention: bound the cache so mpv pauses (instead
-        // of freezing) when the network drops. FFmpeg timeout ensures the socket
-        // read itself doesn't hang indefinitely.
-        checkError("cache-secs", mpv_set_option_string(mpv, "cache-secs", "30"))
-        checkError("cache-pause", mpv_set_option_string(mpv, "cache-pause", "yes"))
-
-        // HTTP MKV streaming from debrid proxies: FFmpeg probes too much data
+        // HTTP MKV streaming from remote proxies: FFmpeg probes too much data
         // on the initial connection (default probesize=5MB), and MKV cues are at
         // the end of the file. Cache + force-seekable let mpv buffer and fake seeks
         // instead of requiring server Range support.
         checkError("cache", mpv_set_option_string(mpv, "cache", "yes"))
         checkError("force-seekable", mpv_set_option_string(mpv, "force-seekable", "yes"))
         checkError("demuxer-lavf-o", mpv_set_option_string(mpv, "demuxer-lavf-o",
-            "probesize=32768,analyzeduration=1000000,timeout=15000000,protocol_whitelist=file,http,https,tcp,tls,crypto,httpproxy"))
+            "probesize=32768,analyzeduration=1000000,protocol_whitelist=file,http,https,tcp,tls,crypto,httpproxy"))
 
         // HTTP headers — mpv's comma-separated "Key: Value, Key: Value" format.
         // Only set when there are actual headers; setting an empty string can
@@ -360,10 +291,9 @@ public class MPVPlayerEngine: ObservableObject {
         }
 
         // Embed mpv in a self-sizing Metal container. The container resizes the layer
-        // and its drawableSize on every layout pass (like Nuvio's layoutMetalLayer);
+        // and its drawableSize on every layout pass (like the reference layoutMetalLayer);
         // a fixed UIScreen.bounds frame left the video rendering tiny in the top-left.
         let container = MPVContainerView(frame: UIScreen.main.bounds)
-        container.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         let layer = container.metalLayer
         self.metalLayer = layer
         self.playerView = container
@@ -378,7 +308,7 @@ public class MPVPlayerEngine: ObservableObject {
         // Observe ONLY low-frequency state. Crucially NOT time-pos: mpv fires time-pos
         // change events dozens of times/second, and each one hops to the main thread and
         // mutates @Published state → a SwiftUI re-render storm that freezes the controls
-        // while mpv keeps playing. Like Nuvio, position/duration are POLLED (positionTimer).
+        // while mpv keeps playing. Like the reference, position/duration are POLLED (positionTimer).
         mpv_observe_property(mpv, 0, "pause", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "paused-for-cache", MPV_FORMAT_FLAG)
         mpv_observe_property(mpv, 0, "eof-reached", MPV_FORMAT_FLAG)
@@ -389,34 +319,14 @@ public class MPVPlayerEngine: ObservableObject {
             client.readEvents()
         }, Unmanaged.passUnretained(self).toOpaque())
 
-        // Load URL asynchronously so the main thread doesn't block on DNS/TCP/TLS.
-        // mpv_command_string hangs until the connection completes or fails —
-        // mpv_command_async returns immediately and delivers the result via event.
-        let rawUrl = url.absoluteString
-        var cargs = (
-            strdup("loadfile"),
-            strdup(rawUrl),
-            strdup("replace"),
-            nil
-        ) as (UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?, UnsafeMutablePointer<CChar>?)
-        var argv: [UnsafePointer<CChar>?] = [
-            UnsafePointer(cargs.0),
-            UnsafePointer(cargs.1),
-            UnsafePointer(cargs.2),
-            nil
-        ]
-        let asyncResult = mpv_command_async(mpv, 0, &argv)
-        if asyncResult < 0 {
-            let msg = String(cString: mpv_error_string(asyncResult))
-            print("[Moonlit][MPV] loadfile async failed: \(asyncResult) \(msg)")
-        }
-        defer {
-            free(cargs.0)
-            free(cargs.1)
-            free(cargs.2)
+        // Load URL — log the result so load failures are visible
+        let loadResult = mpv_command_string(mpv, "loadfile \"\(url.absoluteString)\" replace")
+        if loadResult < 0 {
+            let msg = String(cString: mpv_error_string(loadResult))
+            print("[Moonlit][MPV] loadfile failed: \(loadResult) \(msg)")
         }
 
-        // Poll position/duration at a low rate (Nuvio's model: ~4x/sec) instead of
+        // Poll position/duration at a low rate (the reference model: ~4x/sec) instead of
         // per-frame CADisplayLink polling or observing time-pos. Cheap, and it keeps the
         // main thread free so the controls stay responsive.
         startPositionTimer()
@@ -441,20 +351,6 @@ public class MPVPlayerEngine: ObservableObject {
                 }
                 if currentDur > 0, currentDur != self.duration {
                     self.duration = currentDur
-                }
-                // Mid-playback stall watchdog: if position hasn't budged
-                // for 10s while supposedly playing, the stream is dead.
-                if self.isPlaying, currentPos > 0 {
-                    if abs(currentPos - self.lastStallPosition) > 0.1 {
-                        self.lastStallPosition = currentPos
-                        self.lastStallPositionTime = CACurrentMediaTime()
-                    } else if self.lastStallPositionTime > 0,
-                              CACurrentMediaTime() - self.lastStallPositionTime > 10 {
-                        NSLog("[Moonlit][MPV] stall.detected position=%.2f", currentPos)
-                        self.isLoading = false
-                        self.isPlaying = false
-                        self.didEncounterError = true
-                    }
                 }
             }
         }
@@ -515,19 +411,9 @@ public class MPVPlayerEngine: ObservableObject {
                 guard let self else { return }
                 let reason = event.pointee.data?.load(as: mpv_end_file_reason.self) ?? MPV_END_FILE_REASON_EOF
                 if reason == MPV_END_FILE_REASON_EOF {
-                    // Safety net: debrid error pages (HTML/JSON) sometimes masquerade as
-                    // short-lived media. If mpv reports EOF at < 2 seconds, the stream
-                    // likely delivered an error body instead of actual video.
-                    if self.currentPosition < 2, self.duration > 0, self.duration < 5 {
-                        NSLog("[Moonlit][MPV] short eof position=%.2f duration=%.2f → treating as error", self.currentPosition, self.duration)
-                        self.isLoading = false
-                        self.isPlaying = false
-                        self.didEncounterError = true
-                    } else {
-                        self.isEnded = true
-                        self.isPlaying = false
-                        self.isLoading = false
-                    }
+                    self.isEnded = true
+                    self.isPlaying = false
+                    self.isLoading = false
                 } else if reason != MPV_END_FILE_REASON_STOP {
                     self.isLoading = false
                     self.isPlaying = false
@@ -535,10 +421,8 @@ public class MPVPlayerEngine: ObservableObject {
                 }
             }
         case MPV_EVENT_SHUTDOWN:
-            if let ctx = mpv {
-                mpv = nil
-                mpv_terminate_destroy(ctx)
-            }
+            mpv_terminate_destroy(mpv)
+            self.mpv = nil
         case MPV_EVENT_LOG_MESSAGE:
             let msg = UnsafeMutablePointer<mpv_event_log_message>(OpaquePointer(event.pointee.data))
             if let msg {
@@ -557,7 +441,7 @@ public class MPVPlayerEngine: ObservableObject {
     private func applyFlag(_ name: String, _ value: Bool) {
         switch name {
         case "pause":
-            isPlaying = !value
+            if value == isPlaying { isPlaying = !value }
         case "paused-for-cache":
             if hasRenderedFrame { isLoading = value }
         default:
@@ -761,17 +645,9 @@ public class MPVPlayerEngine: ObservableObject {
         progressTimer?.invalidate(); progressTimer = nil
         positionTimer?.cancel(); positionTimer = nil
         displayLink?.invalidate(); displayLink = nil
-        teardownLifecycle()
-        if let ctx = mpv {
-            mpv = nil  // nil first so the event loop stops reading
-            // Destroy on the SAME serial queue that runs the event loop and all
-            // property reads (refreshTracks/getInt/…). This orders destruction
-            // strictly after any in-flight read, preventing a use-after-free when
-            // the player is dismissed mid-load. (A concurrent global queue here
-            // raced refreshTracks → mpv_get_property → EXC_BAD_ACCESS.)
-            eventQueue.async {
-                mpv_terminate_destroy(ctx)
-            }
+        if let mpv {
+            mpv_terminate_destroy(mpv)
+            self.mpv = nil
         }
         playerView = nil
         currentLaunch = nil
@@ -782,7 +658,6 @@ public class MPVPlayerEngine: ObservableObject {
         launchToken += 1
         isPlaying = false; isLoading = true; isEnded = false; hasRenderedFrame = false
         didEncounterError = false
-        lastStallPosition = 0; lastStallPositionTime = 0; wasUserPaused = false
         currentPosition = 0; duration = 0; lastPlaybackSpeed = 1.0
         bufferedPosition = 0
         availableSubtitles = []
@@ -790,39 +665,6 @@ public class MPVPlayerEngine: ObservableObject {
         availableAudioTracks = []
         selectedAudioTrack = nil
         loadedCues = []
-    }
-
-    private func setupLifecycle() {
-        teardownLifecycle()
-        var observers: [NSObjectProtocol] = []
-        observers.append(
-            NotificationCenter.default.addObserver(
-                forName: UIApplication.didEnterBackgroundNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                guard let self, self.mpv != nil else { return }
-                self.pause()
-                self.setStringProperty("vid", "no")
-            }
-        )
-        observers.append(
-            NotificationCenter.default.addObserver(
-                forName: UIApplication.willEnterForegroundNotification,
-                object: nil,
-                queue: .main
-            ) { [weak self] _ in
-                guard let self, self.mpv != nil else { return }
-                self.setStringProperty("vid", "auto")
-                if !self.wasUserPaused { self.play() }
-            }
-        )
-        lifecycleObservers = observers
-    }
-
-    private func teardownLifecycle() {
-        lifecycleObservers.forEach { NotificationCenter.default.removeObserver($0) }
-        lifecycleObservers = []
     }
 
     private func persistProgress(launch: PlayerLaunch?, positionSeconds: Double, durationSeconds: Double, completed: Bool) async {

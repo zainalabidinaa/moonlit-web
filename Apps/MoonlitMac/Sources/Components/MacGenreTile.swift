@@ -89,6 +89,13 @@ struct MacGenreTile: View {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
             )
+            // The tile's visible color is its palette gradient, not the dimmed
+            // backdrops underneath — glow with the palette, not extracted art.
+            .macTileGlow(
+                isHovering: isHovering,
+                artworkURL: nil,
+                fallbackColor: palette.from
+            )
             .offset(y: isHovering ? -4 : 0)
             .animation(.easeOut(duration: 0.30), value: isHovering)
         }

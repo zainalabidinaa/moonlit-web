@@ -272,6 +272,246 @@ public class HomeRepository: ObservableObject {
         return CatalogRepository.shared.catalogRows
     }
 
+    private nonisolated static let dismissedKey = "com.moonlit.continueWatching.dismissedIds"
+
+    private nonisolated static func dismissedIds() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: dismissedKey) ?? [])
+    }
+
+    private nonisolated static func addDismissedId(_ id: String) {
+        var ids = dismissedIds()
+        ids.insert(id)
+        UserDefaults.standard.set(Array(ids), forKey: dismissedKey)
+    }
+
+    /// Reactive advance pass over the Continue Watching row: any card whose
+    /// current episode is watched — via `watched_items` (the eye toggle /
+    /// context menu) OR a completed progress row (finished playback) — flips
+    /// in place to the next unwatched episode: **Up Next** if it has aired,
+    /// **Upcoming + air date** if not, removed only when the series has no
+    /// further episodes. Also appends cards for recently-finished series that
+    /// aren't in the row at all. Re-run this whenever watched state changes,
+    /// not just at startup.
+    public func advanceContinueWatching(profileId: String) async {
+        let watchedRepo = WatchProgressRepository.shared
+        if watchedRepo.watchedItems.isEmpty && watchedRepo.progressEntries.isEmpty {
+            await watchedRepo.loadAll(profileId: profileId)
+        }
+
+        // Snapshot watched state into a plain Sendable set so the resolver
+        // task group doesn't hop actors per episode check.
+        var watchedKeys = Set<String>()
+        for item in watchedRepo.watchedItems {
+            guard let s = item.season, let e = item.episode else { continue }
+            let parent = Self.parentId(fromMediaId: item.mediaId)
+            watchedKeys.insert(Self.watchedKey(parent, s, e))
+        }
+        for entry in watchedRepo.progressEntries where entry.completed {
+            if let s = entry.inferredSeason, let e = entry.inferredEpisode {
+                watchedKeys.insert(Self.watchedKey(entry.parentOrSelfMediaId, s, e))
+            }
+        }
+
+        let addonRepo = AddonRepository.shared
+        let dismissed = Self.dismissedIds()
+        let seriesTypes: Set<String> = ["series", "tv", "show", "shows", "anime"]
+        let keys = watchedKeys
+
+        // ── Pass 1: advance existing cards in place (keeps row order) ──
+        let snapshot = continueWatchingItems
+        var resolved: [String: ContinueWatchingItem?] = [:]
+        await withTaskGroup(of: (String, ContinueWatchingItem??).self) { group in
+            for item in snapshot {
+                guard seriesTypes.contains(item.mediaType.lowercased()) else { continue }
+                let addons = addonRepo.findAddonWithMetaResource(type: item.mediaType)
+                group.addTask {
+                    (item.mediaId, await Self.advancedCard(for: item, watchedKeys: keys, addons: addons))
+                }
+            }
+            for await (id, result) in group {
+                // Inner optional distinguishes "no change" (nil) from
+                // "resolved to a new card or removal" (.some).
+                if let result { resolved[id] = result }
+            }
+        }
+        if !resolved.isEmpty {
+            continueWatchingItems = continueWatchingItems.compactMap { item in
+                guard let change = resolved[item.mediaId] else { return item }
+                return change  // new card, or nil → series exhausted, drop it
+            }
+        }
+
+        // ── Pass 2: append cards for finished series not in the row ──
+        let recentWindow: TimeInterval = 45 * 24 * 3600
+        let inRowParents = Set(continueWatchingItems.map { ($0.parentMediaId ?? $0.mediaId).lowercased() })
+        var seenParents = Set<String>()
+        var candidates: [(parent: String, season: Int, episode: Int, mediaType: String)] = []
+        for item in watchedRepo.watchedItems.sorted(by: { $0.markedAt > $1.markedAt }) {
+            guard seriesTypes.contains(item.mediaType.lowercased()),
+                  let s = item.season, let e = item.episode,
+                  Date().timeIntervalSince(item.markedAt) < recentWindow else { continue }
+            let parent = Self.parentId(fromMediaId: item.mediaId)
+            let key = parent.lowercased()
+            guard !inRowParents.contains(key), !dismissed.contains(parent), !seenParents.contains(key) else { continue }
+            seenParents.insert(key)
+            candidates.append((parent, s, e, item.mediaType))
+        }
+        guard !candidates.isEmpty else { return }
+
+        var newItems: [ContinueWatchingItem] = []
+        await withTaskGroup(of: ContinueWatchingItem?.self) { group in
+            for candidate in candidates.prefix(6) {
+                let addons = addonRepo.findAddonWithMetaResource(type: candidate.mediaType)
+                group.addTask {
+                    await Self.nextEpisodeCard(
+                        parentId: candidate.parent,
+                        after: (candidate.season, candidate.episode),
+                        mediaType: candidate.mediaType,
+                        watchedKeys: keys,
+                        addons: addons
+                    )
+                }
+            }
+            for await item in group {
+                if let item { newItems.append(item) }
+            }
+        }
+        if !newItems.isEmpty {
+            continueWatchingItems.append(contentsOf: newItems)
+        }
+    }
+
+    /// Resolves what a Continue Watching card should become given current
+    /// watched state. Returns `nil` for "leave unchanged", `.some(nil)` for
+    /// "remove — series exhausted", `.some(card)` for an in-place flip.
+    private nonisolated static func advancedCard(
+        for item: ContinueWatchingItem,
+        watchedKeys: Set<String>,
+        addons: [AddonManifest]
+    ) async -> ContinueWatchingItem?? {
+        guard let season = item.seasonNumber, let episode = item.episodeNumber else { return nil }
+        let parentId = item.parentMediaId ?? parentId(fromMediaId: item.mediaId)
+        let currentWatched = watchedKeys.contains(watchedKey(parentId, season, episode))
+
+        if item.isUpcoming && !currentWatched {
+            // The episode may have aired since the card was made — flip the
+            // badge without moving to a different episode.
+            if let airsAt = item.upcomingAirsAt, airsAt <= Date() {
+                return .some(remade(item, parentId: parentId, season: season, episode: episode, upNext: true, airsAt: nil))
+            }
+            return nil
+        }
+        guard currentWatched else { return nil }
+        return .some(await nextEpisodeCard(
+            parentId: parentId, after: (season, episode), mediaType: item.mediaType,
+            watchedKeys: watchedKeys, addons: addons,
+            fallbackName: item.name, fallbackPoster: item.poster,
+            fallbackLogo: item.logo, fallbackBackground: item.background
+        ))
+    }
+
+    /// Builds an Up Next / Upcoming card for the first unwatched episode
+    /// after `current`, or `nil` when the series has nothing further.
+    private nonisolated static func nextEpisodeCard(
+        parentId: String,
+        after current: (season: Int, episode: Int),
+        mediaType: String,
+        watchedKeys: Set<String>,
+        addons: [AddonManifest],
+        fallbackName: String? = nil,
+        fallbackPoster: String? = nil,
+        fallbackLogo: String? = nil,
+        fallbackBackground: String? = nil
+    ) async -> ContinueWatchingItem? {
+        guard let meta = await MetaRepository.shared.fetchDetail(type: "series", id: parentId, addons: addons) else { return nil }
+        let ordered = orderedEpisodes(in: meta)
+        guard let next = ordered.first(where: { video in
+            guard let vs = video.season, let ve = video.episode, vs >= 1 else { return false }
+            guard (vs, ve) > (current.season, current.episode) else { return false }
+            return !watchedKeys.contains(watchedKey(parentId, vs, ve))
+        }) else { return nil }
+
+        let nextSeason = next.season ?? current.season
+        let nextEpisode = next.episode ?? current.episode + 1
+        let airDate = parseReleaseDate(next.released)
+        let hasAired = airDate.map { $0 <= Date() } ?? true
+        let name = meta.name == "Unknown" ? (fallbackName ?? meta.name) : meta.name
+
+        return ContinueWatchingItem(
+            mediaId: "\(parentId):\(nextSeason):\(nextEpisode)",
+            parentMediaId: parentId,
+            mediaType: mediaType,
+            name: name,
+            poster: meta.poster ?? fallbackPoster,
+            logo: meta.logo ?? fallbackLogo,
+            background: meta.background ?? fallbackBackground,
+            seasonNumber: nextSeason,
+            episodeNumber: nextEpisode,
+            episodeTitle: next.title,
+            thumbnail: next.thumbnail,
+            isUpNext: hasAired,
+            isUpcoming: !hasAired,
+            upcomingAirsAt: hasAired ? nil : airDate
+        )
+    }
+
+    private nonisolated static func remade(
+        _ item: ContinueWatchingItem, parentId: String, season: Int, episode: Int,
+        upNext: Bool, airsAt: Date?
+    ) -> ContinueWatchingItem {
+        ContinueWatchingItem(
+            mediaId: item.mediaId, parentMediaId: parentId, mediaType: item.mediaType,
+            name: item.name, poster: item.poster, logo: item.logo, background: item.background,
+            seasonNumber: season, episodeNumber: episode,
+            episodeTitle: item.episodeTitle, thumbnail: item.thumbnail,
+            isUpNext: upNext, isUpcoming: !upNext, upcomingAirsAt: airsAt
+        )
+    }
+
+    private nonisolated static func orderedEpisodes(in meta: MetaDetail) -> [MetaVideo] {
+        let all: [MetaVideo]
+        if let videos = meta.videos, !videos.isEmpty {
+            all = videos
+        } else if let seasons = meta.seasons {
+            all = seasons.flatMap { $0.episodes ?? [] }
+        } else {
+            return []
+        }
+        return all.sorted { (($0.season ?? 0), ($0.episode ?? 0)) < (($1.season ?? 0), ($1.episode ?? 0)) }
+    }
+
+    private nonisolated static func watchedKey(_ parent: String, _ season: Int, _ episode: Int) -> String {
+        "\(parent.lowercased())|\(season)|\(episode)"
+    }
+
+    private nonisolated static func parentId(fromMediaId mediaId: String) -> String {
+        let decoded = mediaId.removingPercentEncoding ?? mediaId
+        return decoded.split(separator: ":").first.map(String.init) ?? decoded
+    }
+
+    /// Removes a card from Continue Watching. For a real in-progress entry
+    /// this also deletes the underlying synced watch-progress row; for a
+    /// synthetic Up Next / Upcoming card (nothing to delete server-side) it
+    /// just remembers the dismissal locally so it doesn't reappear.
+    public func removeFromContinueWatching(_ item: ContinueWatchingItem) async {
+        continueWatchingItems.removeAll { $0.mediaId == item.mediaId }
+        if item.isUpNext || item.isUpcoming {
+            Self.addDismissedId(item.parentMediaId ?? item.mediaId)
+            return
+        }
+        guard let entry = WatchProgressRepository.shared.progressEntries.first(where: { $0.mediaId == item.mediaId }) else { return }
+        try? await syncService.deleteWatchProgress(id: entry.id)
+    }
+
+    private nonisolated static func parseReleaseDate(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if let date = ISO8601DateFormatter().date(from: raw) { return date }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        return formatter.date(from: String(raw.prefix(10)))
+    }
+
     private nonisolated static func matchEpisode(
         in meta: MetaDetail,
         decodedMediaId: String,

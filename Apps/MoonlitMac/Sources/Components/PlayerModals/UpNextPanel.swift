@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// Harbor-exact "Up Next" side panel (`src/components/player/episode-panel`):
+/// reference-style "Up Next" side panel (`src/components/player/episode-panel`):
 /// a solid-surface slide-in list with a season selector, per-episode
 /// Play/Restart pills, and expandable episode details (air date, rating,
 /// overview) behind a chevron toggle. "Restart" replays the current episode;
@@ -262,14 +262,14 @@ private struct UpNextRow: View {
                 if let voteAvg = episode.voteAverage, voteAvg > 0 {
                     HStack(spacing: 4) {
                         Image(systemName: "star.fill").font(.system(size: 11))
-                            .foregroundColor(MoonlitTheme.harborGold)
+                            .foregroundColor(MoonlitTheme.ratingGold)
                         Text(String(format: "%.1f", voteAvg))
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(MoonlitTheme.harborGold)
+                            .foregroundColor(MoonlitTheme.ratingGold)
                     }
                     .padding(.horizontal, 8).padding(.vertical, 4)
-                    .background(MoonlitTheme.harborGold.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(MoonlitTheme.harborGold.opacity(0.25), lineWidth: 1))
+                    .background(MoonlitTheme.ratingGold.opacity(0.15), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(MoonlitTheme.ratingGold.opacity(0.25), lineWidth: 1))
                 }
 
                 if let airDate = formattedAirDate {
@@ -303,7 +303,7 @@ private struct UpNextRow: View {
     }
 }
 
-/// Harbor-exact vertical "UP NEXT" tab on the video's trailing edge
+/// reference-style vertical "UP NEXT" tab on the video's trailing edge
 /// (`src/views/player/panels-layer.tsx`). Tapping opens `UpNextPanel`.
 struct UpNextTab: View {
     let action: () -> Void

@@ -61,8 +61,13 @@ struct StreamSelectionScreen: View {
                     backgroundURL: background ?? resolvedBackground ?? episodeThumbnail ?? poster ?? resolvedPoster,
                     logoURL: loadingLogoURL,
                     title: mediaName,
-                    statusOverride: automaticStatusOverride
+                    statusOverride: playbackUnavailable ? " " : nil
                 )
+                .overlay {
+                    if playbackUnavailable {
+                        PlaybackUnavailableAlert(contextTitle: playbackContextTitle)
+                    }
+                }
                 .overlay(alignment: .topLeading) {
                     Button {
                         dismiss()
@@ -96,10 +101,10 @@ struct StreamSelectionScreen: View {
         } message: {
             Text("This stream doesn't have a direct playback URL.")
         }
-        .alert("Upgrade Required", isPresented: $upgradeAlert) {
+        .alert("Streaming unavailable", isPresented: $upgradeAlert) {
             Button("OK", role: .cancel) {}
         } message: {
-            Text("Your account is set to Free. Visit the Moonlit website to upgrade your account and unlock streaming.")
+            Text("Streaming isn't available on this account.")
         }
         .onChange(of: streamRepo.streams) { _, streams in
             cachedPlayableStreams = StreamSourceSelector.playbackCandidates(from: streams)
@@ -146,12 +151,18 @@ struct StreamSelectionScreen: View {
         (logo ?? resolvedLogo).flatMap(URL.init)
     }
 
-    /// Static status shown on the branded card instead of the animated dots —
-    /// `nil` while resolving (so "Loading" animates), a message once empty.
-    private var automaticStatusOverride: String? {
-        guard !streamRepo.isLoading else { return nil }
-        if streamRepo.streams.isEmpty && didAutoLaunch { return "No streams available" }
-        return nil
+    private var playbackUnavailable: Bool {
+        !streamRepo.isLoading && didAutoLaunch && cachedPlayableStreams.isEmpty
+    }
+
+    private var playbackContextTitle: String {
+        if let episodeTitle, !episodeTitle.isEmpty {
+            if let seasonNumber, let episodeNumber {
+                return "S\(seasonNumber)E\(episodeNumber) · \(episodeTitle)"
+            }
+            return episodeTitle
+        }
+        return mediaName
     }
 
     private var manualPickerContent: some View {
@@ -251,7 +262,7 @@ struct StreamSelectionScreen: View {
                 .background(Circle().fill(.white))
         }
         .padding(14)
-        .glassCard(cornerRadius: 14, interactive: true)
+        .glassCard(cornerRadius: MoonlitTheme.radiusCard, interactive: true)
     }
 
     private func launchStream(_ stream: StreamItem) {
@@ -439,4 +450,27 @@ struct StreamSelectionScreen: View {
         if needsPoster { resolvedPoster = detail.poster }
     }
 
+}
+
+private struct PlaybackUnavailableAlert: View {
+    let contextTitle: String
+
+    var body: some View {
+        VStack(spacing: 14) {
+            Text(contextTitle)
+                .font(.headline)
+                .foregroundStyle(.white)
+                .lineLimit(2)
+            Text("No results found.")
+                .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.64))
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 28)
+        .padding(.vertical, 24)
+        .glassCard(cornerRadius: 24)
+        .padding(.horizontal, 28)
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("\(contextTitle). No results found.")
+    }
 }

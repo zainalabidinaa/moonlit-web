@@ -1,7 +1,7 @@
 import Foundation
 
 /// Small ISO 639-1 → flag-emoji lookup shared by the audio and subtitle
-/// track panels (Harbor shows a country flag next to each language).
+/// track panels (the reference shows a country flag next to each language).
 /// Falls back to a globe glyph for codes we don't have a mapping for.
 enum LanguageFlag {
     private static let map: [String: String] = [

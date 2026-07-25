@@ -88,7 +88,7 @@ struct MacAddonsView: View {
                 } label: {
                     HStack(spacing: 7) {
                         if isInstalling {
-                            MacLottieLoadingView(size: 18)
+                            MacStrokeSpinner(size: 14)
                         }
                         Text(isInstalling ? "Installing" : "Install")
                     }

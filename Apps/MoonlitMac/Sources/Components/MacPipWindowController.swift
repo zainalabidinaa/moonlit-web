@@ -1,7 +1,7 @@
 import AppKit
 
 /// mpv has no `AVPictureInPictureController` path (that's tied to
-/// `AVPlayerLayer`, iOS/macOS AVFoundation-only) — so, like Harbor's own
+/// `AVPlayerLayer`, iOS/macOS AVFoundation-only) — so
 /// Tauri desktop build, "PiP" here means a small floating always-on-top
 /// window that owns the existing mpv view, not real video-track PiP.
 @MainActor

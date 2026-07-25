@@ -6,6 +6,8 @@ public final class HeroPreferenceStore: ObservableObject {
 
     @Published public private(set) var disabledRowTitles: Set<String>
     @Published public private(set) var rowOrder: [String]
+    /// User-selected hero catalog (`CatalogRow.id`). `nil` = default (trending).
+    @Published public private(set) var heroCatalogId: String?
     @Published public private(set) var revision = 0
 
     private let defaults: UserDefaults
@@ -14,6 +16,8 @@ public final class HeroPreferenceStore: ObservableObject {
     private struct Stored: Codable {
         var disabledRowTitles: Set<String>
         var rowOrder: [String]
+        // Optional so existing stored preferences decode without the key.
+        var heroCatalogId: String?
     }
 
     public convenience init() { self.init(defaults: .standard) }
@@ -24,9 +28,11 @@ public final class HeroPreferenceStore: ObservableObject {
            let stored = try? JSONDecoder().decode(Stored.self, from: data) {
             disabledRowTitles = stored.disabledRowTitles
             rowOrder = stored.rowOrder
+            heroCatalogId = stored.heroCatalogId
         } else {
             disabledRowTitles = []
             rowOrder = []
+            heroCatalogId = nil
         }
     }
 
@@ -51,8 +57,18 @@ public final class HeroPreferenceStore: ObservableObject {
         save()
     }
 
+    /// Set the hero catalog override. `nil` restores the default (trending).
+    public func setHeroCatalogId(_ id: String?) {
+        heroCatalogId = id
+        save()
+    }
+
     private func save() {
-        let stored = Stored(disabledRowTitles: disabledRowTitles, rowOrder: rowOrder)
+        let stored = Stored(
+            disabledRowTitles: disabledRowTitles,
+            rowOrder: rowOrder,
+            heroCatalogId: heroCatalogId
+        )
         if let data = try? JSONEncoder().encode(stored) {
             defaults.set(data, forKey: key)
         }

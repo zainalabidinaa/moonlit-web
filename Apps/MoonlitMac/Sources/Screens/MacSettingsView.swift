@@ -123,7 +123,7 @@ struct MacSettingsView: View {
                             .lineLimit(1)
                         Text(roleManager.isAdmin ? "Admin" : "Profile")
                             .font(.system(size: 10, weight: .semibold))
-                            .foregroundStyle(MoonlitTheme.harborGold)
+                            .foregroundStyle(MoonlitTheme.ratingGold)
                     }
                     Spacer()
                 }
@@ -149,7 +149,7 @@ struct MacSettingsView: View {
                     .overlay(
                         Image(systemName: category.icon)
                             .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(isSelected ? MoonlitTheme.harborGold : .white.opacity(0.55))
+                            .foregroundStyle(isSelected ? MoonlitTheme.ratingGold : .white.opacity(0.55))
                     )
 
                 Text(category.title)
@@ -307,6 +307,10 @@ struct MacSettingsView: View {
             MacSettingsDivider()
             cinematicModeRow
         }
+
+        settingsSection("Poster card style") {
+            MacPosterCardStyleView()
+        }
     }
 
     @ViewBuilder
@@ -418,10 +422,10 @@ struct MacSettingsView: View {
                         if roleManager.isAdmin {
                             Text("Admin")
                                 .font(.caption.weight(.bold))
-                                .foregroundStyle(MoonlitTheme.harborGold)
+                                .foregroundStyle(MoonlitTheme.ratingGold)
                                 .padding(.horizontal, 8)
                                 .padding(.vertical, 3)
-                                .background(MoonlitTheme.harborGold.opacity(0.18), in: Capsule())
+                                .background(MoonlitTheme.ratingGold.opacity(0.18), in: Capsule())
                         }
                     }
                     if let email = profileManager.currentSession?.email {
@@ -805,6 +809,118 @@ private struct MacSettingsDivider: View {
             .fill(Color.white.opacity(0.08))
             .frame(height: 1)
             .padding(.leading, 66)
+    }
+}
+
+// MARK: - Poster card style ( tuning: size + corner radius)
+
+private struct MacPosterCardStyleView: View {
+    @AppStorage(PosterStyle.scaleKey) private var scale: Double = PosterStyle.defaultScale
+    @AppStorage(PosterStyle.radiusKey) private var radius: Double = PosterStyle.defaultRadius
+
+    private let sizePresets: [(label: String, scale: Double)] = [
+        ("Compact", 0.8), ("Dense", 0.9), ("Standard", 1.0),
+        ("Balanced", 1.15), ("Comfort", 1.3), ("Large", 1.5),
+    ]
+    private let radiusPresets: [(label: String, px: Double)] = [
+        ("Sharp", 0), ("Subtle", 6), ("Classic", 12), ("Rounded", 18), ("Pill", 28),
+    ]
+
+    private var posterWidth: CGFloat { PosterStyle.width(scale: scale) }
+    private var posterHeight: CGFloat { PosterStyle.height(scale: scale) }
+
+    // Fit the preview inside the panel: scale the whole tile (and its radius)
+    // down proportionally so width + radius stay truthful to each other.
+    private var previewScale: CGFloat { min(1, 132 / posterWidth) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Tune the size and corner radius of every poster across Home, Discover, and your library. The preview updates live.")
+                .font(.caption)
+                .foregroundStyle(MoonlitTheme.textTertiary)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 6)
+
+            HStack(alignment: .top, spacing: 24) {
+                preview
+                controls
+            }
+        }
+        .padding(18)
+    }
+
+    private var preview: some View {
+        VStack(spacing: 10) {
+            RoundedRectangle(cornerRadius: radius * previewScale, style: .continuous)
+                .fill(MoonlitTheme.surfaceElevated)
+                .frame(width: posterWidth * previewScale, height: posterHeight * previewScale)
+                .overlay(
+                    Image(systemName: "film")
+                        .font(.system(size: 22, weight: .regular))
+                        .foregroundStyle(.white.opacity(0.28))
+                )
+                .animation(.easeOut(duration: 0.18), value: scale)
+                .animation(.easeOut(duration: 0.18), value: radius)
+
+            VStack(spacing: 4) {
+                metricRow("Width", "\(Int(posterWidth))px")
+                metricRow("Height", "\(Int(posterHeight))px")
+                metricRow("Corner", "\(Int(radius))px")
+            }
+            .frame(width: 132)
+        }
+        .frame(width: 148)
+    }
+
+    private func metricRow(_ label: String, _ value: String) -> some View {
+        HStack {
+            Text(label).foregroundStyle(MoonlitTheme.textTertiary)
+            Spacer()
+            Text(value).foregroundStyle(.white).monospacedDigit()
+        }
+        .font(.system(size: 12))
+    }
+
+    private var controls: some View {
+        VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel("Size")
+                Picker("", selection: $scale) {
+                    ForEach(sizePresets, id: \.scale) { Text($0.label).tag($0.scale) }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                Slider(value: $scale, in: 0.6...2.0)
+                    .controlSize(.small)
+            }
+
+            VStack(alignment: .leading, spacing: 8) {
+                sectionLabel("Corner radius")
+                Picker("", selection: $radius) {
+                    ForEach(radiusPresets, id: \.px) { Text($0.label).tag($0.px) }
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                Slider(value: $radius, in: 0...40, step: 1)
+                    .controlSize(.small)
+            }
+
+            Button("Reset to defaults") {
+                scale = PosterStyle.defaultScale
+                radius = PosterStyle.defaultRadius
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 12, weight: .medium))
+            .foregroundStyle(MoonlitTheme.accent)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func sectionLabel(_ text: String) -> some View {
+        Text(text.uppercased())
+            .font(.system(size: 11, weight: .bold))
+            .tracking(1)
+            .foregroundStyle(MoonlitTheme.textTertiary)
     }
 }
 
@@ -1319,7 +1435,7 @@ private struct MacLoadingBlock: View {
 
     var body: some View {
         VStack(spacing: 14) {
-            MacLottieLoadingView(size: 42)
+            MacStrokeSpinner(size: 26)
             Text(text)
                 .font(.subheadline)
                 .foregroundStyle(MoonlitTheme.textSecondary)

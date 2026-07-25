@@ -464,7 +464,9 @@ struct SettingsScreen: View {
             }
             .background(MoonlitTheme.background)
             .navigationTitle("Settings")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+#endif
             .sheet(isPresented: $showAddons) { AddonsScreen() }
             .sheet(isPresented: $showAuth) {
                 AuthScreen()
@@ -713,7 +715,9 @@ struct StreamAutoplaySettingsScreen: View {
         }
         .background(MoonlitTheme.background)
         .navigationTitle("Stream Auto-Play")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
         .task {
             loadPreferences()
             guard let profile = profileManager.currentProfile else { return }
@@ -989,7 +993,9 @@ struct MetadataIntegrationsScreen: View {
         }
         .background(MoonlitTheme.background)
         .navigationTitle("Integrations")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
         .task {
             await checkConnections()
         }
@@ -1220,11 +1226,15 @@ struct CatalogManagementScreen: View {
                             }
                         }
                     }
+#if os(iOS)
                     .scrollContentBackground(.hidden)
+#endif
                 }
             }
             .navigationTitle("Catalog Management")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .task {
                 if collectionRepo.collections.isEmpty {
                     await collectionRepo.refreshForCatalogRows()
@@ -1414,14 +1424,18 @@ struct AddonsScreen: View {
                             }
                         }
                     }
+#if os(iOS)
                     .scrollContentBackground(.hidden)
+#endif
                     .refreshable {
                         await loadAddonsForCurrentMode()
                     }
                 }
             }
             .navigationTitle(isGuestAddonsMode ? "Catalog Addons" : "Addons")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button { showAddSheet = true } label: {
@@ -1494,7 +1508,9 @@ struct AddonsScreen: View {
                     .padding(.top)
                     .background(MoonlitTheme.background)
                     .navigationTitle("Add Addon")
+#if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
+#endif
                     .toolbar {
                         ToolbarItem(placement: .cancellationAction) {
                             Button("Cancel") {

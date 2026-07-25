@@ -15,6 +15,7 @@ struct EpisodeInfoPanel: View {
     let guestStarIDs: Set<String>
     let isLoadingGuestStars: Bool
     let onClose: () -> Void
+    var onOpenFullDetails: (() -> Void)?
 
     @State private var appeared = false
 
@@ -68,7 +69,7 @@ struct EpisodeInfoPanel: View {
             }
             .padding(22)
         }
-        .harborPanel(cornerRadius: 18)
+        .playerChromePanel(cornerRadius: 18)
     }
 
     // MARK: - Header
@@ -151,9 +152,22 @@ struct EpisodeInfoPanel: View {
     private var metaAndOverview: some View {
         VStack(alignment: .leading, spacing: 12) {
             metaRow
-            Text("\(seriesTitle) · Season \(episode.season ?? 0)")
-                .font(.system(size: 11.5))
-                .foregroundColor(PlayerPalette.inkSubtle)
+            HStack(spacing: 10) {
+                Text("\(seriesTitle) · Season \(episode.season ?? 0)")
+                    .font(.system(size: 11.5))
+                    .foregroundColor(PlayerPalette.inkSubtle)
+                if let onOpenFullDetails {
+                    Button(action: onOpenFullDetails) {
+                        HStack(spacing: 4) {
+                            Text("Open full details")
+                            Image(systemName: "arrow.up.right")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(PlayerPalette.ink)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
 
             if let overview = episode.overview, !overview.isEmpty {
                 Text(overview)
@@ -177,10 +191,10 @@ struct EpisodeInfoPanel: View {
                 HStack(spacing: 3) {
                     Image(systemName: "star.fill")
                         .font(.system(size: 11))
-                        .foregroundColor(MoonlitTheme.harborGold)
+                        .foregroundColor(MoonlitTheme.ratingGold)
                     Text(String(format: "%.1f", rating))
                         .font(.system(size: 12.5, weight: .semibold))
-                        .foregroundColor(MoonlitTheme.harborGold)
+                        .foregroundColor(MoonlitTheme.ratingGold)
                 }
             }
             if hasRuntime, let runtime = episode.runtime {
@@ -256,7 +270,7 @@ struct EpisodeInfoPanel: View {
 
             if isLoadingGuestStars && people.isEmpty {
                 HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
+                    MacStrokeSpinner(size: 18)
                     Text("Loading cast…")
                         .font(.system(size: 13))
                         .foregroundColor(PlayerPalette.inkSubtle)
@@ -280,10 +294,10 @@ struct EpisodeInfoPanel: View {
                 Text("GUEST")
                     .font(.system(size: 8, weight: .bold))
                     .tracking(0.5)
-                    .foregroundColor(MoonlitTheme.harborGold)
+                    .foregroundColor(MoonlitTheme.ratingGold)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 1)
-                    .background(Capsule().fill(MoonlitTheme.harborGold.opacity(0.14)))
+                    .background(Capsule().fill(MoonlitTheme.ratingGold.opacity(0.14)))
             }
 
             Text(person.name)

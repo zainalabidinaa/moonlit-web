@@ -51,18 +51,3 @@ struct MacAwardBadgeView: View {
         }
     }
 }
-
-/// Compact winner-only glyph for the home hero — no caption, smaller.
-struct MacCompactAwardBadgeView: View {
-    let asset: String?
-
-    var body: some View {
-        if let asset {
-            Image(asset)
-                .resizable()
-                .scaledToFit()
-                .frame(height: 40)
-                .shadow(color: .black.opacity(0.55), radius: 6, y: 2)
-        }
-    }
-}

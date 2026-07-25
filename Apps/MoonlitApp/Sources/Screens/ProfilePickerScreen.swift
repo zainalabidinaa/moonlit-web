@@ -22,8 +22,8 @@ struct ProfilePickerScreen: View {
                     .resizable()
                     .aspectRatio(contentMode: .fit)
                     .frame(width: 80, height: 80)
-                    .cornerRadius(18)
-                    .shadow(color: MoonlitTheme.accent.opacity(0.4), radius: 20)
+                    .cornerRadius(MoonlitTheme.radiusLarge)
+                    .shadow(color: .black.opacity(0.35), radius: 20)
 
                 Text("Who's watching?")
                     .font(.title.weight(.bold))
@@ -90,7 +90,7 @@ struct ProfilePickerScreen: View {
                     }
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
-                    .glassCard(cornerRadius: 14, interactive: true)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard, interactive: true)
                 }
                 .padding(.bottom, 40)
             }
@@ -169,7 +169,7 @@ struct ProfileCreateSheet: View {
 
                 TextField("Profile name", text: $name)
                     .padding()
-                    .glassCard(cornerRadius: 12)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .foregroundColor(.white)
                     .padding(.horizontal)
 
@@ -191,7 +191,7 @@ struct ProfileCreateSheet: View {
                     .frame(maxWidth: .infinity)
                     .padding()
                 }
-                .glassProminentButtonStyle(tint: MoonlitTheme.accent, cornerRadius: 12)
+                .glassProminentButtonStyle(tint: MoonlitTheme.accent, cornerRadius: MoonlitTheme.radiusCard)
                 .disabled(name.isEmpty || isLoading)
                 .padding(.horizontal)
 
@@ -199,7 +199,9 @@ struct ProfileCreateSheet: View {
             }
             .background(MoonlitTheme.background)
             .navigationTitle("New Profile")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -263,11 +265,15 @@ struct ManageProfilesSheet: View {
                         }
                         .listRowBackground(Color.white.opacity(0.05))
                     }
+#if os(iOS)
                     .scrollContentBackground(.hidden)
+#endif
                 }
             }
             .navigationTitle("Manage Profiles")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -361,7 +367,7 @@ struct EditProfileSheet: View {
 
                             TextField("Profile name", text: $name)
                                 .padding()
-                                .glassCard(cornerRadius: 12)
+                                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                                 .foregroundColor(.white)
                         }
                         .padding(.horizontal)
@@ -405,16 +411,16 @@ struct EditProfileSheet: View {
                                         .resizable()
                                         .aspectRatio(contentMode: .fit)
                                         .frame(width: 36, height: 36)
-                                        .cornerRadius(8)
+                                        .cornerRadius(MoonlitTheme.radiusControl)
                                     Text("App Icon")
                                         .font(.caption2)
                                         .foregroundColor(MoonlitTheme.textSecondary)
                                 }
                                 .frame(width: 72, height: 72)
                                 .background(Color.white.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                                 .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
+                                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                                         .stroke(selectedAvatarId == nil ? MoonlitTheme.accent : Color.clear, lineWidth: 2.5)
                                 )
                                 .overlay(
@@ -456,7 +462,7 @@ struct EditProfileSheet: View {
                                     .tint(MoonlitTheme.accent)
                             }
                             .padding()
-                            .glassCard(cornerRadius: 12)
+                            .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                             .padding(.horizontal)
                         }
 
@@ -473,7 +479,7 @@ struct EditProfileSheet: View {
                             .frame(maxWidth: .infinity)
                             .padding()
                         }
-                        .glassProminentButtonStyle(tint: MoonlitTheme.accent, cornerRadius: 12)
+                        .glassProminentButtonStyle(tint: MoonlitTheme.accent, cornerRadius: MoonlitTheme.radiusCard)
                         .disabled(name.isEmpty || isLoading)
                         .padding(.horizontal)
                         .padding(.top, 8)
@@ -482,7 +488,9 @@ struct EditProfileSheet: View {
                 }
             }
             .navigationTitle("Edit Profile")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
@@ -504,7 +512,7 @@ struct EditProfileSheet: View {
                     if let url = URL(string: urlString) {
                         AnimatedRemoteImage(url: url, contentMode: .scaleAspectFill)
                             .frame(width: 72, height: 72)
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                     }
                 } else {
                     AsyncImage(url: URL(string: urlString)) { phase in
@@ -514,9 +522,9 @@ struct EditProfileSheet: View {
                                 .resizable()
                                 .aspectRatio(contentMode: .fill)
                                 .frame(width: 72, height: 72)
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                                .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl))
                         case .failure, .empty:
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                                 .fill(Color.white.opacity(0.08))
                                 .frame(width: 72, height: 72)
                                 .overlay(
@@ -530,7 +538,7 @@ struct EditProfileSheet: View {
                 }
             }
             .overlay(
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                     .stroke(isSelected ? MoonlitTheme.accent : Color.white.opacity(0.08), lineWidth: isSelected ? 2.5 : 1)
             )
             .overlay(

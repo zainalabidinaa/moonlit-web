@@ -21,10 +21,10 @@ public enum StreamPreflight {
         let contentType = (httpResponse.allHeaderFields["Content-Type"] as? String)?.lowercased() ?? ""
         if contentType.contains("text/html") { return false }
 
-        // Stub-file heuristic (mirrors Harbor's preflight): a debrid source that
-        // isn't actually cached often resolves to a tiny placeholder. If the total
+        // Stub-file heuristic: a source that
+        // isn't actually ready often resolves to a tiny placeholder. If the total
         // size is known and implausibly small for real media (< 5 MB), treat it as
-        // not-really-cached so the caller falls through to the next source.
+        // not-really-ready so the caller falls through to the next source.
         let minRealSizeBytes = 5 * 1024 * 1024
         if let total = Self.totalSize(from: httpResponse), total > 0, total < minRealSizeBytes {
             return false
@@ -46,7 +46,6 @@ public enum StreamPreflight {
         let combined = lower + " " + jsonFields
         let errorMarkers: [String] = [
             "media_not_cached_yet",
-            "not cached on your debrid",
             "not downloaded",
             "not cached",
             "not yet cached",
@@ -57,10 +56,8 @@ public enum StreamPreflight {
             "being prepared",
             "wait a short while",
             "something went wrong",
-            "elfhosted",
             "unexpected error resolving",
             "access denied",
-            "valid debrid subscription",
             "invalid token",
             "subscription",
             "internal provider issue",

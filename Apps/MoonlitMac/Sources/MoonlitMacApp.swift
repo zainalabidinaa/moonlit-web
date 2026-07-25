@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreText
 import MoonlitCore
 
 @main
@@ -16,7 +17,6 @@ struct MoonlitMacApp: App {
                 .background(MoonlitTheme.background)
         }
         .windowStyle(.hiddenTitleBar)
-        .windowToolbarStyle(.unified)
         .defaultSize(width: 1200, height: 800)
 
         WindowGroup(id: "player", for: PlayerLaunch.self) { $launch in
@@ -34,6 +34,7 @@ struct MoonlitMacApp: App {
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
+        registerFonts()
         DispatchQueue.main.async {
             guard let window = NSApp.windows.first else { return }
             window.identifier = NSUserInterfaceItemIdentifier("moonlit-main")
@@ -41,9 +42,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             window.titleVisibility = .hidden
             window.styleMask.insert(.fullSizeContentView)
             window.isMovableByWindowBackground = true
+            window.standardWindowButton(.closeButton)?.isHidden = true
+            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+            window.standardWindowButton(.zoomButton)?.isHidden = true
             window.backgroundColor = NSColor(
-                red: 0.031, green: 0.031, blue: 0.031, alpha: 1.0
+                red: 0.051, green: 0.051, blue: 0.051, alpha: 1.0
             )
         }
+    }
+
+    private func registerFonts() {
+        guard let url = Bundle.main.url(forResource: "Montserrat-ExtraBold", withExtension: "ttf") else { return }
+        CTFontManagerRegisterFontsForURL(url as CFURL, .process, nil)
     }
 }

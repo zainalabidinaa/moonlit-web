@@ -119,7 +119,8 @@ public struct AddonManifest: Codable, Sendable, Identifiable {
     }
 
     /// Returns true if this addon can serve streams for the given media type.
-    /// Respects resource-level `types` (like AIOStreams) when top-level `types` is nil.
+    /// Respects resource-level `types` when top-level `types` is nil — some addons
+    /// define type support per-resource instead of at the manifest level.
     public func canHandleStream(type: String) -> Bool {
         guard let streamResource = resources?.first(where: { $0.name == "stream" }) else { return false }
         let effectiveTypes = streamResource.types ?? types

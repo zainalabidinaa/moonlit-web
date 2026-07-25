@@ -1,6 +1,13 @@
 import Foundation
 
-public struct DBCollection: Codable, Identifiable, Sendable {
+/// Tab contexts that a collection can be flagged to appear in.
+public enum CollectionTab: String, Sendable, Hashable {
+    case home
+    case movies
+    case series
+}
+
+public struct DBCollection: Codable, Identifiable, Sendable, Equatable {
     public let id: String
     public let name: String
     public let sortOrder: Int
@@ -10,6 +17,12 @@ public struct DBCollection: Codable, Identifiable, Sendable {
     public let focusGlowEnabled: Bool?
     public let pinToTop: Bool?
     public let showOnHome: Bool?
+    public let showIosHome: Bool?
+    public let showIosMovies: Bool?
+    public let showIosSeries: Bool?
+    public let showMacHome: Bool?
+    public let showMacMovies: Bool?
+    public let showMacSeries: Bool?
     public let createdAt: Date?
 
     enum CodingKeys: String, CodingKey {
@@ -21,6 +34,12 @@ public struct DBCollection: Codable, Identifiable, Sendable {
         case focusGlowEnabled = "focus_glow_enabled"
         case pinToTop = "pin_to_top"
         case showOnHome = "show_on_home"
+        case showIosHome = "show_ios_home"
+        case showIosMovies = "show_ios_movies"
+        case showIosSeries = "show_ios_series"
+        case showMacHome = "show_mac_home"
+        case showMacMovies = "show_mac_movies"
+        case showMacSeries = "show_mac_series"
         case createdAt = "created_at"
     }
 
@@ -34,6 +53,12 @@ public struct DBCollection: Codable, Identifiable, Sendable {
         focusGlowEnabled: Bool? = nil,
         pinToTop: Bool? = nil,
         showOnHome: Bool? = nil,
+        showIosHome: Bool? = nil,
+        showIosMovies: Bool? = nil,
+        showIosSeries: Bool? = nil,
+        showMacHome: Bool? = nil,
+        showMacMovies: Bool? = nil,
+        showMacSeries: Bool? = nil,
         createdAt: Date? = nil
     ) {
         self.id = id
@@ -45,11 +70,66 @@ public struct DBCollection: Codable, Identifiable, Sendable {
         self.focusGlowEnabled = focusGlowEnabled
         self.pinToTop = pinToTop
         self.showOnHome = showOnHome
+        self.showIosHome = showIosHome
+        self.showIosMovies = showIosMovies
+        self.showIosSeries = showIosSeries
+        self.showMacHome = showMacHome
+        self.showMacMovies = showMacMovies
+        self.showMacSeries = showMacSeries
         self.createdAt = createdAt
+    }
+
+    /// Whether this collection should appear in the given tab on the current platform.
+    /// Legacy layouts (no per-tab flags) fall back to `showOnHome` for the home tab.
+    public func isVisible(in tab: CollectionTab) -> Bool {
+        #if os(macOS)
+        let flag: Bool?
+        switch tab {
+        case .home:   flag = showMacHome
+        case .movies: flag = showMacMovies
+        case .series: flag = showMacSeries
+        }
+        #else
+        let flag: Bool?
+        switch tab {
+        case .home:   flag = showIosHome
+        case .movies: flag = showIosMovies
+        case .series: flag = showIosSeries
+        }
+        #endif
+        if let flag { return flag }
+        switch tab {
+        case .home: return showOnHome ?? true
+        case .movies, .series: return false
+        }
+    }
+
+    /// A copy of this collection carrying the other collection's per-tab
+    /// visibility flags (where set). Used by the organizer merge when the base
+    /// subtree wins on content but the overlay holds the portal's tab settings.
+    public func adoptingVisibilityFlags(from other: DBCollection) -> DBCollection {
+        DBCollection(
+            id: id,
+            name: name,
+            sortOrder: sortOrder,
+            backdropImage: backdropImage,
+            viewMode: viewMode,
+            showAllTab: showAllTab,
+            focusGlowEnabled: focusGlowEnabled,
+            pinToTop: pinToTop,
+            showOnHome: other.showOnHome ?? showOnHome,
+            showIosHome: other.showIosHome ?? showIosHome,
+            showIosMovies: other.showIosMovies ?? showIosMovies,
+            showIosSeries: other.showIosSeries ?? showIosSeries,
+            showMacHome: other.showMacHome ?? showMacHome,
+            showMacMovies: other.showMacMovies ?? showMacMovies,
+            showMacSeries: other.showMacSeries ?? showMacSeries,
+            createdAt: createdAt
+        )
     }
 }
 
-public struct DBFolder: Codable, Identifiable, Sendable {
+public struct DBFolder: Codable, Identifiable, Sendable, Equatable {
     public let id: String
     public let collectionId: String
     public let name: String
@@ -118,7 +198,7 @@ public struct DBFolder: Codable, Identifiable, Sendable {
     }
 }
 
-public struct DBFolderCatalog: Codable, Identifiable, Sendable {
+public struct DBFolderCatalog: Codable, Identifiable, Sendable, Equatable {
     public let id: String
     public let folderId: String
     public let catalogId: String
@@ -151,7 +231,7 @@ public struct DBFolderCatalog: Codable, Identifiable, Sendable {
     }
 }
 
-public struct DBFolderSource: Codable, Identifiable, Sendable {
+public struct DBFolderSource: Codable, Identifiable, Sendable, Equatable {
     public let id: String
     public let folderId: String
     public let provider: String

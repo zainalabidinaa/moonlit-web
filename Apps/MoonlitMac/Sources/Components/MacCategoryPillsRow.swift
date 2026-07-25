@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// HBO Max/Harbor-style category pills under the hero. On the Home tab this shows
+/// category-style category pills under the hero. On the Home tab this shows
 /// the primary "Featured / Movies / Shows" selector plus a secondary genre rail
 /// once Movies or Shows is picked. On the dedicated Movies/Series tabs the primary
 /// row is redundant with the top nav, so it's hidden and only the labeled genre
@@ -88,7 +88,7 @@ struct MacCategoryPillsRow: View {
                 .padding(.horizontal, 15)
                 .padding(.vertical, 8)
                 .background(
-                    Capsule().fill(isSelected ? MoonlitTheme.harborGold : Color.white.opacity(0.08))
+                    Capsule().fill(isSelected ? MoonlitTheme.ratingGold : Color.white.opacity(0.08))
                 )
         }
         .buttonStyle(.plain)

@@ -316,8 +316,7 @@ public class MetaRepository: ObservableObject {
     }
 
     /// Fetches the high-res episode poster (still_path at original size) from
-    /// TMDB — used by the episode info panel to show a sharp hero backdrop
-    /// that matches Harbor's EpisodeDetailView.
+    /// TMDB — used by the episode info panel to show a sharp hero backdrop.
     public func fetchEpisodePoster(seriesId: String, season: Int, episode: Int) async -> String? {
         guard let tmdbApiKey = integrationStore.effectiveTMDBAPIKey else { return nil }
 
@@ -514,7 +513,7 @@ public class MetaRepository: ObservableObject {
         )
     }
 
-    // MARK: - Crew job → category mapping (matches Harbor's grouping)
+    // MARK: - Crew job → category mapping
 
     private static let writerJobs: Set<String> = [
         "Writer", "Screenplay", "Story", "Teleplay", "Author", "Novel", "Original Story", "Original Series Creator"

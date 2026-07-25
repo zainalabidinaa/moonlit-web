@@ -92,11 +92,11 @@ public class StreamRepository: ObservableObject {
         .filter { StreamMatchGuard.shouldKeep($0, type: type, id: id, title: title) }
     }
 
-    public func bestStream(for type: String, id: String, from addons: [AddonManifest], title: String? = nil, prefer4K: Bool = false) async -> StreamItem? {
+    public func bestStream(for type: String, id: String, from addons: [AddonManifest], title: String? = nil, prefer4K: Bool = false, preferredAudioLanguage: String? = nil) async -> StreamItem? {
         await fetchStreams(type: type, id: id, addons: addons, title: title)
         // Use the same ranked selector as PlayerScreen:
         // bolt ⚡ (10 000 pts) → cached (5 000 pts) → highest mbps (≤ 1 000 pts)
         // then resolution/codec tie-breakers.
-        return StreamSourceSelector.initialStream(from: streams, prefer4K: prefer4K)
+        return StreamSourceSelector.initialStream(from: streams, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
     }
 }

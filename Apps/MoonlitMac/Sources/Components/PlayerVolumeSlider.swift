@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Hand-drawn drag-track volume slider (ported from MoonlitApp's
-/// `GlassVolumeSlider`) — matches Harbor's custom pointer-drag track rather
+/// `GlassVolumeSlider`) — matches the reference custom pointer-drag track rather
 /// than a native `Slider`.
 struct PlayerVolumeSlider: View {
     @Binding var volume: Float

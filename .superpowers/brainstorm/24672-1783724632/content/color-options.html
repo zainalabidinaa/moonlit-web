@@ -1,0 +1,143 @@
+<h2>Montserrat Tight — Color Options</h2>
+<p class="subtitle">Same breathe+scale at 3.2s. Which color feels like Moonlit?</p>
+
+<style>
+  .font-demo-bg {
+    background: #0D0D0D;
+    padding: 60px 40px;
+    border-radius: 14px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+  }
+  @keyframes logoBreathe {
+    0%, 100% { opacity: 0.35; transform: scale(0.96); }
+    50%      { opacity: 1;    transform: scale(1); }
+  }
+  @keyframes underlineBreathe {
+    0%, 100% { opacity: 0.2; }
+    50%      { opacity: 1; }
+  }
+  .fade-logo {
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    animation: logoBreathe 3.2s ease-in-out infinite;
+    line-height: 1;
+  }
+  .fade-underline {
+    margin-top: 18px;
+    width: 56px;
+    height: 2.5px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .fade-underline-inner {
+    height: 100%;
+    width: 100%;
+    border-radius: 2px;
+    animation: underlineBreathe 3.2s ease-in-out infinite;
+  }
+  .c-white    { color: #FFFFFF; }
+  .c-gold     { color: #D4AF37; }
+  .c-warm     { color: #FAF0E0; }
+  .c-moon     { color: #E8E4F0; }
+  .c-sunset   { color: #F5C675; }
+  .c-amber    { color: #FFB347; }
+  .ul-white   { background: rgba(255,255,255,0.35); }
+  .ul-gold    { background: rgba(212,175,55,0.45); }
+  .ul-warm    { background: rgba(250,240,224,0.40); }
+  .ul-moon    { background: rgba(232,228,240,0.40); }
+  .ul-sunset  { background: rgba(245,198,117,0.45); }
+  .ul-amber   { background: rgba(255,179,71,0.45); }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="white" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo c-white">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner ul-white"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Pure White</h3>
+      <p>Clean, neutral. What the app uses everywhere today.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="gold" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo c-gold">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner ul-gold"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Harbor Gold</h3>
+      <p>The app's signature gold (#D4AF37). Used for ratings, badges, orbs.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="warm" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo c-warm">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner ul-warm"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Warm Cream</h3>
+      <p>Soft off-white. Subtle warmth, still neutral.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="cards">
+
+  <div class="card" data-choice="moon" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo c-moon">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner ul-moon"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Moonlit Silver</h3>
+      <p>Cool pale lavender-white. Moonlight vibes.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sunset" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo c-sunset">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner ul-sunset"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Warm Sunset</h3>
+      <p>Peach-yellow glow. Warm and inviting.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="amber" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo c-amber">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner ul-amber"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>Warm Amber</h3>
+      <p>Rich orange-gold. Bold, distinctive.</p>
+    </div>
+  </div>
+
+</div>

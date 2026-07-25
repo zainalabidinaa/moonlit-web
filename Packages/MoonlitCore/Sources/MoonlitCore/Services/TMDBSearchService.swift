@@ -43,7 +43,18 @@ public final class TMDBSearchService: ObservableObject {
     private let base = "https://api.themoviedb.org/3"
     private var apiKey: String? { MetadataIntegrationStore.shared.effectiveTMDBAPIKey }
 
+    // Session-scoped query cache so backspacing/retyping ("silos" → "silo")
+    // repaints instantly instead of re-hitting the network. Insertion-order
+    // eviction keeps it bounded.
+    private var queryCache: [String: Results] = [:]
+    private var queryCacheOrder: [String] = []
+    private let queryCacheLimit = 50
+
     private init() {}
+
+    public func cachedResults(for query: String) -> Results? {
+        queryCache[Self.normalizedQuery(query)]
+    }
 
     public func search(query: String) async -> Results {
         guard let apiKey, !apiKey.isEmpty,
@@ -53,12 +64,32 @@ public final class TMDBSearchService: ObservableObject {
         }
 
         do {
-            let (data, _) = try await URLSession.shared.data(from: url)
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 8
+            let (data, _) = try await URLSession.shared.data(for: request)
             let decoded = try JSONDecoder().decode(TMDBMultiSearchResponse.self, from: data)
-            return await mapResults(decoded.results ?? [], apiKey: apiKey)
+            let mapped = await mapResults(decoded.results ?? [], apiKey: apiKey)
+            storeInCache(query: query, results: mapped)
+            return mapped
         } catch {
-            return Results()
+            // Fall back to a cached hit if the network failed mid-typing.
+            return cachedResults(for: query) ?? Results()
         }
+    }
+
+    private func storeInCache(query: String, results: Results) {
+        let key = Self.normalizedQuery(query)
+        if queryCache[key] == nil {
+            queryCacheOrder.append(key)
+            if queryCacheOrder.count > queryCacheLimit {
+                queryCache.removeValue(forKey: queryCacheOrder.removeFirst())
+            }
+        }
+        queryCache[key] = results
+    }
+
+    private static func normalizedQuery(_ query: String) -> String {
+        query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
     private func mapResults(_ items: [TMDBMultiSearchItem], apiKey: String) async -> Results {

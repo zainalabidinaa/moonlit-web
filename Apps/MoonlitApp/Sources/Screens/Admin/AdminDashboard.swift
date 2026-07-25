@@ -36,7 +36,9 @@ struct AdminDashboard: View {
             }
         }
         .navigationTitle("Admin Panel")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+#endif
         .task {
             await adminService.loadStats()
             await adminService.loadInviteCodes()
@@ -85,7 +87,7 @@ struct StatCard: View {
         .padding()
         .frame(maxWidth: .infinity)
         .background(MoonlitTheme.surface)
-        .cornerRadius(12)
+        .cornerRadius(MoonlitTheme.radiusCard)
     }
 }
 
@@ -133,6 +135,7 @@ struct AdminInviteCodesView: View {
                                 }
                             }
                         }
+#if os(iOS)
                         .swipeActions {
                             if !code.isUsed && code.isActive {
                                 Button("Revoke") {
@@ -141,12 +144,15 @@ struct AdminInviteCodesView: View {
                                 .tint(.red)
                             }
                         }
+#endif
                         .listRowBackground(MoonlitTheme.surface)
                     }
                 }
                 .listRowBackground(MoonlitTheme.surface)
             }
+#if os(iOS)
             .scrollContentBackground(.hidden)
+#endif
         }
         .sheet(isPresented: $showGenerateSheet) {
             NavigationStack {
@@ -158,9 +164,11 @@ struct AdminInviteCodesView: View {
                             .font(.headline)
                             .foregroundColor(.white)
 
+#if os(iOS)
                         Stepper("Max Uses: \(maxUses)", value: $maxUses, in: 1...100)
                             .foregroundColor(.white)
                             .padding(.horizontal)
+#endif
 
                         Button {
                             Task {
@@ -172,7 +180,7 @@ struct AdminInviteCodesView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                         }
-                        .glassProminentButtonStyle(cornerRadius: 12)
+                        .glassProminentButtonStyle(cornerRadius: MoonlitTheme.radiusCard)
                         .padding(.horizontal)
 
                         Spacer()
@@ -180,7 +188,9 @@ struct AdminInviteCodesView: View {
                     .padding(.top)
                 }
                 .navigationTitle("New Code")
+#if os(iOS)
                 .navigationBarTitleDisplayMode(.inline)
+#endif
                 .toolbar {
                     ToolbarItem(placement: .cancellationAction) {
                         Button("Cancel") { showGenerateSheet = false }
@@ -217,7 +227,9 @@ struct AdminUsersView: View {
                     .listRowBackground(MoonlitTheme.surface)
                 }
             }
+#if os(iOS)
             .scrollContentBackground(.hidden)
+#endif
         }
     }
 }

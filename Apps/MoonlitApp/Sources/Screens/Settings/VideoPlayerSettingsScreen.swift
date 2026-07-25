@@ -26,7 +26,7 @@ struct VideoPlayerSettingsScreen: View {
                         }
                     }
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 settingsSectionLabel("Skip Intro")
@@ -70,7 +70,7 @@ struct VideoPlayerSettingsScreen: View {
                     }
                 }
                 .animation(.easeInOut(duration: 0.2), value: prefs.fallbackSkipEnabled)
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 Text("Skip timestamps sourced from PublicMetaDB. IntroDB provides additional crowdsourced intro data for TV shows.")
@@ -85,7 +85,7 @@ struct VideoPlayerSettingsScreen: View {
                         set: { prefs.showOnlyCompatibleFormats = $0 }
                     ))
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 settingsSectionLabel("Media Type Players")
@@ -112,7 +112,7 @@ struct VideoPlayerSettingsScreen: View {
                         ))
                     }
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
                 .animation(.easeInOut(duration: 0.2), value: prefs.usePerTypePlayers)
 
@@ -134,7 +134,7 @@ struct VideoPlayerSettingsScreen: View {
                         }
                     }
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 Text("Memory buffers in RAM for smooth playback. Disk caches segments for resume. Off streams live.")
@@ -154,7 +154,7 @@ struct VideoPlayerSettingsScreen: View {
                         set: { prefs.playPreviewSound = $0 }
                     ))
                 }
-                .glassCard(cornerRadius: 14)
+                .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                 .padding(.horizontal, 16)
 
                 Spacer().frame(height: 32)
@@ -163,7 +163,9 @@ struct VideoPlayerSettingsScreen: View {
         }
         .background(MoonlitTheme.background)
         .navigationTitle("Video Player")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+#endif
     }
 
     private func toggleRow(_ title: String, isOn: Binding<Bool>) -> some View {

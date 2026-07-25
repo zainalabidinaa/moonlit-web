@@ -106,7 +106,7 @@ struct FolderScreen: View {
                     // Shimmer placeholder while loading on-demand
                     LazyVGrid(columns: columns, spacing: 10) {
                         ForEach(0..<12, id: \.self) { _ in
-                            ShimmerCard(width: 100, height: 150, cornerRadius: 10)
+                            ShimmerCard(width: 100, height: 150, cornerRadius: MoonlitTheme.radiusControl)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -128,7 +128,7 @@ struct FolderScreen: View {
                                             title: item.name,
                                             items: [],
                                             tileShape: item.posterShape?.rawValue ?? "poster",
-                                            coverImage: item.poster ?? item.banner
+                                            coverImage: item.artworkString(preferring: .portrait)
                                         )
                                         showFolder = true
                                     } else {
@@ -157,7 +157,9 @@ struct FolderScreen: View {
         }
         .background(MoonlitTheme.background)
         .navigationTitle(displayRow.title)
+#if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+#endif
         .navigationDestination(isPresented: $showDetail) {
             if let media = selectedMedia {
                 DetailScreen(mediaId: media.id, type: media.type.rawValue, name: media.name)

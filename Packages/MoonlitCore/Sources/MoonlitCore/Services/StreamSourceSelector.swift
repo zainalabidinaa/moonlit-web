@@ -15,20 +15,20 @@ public enum StreamSourceSelector {
         deduplicated(streams.filter(isPlaybackCandidate))
     }
 
-    /// All playback candidates ranked by quality/cache score. Cached/debrid streams
+    /// All playback candidates ranked by quality/instant score. Cached streams
     /// appear first due to their ranking bonus; non-cached streams follow. Use this
     /// wherever the full list should be visible (Sources Panel, manual picker failover).
-    public static func rankedCandidates(from streams: [StreamItem], prefer4K: Bool = false) -> [StreamItem] {
-        rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K)
+    public static func rankedCandidates(from streams: [StreamItem], prefer4K: Bool = false, preferredAudioLanguage: String? = nil) -> [StreamItem] {
+        rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
     }
 
-    /// Returns only cached/debrid streams + the currently playing stream.
+    /// Returns only cached streams + the currently playing stream.
     /// Falls back to all candidates when no cached streams exist.
-    public static func cachedCandidates(currentUrl: String?, from streams: [StreamItem], prefer4K: Bool = false) -> [StreamItem] {
+    public static func cachedCandidates(currentUrl: String?, from streams: [StreamItem], prefer4K: Bool = false, preferredAudioLanguage: String? = nil) -> [StreamItem] {
         let all = playbackCandidates(from: streams)
         let cached = all.filter { isCachedStream($0) }
-        if cached.isEmpty { return rankedStreams(all, prefer4K: prefer4K) }
-        var ranked = rankedStreams(cached, prefer4K: prefer4K)
+        if cached.isEmpty { return rankedStreams(all, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage) }
+        var ranked = rankedStreams(cached, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
         if let url = currentUrl,
            !ranked.contains(where: { $0.url == url }),
            let current = all.first(where: { $0.url == url }) {
@@ -54,42 +54,42 @@ public enum StreamSourceSelector {
         }
     }
 
-    public static func initialStream(from streams: [StreamItem], prefer4K: Bool, installOrder: [String] = []) -> StreamItem? {
-        rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K, installOrder: installOrder).first
+    public static func initialStream(from streams: [StreamItem], prefer4K: Bool, installOrder: [String] = [], preferredAudioLanguage: String? = nil) -> StreamItem? {
+        rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K, installOrder: installOrder, preferredAudioLanguage: preferredAudioLanguage).first
     }
 
-    /// Ordered list of auto-playable candidates for silent cycling (Nuvio-style).
-    /// Debrid-ready streams first, then addons by install order, rest by score.
+    /// Ordered list of auto-playable candidates for silent cycling.
+    /// Instant-ready streams first, then addons by install order, rest by score.
     /// When the first candidate fails, the caller iterates through the list
     /// without showing an error until all are exhausted.
-    public static func candidatesForAutoPlay(from streams: [StreamItem], prefer4K: Bool, installOrder: [String] = []) -> [StreamItem] {
-        rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K, installOrder: installOrder)
+    public static func candidatesForAutoPlay(from streams: [StreamItem], prefer4K: Bool, installOrder: [String] = [], preferredAudioLanguage: String? = nil) -> [StreamItem] {
+        rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K, installOrder: installOrder, preferredAudioLanguage: preferredAudioLanguage)
             .filter(isAutoPlayable)
     }
 
     /// Whether a stream can be launched immediately. Excludes:
     /// - Magnet/torrent links (need P2P resolution)
-    /// - Debrid streams that aren't cached yet (return "Torrent not downloaded")
-    /// - Resolve/uncached URLs that need server-side preparation
+    /// - Streams that aren't cached yet
+    /// - Resolve/pending URLs that need server-side preparation
     public static func isAutoPlayable(_ stream: StreamItem) -> Bool {
         guard let url = stream.url, !url.isEmpty else { return false }
         let lower = url.lowercased()
         if lower.hasPrefix("magnet:") || lower.hasPrefix("torrent:") { return false }
-        if isPendingDebrid(stream) { return false }
+        if isPendingStream(stream) { return false }
         return true
     }
 
-    /// Detects debrid streams that aren't ready to play yet ("Torrent not downloaded yet").
-    /// These streams have a URL but the debrid service hasn't finished caching the torrent.
-    public static func isPendingDebrid(_ stream: StreamItem) -> Bool {
+    /// Detects streams that aren't ready to play yet (cache/resolution pending).
+    /// These streams have a URL but the backing service hasn't finished preparing the content.
+    public static func isPendingStream(_ stream: StreamItem) -> Bool {
         // Explicitly marked as not cached by the addon
         if stream.behaviorHints?.cached == false { return true }
 
         let text = searchableText(for: stream)
         let url = stream.url?.lowercased() ?? ""
 
-        // URL patterns indicating torrent still resolving
-        let urlMarkers = ["/torrent/", "/resolve/", "/uncached/", "/fetch/", "/pending/"]
+        // URL patterns indicating content still resolving
+        let urlMarkers = ["/resolve/", "/fetch/", "/pending/"]
         if urlMarkers.contains(where: { url.contains($0) }) { return true }
 
         // Text markers indicating not ready
@@ -102,21 +102,11 @@ public enum StreamSourceSelector {
         if textMarkers.contains(where: { text.contains($0) }) { return true }
 
         // Has an infoHash (torrent identifier) but no cached URL — needs resolution
-        if stream.infoHash != nil && stream.behaviorHints?.cached != true
-            && !isDirectDebridStream(stream) {
+        if stream.infoHash != nil && stream.behaviorHints?.cached != true {
             return true
         }
 
         return false
-    }
-
-    /// Whether the stream URL points directly to a debrid CDN file
-    /// (real-debrid, alldebrid, premiumize, etc.) rather than a proxy/resolver.
-    private static func isDirectDebridStream(_ stream: StreamItem) -> Bool {
-        let url = stream.url?.lowercased() ?? ""
-        return url.contains("real-debrid.com") || url.contains("alldebrid.com")
-            || url.contains("premiumize.me") || url.contains("debrid-link.com")
-            || url.contains("put.io") || url.contains("offcloud.com")
     }
 
     public static func best4KStream(from streams: [StreamItem], excluding current: StreamItem?) -> StreamItem? {
@@ -128,9 +118,10 @@ public enum StreamSourceSelector {
         after current: StreamItem?,
         currentSourceUrl: String? = nil,
         from streams: [StreamItem],
-        prefer4K: Bool
+        prefer4K: Bool,
+        preferredAudioLanguage: String? = nil
     ) -> StreamItem? {
-        let ranked = rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K)
+        let ranked = rankedStreams(playbackCandidates(from: streams), prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
             .filter { !sameStream($0, current) && !sameSourceUrl($0, currentSourceUrl) }
         let currentQuality = current.map(quality)
 
@@ -173,31 +164,27 @@ public enum StreamSourceSelector {
         return true
     }
 
-    private static func isCachedStream(_ stream: StreamItem) -> Bool {
+    /// Whether a stream reads as instant/cached — the same signal the
+    /// ranking score weighs most heavily (+10,000), exposed so the picker UI
+    /// can show it as a badge instead of only acting on it invisibly.
+    public static func isCachedStream(_ stream: StreamItem) -> Bool {
         let text = searchableText(for: stream)
-        let url = stream.url?.lowercased() ?? ""
-        let isDebridUrl = url.contains("real-debrid.com") || url.contains("alldebrid.com")
-            || url.contains("premiumize.me") || url.contains("debrid-link.com")
-            || url.contains("put.io") || url.contains("offcloud.com")
         return stream.behaviorHints?.cached == true
             || hasCachedEmojiMarker(in: text)
-            || isDebridUrl
             || text.contains("cached") || text.contains("[cache]")
-            || text.contains("rd+") || text.contains("ad+") || text.contains("tb+")
-            || text.contains("[rd]") || text.contains("[ad]") || text.contains("[tb]")
     }
 
-    private static func rankedStreams(_ streams: [StreamItem], prefer4K: Bool, installOrder: [String] = []) -> [StreamItem] {
-        streams
+    private static func rankedStreams(_ streams: [StreamItem], prefer4K: Bool, installOrder: [String] = [], preferredAudioLanguage: String? = nil) -> [StreamItem] {
+        let langTokens = languageTokens(for: preferredAudioLanguage)
+        return streams
             .map { (
-                score: rankingScore(for: $0, prefer4K: prefer4K),
+                score: rankingScore(for: $0, prefer4K: prefer4K, preferredAudioTokens: langTokens),
                 name: $0.displayName,
-                isDebrid: isDirectDebridStream($0),
                 addonRank: installOrderRank(for: $0, in: installOrder),
                 item: $0
             ) }
             .sorted { lhs, rhs in
-                // 1. Score first (cached/debrid > labelled > size/speed > uncached, + resolution bonus)
+                // 1. Score first (cached > labelled > size/speed > uncached, + resolution bonus)
                 if lhs.score != rhs.score { return lhs.score > rhs.score }
                 // 2. Install order as tiebreaker (lower rank = earlier install)
                 if lhs.addonRank != rhs.addonRank { return lhs.addonRank < rhs.addonRank }
@@ -207,12 +194,20 @@ public enum StreamSourceSelector {
             .map(\.item)
     }
 
+    /// Resolves a preferred-audio-language code into the lowercase tokens we
+    /// search for in a stream's filename/title (e.g. "en" → ["en","eng","english"]).
+    /// Returns an empty array when no preference is set.
+    private static func languageTokens(for code: String?) -> [String] {
+        guard let language = PlaybackLanguage.named(code) else { return [] }
+        return language.matchTokens
+    }
+
     private static func installOrderRank(for stream: StreamItem, in installOrder: [String]) -> Int {
         guard let addonName = stream.addonName, !installOrder.isEmpty else { return Int.max }
         return installOrder.firstIndex(of: addonName) ?? Int.max
     }
 
-    private static func rankingScore(for stream: StreamItem, prefer4K: Bool) -> Double {
+    private static func rankingScore(for stream: StreamItem, prefer4K: Bool, preferredAudioTokens: [String] = []) -> Double {
         let text = searchableText(for: stream)
         var score = Double(stream.qualityScore)
 
@@ -221,29 +216,20 @@ public enum StreamSourceSelector {
             score -= 80
         }
 
-        // Penalise debrid streams that aren't ready yet ("Torrent not downloaded").
+        // Penalise streams that aren't ready yet ("not downloaded", etc.).
         // They're still shown in the sources panel for manual selection but rank below
         // ready-to-play streams so auto-play won't pick them.
-        if isPendingDebrid(stream) {
+        if isPendingStream(stream) {
             score -= 50_000
         }
 
-        // ── Tier 1: debrid-cached / instant ─────────────────────────────
-        // behaviorHints.cached is the canonical signal (Torrentio, Comet, etc.)
-        // bolt ⚡ in stream text is a display-only fallback for older addons
-        // debrid CDN URLs are always cached by definition
-        let streamUrl = stream.url?.lowercased() ?? ""
-        let isDebridUrl = streamUrl.contains("real-debrid.com") || streamUrl.contains("alldebrid.com")
-            || streamUrl.contains("premiumize.me") || streamUrl.contains("debrid-link.com")
-            || streamUrl.contains("put.io") || streamUrl.contains("offcloud.com")
-        if stream.behaviorHints?.cached == true || hasCachedEmojiMarker(in: text) || isDebridUrl {
+        // ── Tier 1: instant / cached ───────────────────────────────────
+        // behaviorHints.cached is the canonical signal from addons
+        if stream.behaviorHints?.cached == true || hasCachedEmojiMarker(in: text) {
             score += 10_000
         }
         // ── Tier 2: explicitly labelled as cached ───────────────────────
-        // includes common debrid shorthand badges: RD+, AD+, TB+, [RD], [AD]
-        else if text.contains("cached") || text.contains("[cache]")
-            || text.contains("rd+") || text.contains("ad+") || text.contains("tb+")
-            || text.contains("[rd]") || text.contains("[ad]") || text.contains("[tb]") {
+        else if text.contains("cached") || text.contains("[cache]") {
             score += 5_000
         }
         // ── Tier 3: rank by speed/size signals ──────────────────────────
@@ -254,7 +240,7 @@ public enum StreamSourceSelector {
             var bonus: Double = 0
             // 3a. Explicit Mbps label
             if let mbps = extractMbps(from: text) { bonus = max(bonus, min(mbps * 10, 900)) }
-            // 3b. behaviorHints.videoSize (bytes) — populated by Torrentio & many addons
+            // 3b. behaviorHints.videoSize (bytes) — populated by many addons
             if let bytes = stream.behaviorHints?.videoSize, bytes > 0 {
                 let gb = Double(bytes) / 1_073_741_824
                 bonus = max(bonus, min(gb * 25, 900))
@@ -270,7 +256,39 @@ public enum StreamSourceSelector {
         case .hd1080:    score += prefer4K ? 20 : 25
         case .unknown:   break
         }
+
+        // Preferred-audio-language bonus: nudge streams that advertise the
+        // preferred language in their filename/title above equivalent streams.
+        // "multi" audio releases count too since they include the language.
+        // Kept small so it never overrides cached or resolution tiers.
+        if !preferredAudioTokens.isEmpty {
+            if containsWord("multi", in: text) || preferredAudioTokens.contains(where: { containsWord($0, in: text) }) {
+                score += 40
+            }
+        }
         return score
+    }
+
+    /// Whether `word` appears in `text` bounded by non-alphanumeric characters,
+    /// so short codes like "en" don't match inside "when" or "green".
+    private static func containsWord(_ word: String, in text: String) -> Bool {
+        guard !word.isEmpty else { return false }
+        var searchStart = text.startIndex
+        while let range = text.range(of: word, range: searchStart..<text.endIndex) {
+            let beforeOK: Bool = {
+                guard range.lowerBound > text.startIndex else { return true }
+                let before = text[text.index(before: range.lowerBound)]
+                return !before.isLetter && !before.isNumber
+            }()
+            let afterOK: Bool = {
+                guard range.upperBound < text.endIndex else { return true }
+                let after = text[range.upperBound]
+                return !after.isLetter && !after.isNumber
+            }()
+            if beforeOK && afterOK { return true }
+            searchStart = range.upperBound
+        }
+        return false
     }
 
     private static func hasCachedEmojiMarker(in text: String) -> Bool {

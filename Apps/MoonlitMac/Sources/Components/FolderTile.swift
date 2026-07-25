@@ -10,8 +10,15 @@ struct FolderTile: View {
         row.tileShape == "landscape"
     }
 
-    private var cardWidth: CGFloat { isLandscape ? 220 : 140 }
-    private var cardHeight: CGFloat { isLandscape ? 124 : 210 }
+    private var cardWidth: CGFloat { isLandscape ? 220 : 160 }
+    private var cardHeight: CGFloat { isLandscape ? 124 : 240 }
+
+    // the reference folder tiles use the larger rounded-2xl corner (16).
+    private var cornerRadius: CGFloat { 16 }
+
+    private var artworkURL: URL? {
+        (row.coverImage ?? row.items.first?.poster).flatMap(URL.init)
+    }
 
     var body: some View {
         Button(action: onTap) {
@@ -20,8 +27,7 @@ struct FolderTile: View {
                     .fill(MoonlitTheme.surfaceElevated)
                     .frame(width: cardWidth, height: cardHeight)
 
-                if let coverURL = row.coverImage ?? row.items.first?.poster,
-                   let url = URL(string: coverURL) {
+                if let url = artworkURL {
                     CachedAsyncImage(url: url) { img in
                         img.resizable().aspectRatio(contentMode: .fill)
                             .frame(width: cardWidth, height: cardHeight)
@@ -45,9 +51,9 @@ struct FolderTile: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(width: cardWidth, height: cardHeight)
-            .cornerRadius(MoonlitTheme.radiusControl)
+            .cornerRadius(cornerRadius)
             .overlay(
-                RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
+                RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(
                         isHovering && (row.focusGlowEnabled ?? false)
                             ? MoonlitTheme.accent.opacity(0.6)
@@ -55,11 +61,10 @@ struct FolderTile: View {
                         lineWidth: 2
                     )
             )
-            .shadow(
-                color: (isHovering && (row.focusGlowEnabled ?? false))
-                    ? MoonlitTheme.accent.opacity(0.35)
-                    : Color.clear,
-                radius: 16, y: 0
+            .macTileGlow(
+                isHovering: isHovering,
+                artworkURL: artworkURL,
+                cornerRadius: cornerRadius
             )
         }
         .buttonStyle(.plain)

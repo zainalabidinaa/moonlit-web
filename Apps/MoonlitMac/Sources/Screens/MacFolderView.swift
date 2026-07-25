@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import MoonlitCore
 
 struct MacFolderView: View {
@@ -13,10 +14,18 @@ struct MacFolderView: View {
     @StateObject private var profileManager = ProfileManager.shared
     @State private var isLoadingInitial = false
     @State private var isLoadingMore = false
+    @AppStorage(PosterStyle.scaleKey) private var posterScale: Double = PosterStyle.defaultScale
     @State private var unavailableReason: FolderLoadUnavailableReason?
+    @State private var ambientColor: Color = .clear
+    @State private var ambientColor2: Color = .clear
+    @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
 
     private var displayRow: CatalogRow {
         catalogRepo.allFolderRows[CatalogRepository.normalizedFolderId(row.id)] ?? row
+    }
+
+    private var heroBackdropString: String? {
+        displayRow.heroBackdrop ?? displayRow.backdropImage ?? displayRow.coverImage
     }
 
     private var shouldUseLandscapeLayout: Bool {
@@ -50,43 +59,50 @@ struct MacFolderView: View {
 
     private var columns: [GridItem] {
         if shouldUseLandscapeLayout {
-            // Landscape folder tiles are a fixed 240pt wide (MediaCard). The column
-            // minimum must be >= that width, or an adaptive column can resolve
-            // narrower than the tile and the tiles overlap. 248 leaves a hair of
-            // breathing room over the 240 tile.
+            // Landscape tiles are a fixed 240pt wide (MediaCard). The column minimum
+            // must be >= that width, or an adaptive column can resolve narrower than
+            // the tile and the tiles overlap. 248 leaves a hair of breathing room.
             [GridItem(.adaptive(minimum: 248), spacing: 16)]
         } else {
-            [GridItem(.adaptive(minimum: 155), spacing: 16)]
+            [GridItem(.adaptive(minimum: PosterStyle.width(scale: posterScale)), spacing: 16)]
         }
     }
 
     var body: some View {
         ZStack(alignment: .top) {
             MacFusionAmbientBackground(
-                ambientColor: .clear,
-                ambientColor2: .clear,
+                ambientColor: ambientColor,
+                ambientColor2: ambientColor2,
                 isEnabled: true
             )
+            .animation(.easeInOut(duration: 0.9), value: ambientColor)
+            .animation(.easeInOut(duration: 0.9), value: ambientColor2)
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     hero
 
                     if isLoadingInitial && displayRow.items.isEmpty {
-                        loadingState
-                            .padding(.top, 72)
+                        // Centered full-viewport state lives outside the scroll.
+                        EmptyView()
                     } else if displayRow.items.isEmpty || unavailableReason != nil {
                         emptyState
                             .padding(.top, 72)
                     } else {
                         LazyVGrid(columns: columns, spacing: 18) {
                             ForEach(displayRow.items) { item in
-                                MediaCard(item: item, row: shapeRow)
-                                    .onTapGesture { route(item) }
-                                    .onAppear {
-                                        if item.id == displayRow.items.last?.id {
-                                            Task { await loadMoreIfNeeded() }
-                                        }
+                                Group {
+                                    if shouldUseLandscapeLayout {
+                                        MediaCard(item: item, row: shapeRow)
+                                    } else {
+                                        PosterCard(item: item, row: shapeRow)
                                     }
+                                }
+                                .onTapGesture { route(item) }
+                                .onAppear {
+                                    if item.id == displayRow.items.last?.id {
+                                        Task { await loadMoreIfNeeded() }
+                                    }
+                                }
                             }
                         }
                         .padding(.horizontal, 28)
@@ -95,7 +111,7 @@ struct MacFolderView: View {
                         if isLoadingMore {
                             HStack {
                                 Spacer()
-                                MacLottieLoadingView(size: 26)
+                                MacStrokeSpinner(size: 17)
                                 Spacer()
                             }
                             .padding(.vertical, 28)
@@ -107,20 +123,10 @@ struct MacFolderView: View {
             }
             .ignoresSafeArea(.container, edges: .top)
 
-            HStack {
-                Button { onBack() } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .macDarkGlassCapsule(interactive: true)
-                }
-                .buttonStyle(.plain)
-                Spacer()
+            if isLoadingInitial && displayRow.items.isEmpty {
+                loadingState
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
         }
         .background(MoonlitTheme.background)
         .task(id: row.id) {
@@ -130,6 +136,30 @@ struct MacFolderView: View {
                 }
             }
             await loadInitialIfNeeded()
+        }
+        .task(id: "\(row.id)-\(heroBackdropString ?? "")-\(cinematicModeEnabled)") {
+            await updateAmbientColorIfNeeded()
+        }
+    }
+
+    /// Reflects the folder's hero backdrop into a soft ambient glow, the same
+    /// way MacDetailView colors its own background from the title's backdrop.
+    private func updateAmbientColorIfNeeded() async {
+        guard cinematicModeEnabled,
+              let urlString = heroBackdropString,
+              let url = URL(string: urlString) else {
+            ambientColor = .clear
+            ambientColor2 = .clear
+            return
+        }
+        do {
+            let (data, _) = try await URLSession.shared.data(from: url)
+            guard let image = NSImage(data: data), let (c1, c2) = image.moonlitAmbientColors() else { return }
+            ambientColor = c1.moonlitBoostedForAmbient
+            ambientColor2 = c2.moonlitBoostedForAmbient
+        } catch {
+            ambientColor = .clear
+            ambientColor2 = .clear
         }
     }
 
@@ -180,7 +210,7 @@ struct MacFolderView: View {
     }
 
     private var loadingState: some View {
-        MacLoadingView(size: 40)
+        MacBreathingWordmark()
             .frame(maxWidth: .infinity)
     }
 

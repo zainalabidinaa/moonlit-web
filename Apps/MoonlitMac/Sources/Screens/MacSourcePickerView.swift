@@ -22,6 +22,7 @@ struct MacSourcePickerView: View {
     @StateObject private var addonRepo = AddonRepository.shared
     @Environment(\.dismiss) var dismiss
     @State private var selectedAddonFilter: String? = nil
+    @State private var cachedOnlyFilter = false
     @State private var isAutoPlaying = false
     @State private var autoLaunchAttempts = 0
     @State private var autoLaunchStatus: String? = nil
@@ -39,6 +40,10 @@ struct MacSourcePickerView: View {
 
     private var installOrder: [String] {
         addonRepo.managedAddons.map(\.manifest.name)
+    }
+
+    private var preferredAudioLanguage: String? {
+        VideoPlayerPreferenceStore.shared.preferredAudioLanguage
     }
 
     var body: some View {
@@ -84,7 +89,7 @@ struct MacSourcePickerView: View {
     private var loadingView: some View {
         VStack(spacing: 16) {
             Spacer()
-            MacLottieLoadingView(size: 56)
+            MacStrokeSpinner(size: 28)
             Text("Finding streams...")
                 .font(.headline)
                 .foregroundColor(.white)
@@ -199,9 +204,13 @@ struct MacSourcePickerView: View {
             }
             .padding()
 
-            addonFilterBar
-                .padding(.horizontal, 16)
-                .padding(.bottom, 8)
+            HStack(spacing: 8) {
+                addonFilterBar
+                Spacer()
+                cachedOnlyPill
+            }
+            .padding(.horizontal, 16)
+            .padding(.bottom, 8)
 
             ScrollView {
                 LazyVStack(spacing: 0) {
@@ -273,9 +282,40 @@ struct MacSourcePickerView: View {
         }
     }
 
-    private var filteredStreams: [StreamItem] {
-        let ranked = StreamSourceSelector.rankedCandidates(from: streamRepo.streams, prefer4K: prefer4K)
+    private var cachedOnlyHiddenCount: Int {
+        let ranked = StreamSourceSelector.rankedCandidates(from: streamRepo.streams, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
             .filter { $0.url != nil && !($0.url?.isEmpty ?? true) }
+        return ranked.filter { !StreamSourceSelector.isCachedStream($0) }.count
+    }
+
+    private var cachedOnlyPill: some View {
+        Group {
+            if cachedOnlyHiddenCount > 0 || cachedOnlyFilter {
+                Button {
+                    cachedOnlyFilter.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "bolt.fill").font(.system(size: 9))
+                        Text(cachedOnlyFilter ? "Cached only · +\(cachedOnlyHiddenCount)" : "Show all sources")
+                    }
+                    .font(.caption.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(cachedOnlyFilter ? MoonlitTheme.accent.opacity(0.18) : Color.white.opacity(0.08))
+                    .foregroundColor(cachedOnlyFilter ? MoonlitTheme.accent : MoonlitTheme.textSecondary)
+                    .cornerRadius(MoonlitTheme.radiusCard)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    private var filteredStreams: [StreamItem] {
+        var ranked = StreamSourceSelector.rankedCandidates(from: streamRepo.streams, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
+            .filter { $0.url != nil && !($0.url?.isEmpty ?? true) }
+        if cachedOnlyFilter {
+            ranked = ranked.filter { StreamSourceSelector.isCachedStream($0) }
+        }
         guard let filter = selectedAddonFilter else {
             return ranked
         }
@@ -292,7 +332,7 @@ struct MacSourcePickerView: View {
         autoLaunchAttempts = 0
         autoLaunchStatus = "Finding best source..."
 
-        let candidates = StreamSourceSelector.candidatesForAutoPlay(from: streams, prefer4K: prefer4K)
+        let candidates = StreamSourceSelector.candidatesForAutoPlay(from: streams, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage)
 
         guard !candidates.isEmpty else {
             autoLaunchStatus = "No playable streams found"
@@ -374,6 +414,7 @@ struct StreamRowView: View {
     @State private var isHovering = false
 
     private var meta: StreamMetadata { stream.parseMetadata() }
+    private var isCached: Bool { StreamSourceSelector.isCachedStream(stream) }
 
     var body: some View {
         HStack(spacing: 12) {
@@ -415,6 +456,18 @@ struct StreamRowView: View {
                     .foregroundColor(.white)
                     .lineLimit(1)
 
+                // Already parsed off the addon's title/description by
+                // StreamMetadata — just wasn't drawn anywhere before.
+                if meta.fileSize != nil || meta.releaseGroup != nil {
+                    HStack(spacing: 4) {
+                        if let size = meta.fileSize { Text(size) }
+                        if meta.fileSize != nil, meta.releaseGroup != nil { Text("·") }
+                        if let group = meta.releaseGroup { Text(group) }
+                    }
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundColor(MoonlitTheme.textTertiary)
+                }
+
                 if let desc = stream.description, !desc.isEmpty {
                     Text(desc)
                         .font(.caption2)
@@ -424,6 +477,12 @@ struct StreamRowView: View {
             }
 
             Spacer()
+
+            if isCached {
+                Text("⚡ Instant")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(MoonlitTheme.accent)
+            }
 
             if isCurrent {
                 Image(systemName: "checkmark")

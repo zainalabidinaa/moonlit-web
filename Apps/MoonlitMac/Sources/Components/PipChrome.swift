@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Minimal control set shown over the floating PiP window — deliberately
-/// smaller than the full transport bar, matching Harbor's `PipChrome`.
+/// smaller than the full transport bar, matching a neutral `PipChrome`.
 struct PipChrome: View {
     @ObservedObject var engine: MPVPlayerEngine
     let hasPrevEp: Bool

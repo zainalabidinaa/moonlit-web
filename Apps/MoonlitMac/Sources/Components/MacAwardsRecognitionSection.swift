@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// Harbor-style "Awards & Recognition" section: one block per award body the
+///  "Awards & Recognition" section: one block per award body the
 /// title has wins/nominations in — a fixed-width leading column (wreathed
 /// glyph, body name, win/nomination summary) beside a two-column grid of
 /// year + category entries (wins first, then an "ALSO NOMINATED" sub-list).
@@ -93,10 +93,19 @@ struct MacAwardsRecognitionSection: View {
                     .foregroundColor(MoonlitTheme.textTertiary)
                     .frame(width: 40, alignment: .leading)
             }
-            Text(entry.category)
-                .font(.subheadline)
-                .foregroundColor(.white.opacity(0.85))
-                .fixedSize(horizontal: false, vertical: true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.category)
+                    .font(.subheadline)
+                    .foregroundColor(.white.opacity(0.85))
+                    .fixedSize(horizontal: false, vertical: true)
+                // Only set on person-scoped summaries — a title's own awards
+                // don't need to repeat the title's name.
+                if let workTitle = entry.workTitle {
+                    Text(workTitle)
+                        .font(.caption)
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                }
+            }
         }
         .padding(.vertical, 10)
         .frame(maxWidth: .infinity, alignment: .leading)

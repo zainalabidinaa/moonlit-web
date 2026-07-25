@@ -1,0 +1,132 @@
+<h2>Letter Spacing Variations</h2>
+<p class="subtitle">Same breathe+scale animation. Different gap sizes between letters.</p>
+
+<style>
+  .font-demo-bg {
+    background: #0D0D0D;
+    padding: 52px 40px;
+    border-radius: 14px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 150px;
+  }
+  @keyframes logoBreathe {
+    0%, 100% { opacity: 0.35; transform: scale(0.96); }
+    50%      { opacity: 1;    transform: scale(1); }
+  }
+  @keyframes underlineBreathe {
+    0%, 100% { opacity: 0.2; }
+    50%      { opacity: 1; }
+  }
+  .fade-logo {
+    color: #ffffff;
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    animation: logoBreathe 3.2s ease-in-out infinite;
+    line-height: 1;
+  }
+  .fade-underline {
+    margin-top: 18px;
+    width: 56px;
+    height: 2.5px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .fade-underline-inner {
+    height: 100%;
+    width: 100%;
+    background: rgba(255,255,255,0.35);
+    border-radius: 2px;
+    animation: underlineBreathe 3.2s ease-in-out infinite;
+  }
+  .sp-4  { letter-spacing: 4px; }
+  .sp-8  { letter-spacing: 8px; }
+  .sp-12 { letter-spacing: 12px; }
+  .sp-16 { letter-spacing: 16px; }
+  .sp-20 { letter-spacing: 20px; }
+  .sp-24 { letter-spacing: 24px; }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="sp-4" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo sp-4">M O O N L I T</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>4pt — Tight</h3>
+      <p>Letters close together, compact.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sp-8" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo sp-8">M O O N L I T</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>8pt — Snug</h3>
+      <p>Comfortable read, slight breathing room.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sp-12" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo sp-12">M O O N L I T</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>12pt — Airy</h3>
+      <p>Good separation, cinematic feel.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="cards">
+
+  <div class="card" data-choice="sp-16" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo sp-16">M O O N L I T</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>16pt — Wide</h3>
+      <p>Luxury brand spacing.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sp-20" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo sp-20">M O O N L I T</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>20pt — Extra Wide</h3>
+      <p>Bold, dramatic presence.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="sp-24" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo sp-24">M O O N L I T</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>24pt — Ultra Wide</h3>
+      <p>Maximum spread.</p>
+    </div>
+  </div>
+
+</div>

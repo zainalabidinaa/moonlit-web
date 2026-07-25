@@ -1,6 +1,6 @@
 import Foundation
 
-public struct OrganizedCollections: Sendable {
+public struct OrganizedCollections: Sendable, Equatable {
     public let collections: [DBCollection]
     public let folders: [DBFolder]
     public let folderCatalogs: [DBFolderCatalog]
@@ -78,7 +78,15 @@ public struct OrganizedCollections: Sendable {
                 if overlayScore >= baseScore {
                     append(overlayCollection, from: overlay)
                 } else {
-                    append(baseCollection, from: base)
+                    // The bundle's richer subtree wins on content, but per-tab
+                    // visibility flags only exist in the Supabase overlay (the
+                    // bundled JSON carries none). Adopt them so portal tab
+                    // settings still apply — nil flags default to hidden on
+                    // Movies/Series, which emptied those tabs.
+                    append(
+                        baseCollection.adoptingVisibilityFlags(from: overlayCollection),
+                        from: base
+                    )
                 }
             } else {
                 append(baseCollection, from: base)
@@ -101,14 +109,14 @@ public struct OrganizedCollections: Sendable {
 
 public enum CollectionOrganizerParser {
     public static func parse(jsonData: Data) throws -> OrganizedCollections {
-        if let nuvio = try? JSONDecoder().decode([NuvioCollection].self, from: jsonData) {
-            return mapNuvio(nuvio)
+        if let layout = try? JSONDecoder().decode([LayoutCollection].self, from: jsonData) {
+            return mapLayout(layout)
         }
         let best = try JSONDecoder().decode(BESTPack.self, from: jsonData)
         return mapBEST(best)
     }
 
-    private static func mapNuvio(_ input: [NuvioCollection]) -> OrganizedCollections {
+    private static func mapLayout(_ input: [LayoutCollection]) -> OrganizedCollections {
         var collections: [DBCollection] = []
         var folders: [DBFolder] = []
         var folderCatalogs: [DBFolderCatalog] = []
@@ -176,7 +184,13 @@ public enum CollectionOrganizerParser {
                 showAllTab: collection.showAllTab,
                 focusGlowEnabled: false,
                 pinToTop: collection.pinToTop,
-                showOnHome: collection.showOnHome
+                showOnHome: collection.showOnHome,
+                showIosHome: collection.showIosHome,
+                showIosMovies: collection.showIosMovies,
+                showIosSeries: collection.showIosSeries,
+                showMacHome: collection.showMacHome,
+                showMacMovies: collection.showMacMovies,
+                showMacSeries: collection.showMacSeries
             ))
             sortOrder += 1
             folders.append(contentsOf: mappedFolders)
@@ -242,7 +256,7 @@ public enum CollectionOrganizerParser {
     }
 
     private static func appendSource(
-        _ source: NuvioSource,
+        _ source: LayoutSource,
         folderId: String,
         index: Int,
         seenCatalogIds: inout Set<String>,
@@ -330,7 +344,7 @@ public enum CollectionOrganizerParser {
         ))
     }
 
-    private static func discoverCatalogId(for source: NuvioSource, mediaType: String) -> String? {
+    private static func discoverCatalogId(for source: LayoutSource, mediaType: String) -> String? {
         let title = (source.title ?? "").lowercased()
         switch (mediaType, title) {
         case ("movie", "new movies"): return "tmdb.discover.movie.new-movies.069d5312"
@@ -449,22 +463,28 @@ public enum CollectionOrganizerParser {
     }
 }
 
-private struct NuvioCollection: Decodable {
+private struct LayoutCollection: Decodable {
     let id: String
     let title: String
-    let folders: [NuvioFolder]
+    let folders: [LayoutFolder]
     let pinToTop: Bool?
     let viewMode: String?
     let showAllTab: Bool?
     let backdropImageUrl: String?
     let focusGlowEnabled: Bool?
     let showOnHome: Bool?
+    let showIosHome: Bool?
+    let showIosMovies: Bool?
+    let showIosSeries: Bool?
+    let showMacHome: Bool?
+    let showMacMovies: Bool?
+    let showMacSeries: Bool?
 }
 
-private struct NuvioFolder: Decodable {
+private struct LayoutFolder: Decodable {
     let id: String
     let title: String
-    let sources: [NuvioSource]
+    let sources: [LayoutSource]
     let hideTitle: Bool?
     let tileShape: String?
     let focusGifUrl: String?
@@ -476,7 +496,7 @@ private struct NuvioFolder: Decodable {
     let enabled: Bool?
 }
 
-private struct NuvioSource: Decodable {
+private struct LayoutSource: Decodable {
     let title: String?
     let type: String?
     let genre: String?
@@ -487,7 +507,7 @@ private struct NuvioSource: Decodable {
     let tmdbId: String?           // non-standard tmdb format (may be Int or String)
     let tmdbSourceType: String?
     let sortBy: String?
-    let filters: NuvioDiscoverFilters?
+    let filters: LayoutDiscoverFilters?
 
     enum CodingKeys: String, CodingKey {
         case title, type, genre, provider, catalogId, mediaType
@@ -510,11 +530,11 @@ private struct NuvioSource: Decodable {
         }
         tmdbSourceType = try c.decodeIfPresent(String.self, forKey: .tmdbSourceType)
         sortBy = try c.decodeIfPresent(String.self, forKey: .sortBy)
-        filters = try c.decodeIfPresent(NuvioDiscoverFilters.self, forKey: .filters)
+        filters = try c.decodeIfPresent(LayoutDiscoverFilters.self, forKey: .filters)
     }
 }
 
-private struct NuvioDiscoverFilters: Decodable {
+private struct LayoutDiscoverFilters: Decodable {
     let releaseDateGte: String?
     let releaseDateLte: String?
     let voteCountGte: Int?

@@ -1,0 +1,849 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moonlit · Shape Morph</title>
+<style>
+/* ============================================================
+   TUNING VARIABLES
+   ============================================================ */
+:root {
+  --canvas-width: 800px;
+  --canvas-height: 600px;
+  --loop-duration: 3600ms;
+  --morph-duration: 2400ms;
+  --settle-duration: 1600ms;
+  --breathe-duration: 3200ms;
+
+  --bg-deep: #0b0a0f;
+  --bg-warm: #141119;
+  --coral: #FF6B5B;
+  --peach: #FF8A6B;
+  --amber: #FFB84D;
+  --gold: #F4C44E;
+  --cream: #FFF0E5;
+  --shadow-color: rgba(0, 0, 0, 0.45);
+
+  --letter-piece: #FF8A6B;
+}
+
+/* ============================================================
+   RESET
+   ============================================================ */
+*, *::before, *::after {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #000;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* ============================================================
+   VIEWPORT & STAGE
+   ============================================================ */
+.viewport {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  position: relative;
+}
+
+.stage {
+  width: var(--canvas-width);
+  height: var(--canvas-height);
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  isolation: isolate;
+}
+
+/* ============================================================
+   BACKGROUND
+   ============================================================ */
+.background {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    radial-gradient(
+      ellipse 70% 55% at 50% 42%,
+      rgba(28, 22, 30, 1) 0%,
+      rgba(14, 12, 18, 1) 55%,
+      rgba(8, 7, 11, 1) 100%
+    ),
+    linear-gradient(
+      160deg,
+      rgba(18, 14, 22, 1) 0%,
+      rgba(11, 10, 15, 1) 50%,
+      rgba(16, 13, 20, 1) 100%
+    );
+}
+
+/* ============================================================
+   AMBIENT GLOWS
+   ============================================================ */
+.ambient-glow {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 1;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.glow-one {
+  width: 420px;
+  height: 180px;
+  margin-left: -210px;
+  margin-top: -90px;
+  background: radial-gradient(
+    ellipse 65% 50% at 50% 50%,
+    rgba(255, 138, 107, 0.7) 0%,
+    rgba(255, 107, 91, 0.35) 30%,
+    rgba(255, 184, 77, 0.10) 60%,
+    transparent 100%
+  );
+  filter: blur(68px);
+  opacity: 0.48;
+  animation: glow-one-float 3800ms ease-in-out infinite;
+}
+
+.glow-two {
+  width: 340px;
+  height: 140px;
+  margin-left: -170px;
+  margin-top: -70px;
+  background: radial-gradient(
+    ellipse 58% 44% at 50% 50%,
+    rgba(244, 196, 78, 0.65) 0%,
+    rgba(255, 184, 77, 0.30) 30%,
+    rgba(255, 138, 107, 0.08) 60%,
+    transparent 100%
+  );
+  filter: blur(56px);
+  opacity: 0.22;
+  animation: glow-two-float 3800ms ease-in-out infinite;
+  animation-delay: 160ms;
+}
+
+@keyframes glow-one-float {
+  0%   { transform: translate3d(-18px, 8px, 0) scale(0.96); opacity: 0.48; }
+  50%  { transform: translate3d(16px, -14px, 0) scale(1.05); opacity: 0.72; }
+  100% { transform: translate3d(-18px, 8px, 0) scale(0.96); opacity: 0.48; }
+}
+
+@keyframes glow-two-float {
+  0%   { transform: translate3d(14px, -6px, 0) scale(1.02); opacity: 0.22; }
+  50%  { transform: translate3d(-12px, 12px, 0) scale(0.97); opacity: 0.40; }
+  100% { transform: translate3d(14px, -6px, 0) scale(1.02); opacity: 0.22; }
+}
+
+/* ============================================================
+   BACKGROUND PARTICLES
+   ============================================================ */
+.ambient-particles {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  border-radius: 50%;
+  will-change: transform, opacity;
+  pointer-events: none;
+}
+
+.particle:nth-child(1) {
+  width: 4px; height: 4px;
+  top: 28%; left: 22%;
+  background: rgba(255, 184, 77, 0.55);
+  animation: particle-drift-1 4200ms ease-in-out infinite;
+}
+.particle:nth-child(2) {
+  width: 3px; height: 3px;
+  top: 64%; left: 76%;
+  background: rgba(255, 138, 107, 0.50);
+  animation: particle-drift-2 4600ms ease-in-out infinite;
+}
+.particle:nth-child(3) {
+  width: 5px; height: 5px;
+  top: 42%; left: 18%;
+  background: rgba(244, 196, 78, 0.45);
+  animation: particle-drift-3 4400ms ease-in-out infinite;
+}
+.particle:nth-child(4) {
+  width: 3px; height: 3px;
+  top: 56%; left: 82%;
+  background: rgba(255, 107, 91, 0.48);
+  animation: particle-drift-4 4800ms ease-in-out infinite;
+}
+.particle:nth-child(5) {
+  width: 2px; height: 2px;
+  top: 34%; left: 68%;
+  background: rgba(255, 240, 229, 0.50);
+  animation: particle-drift-5 4000ms ease-in-out infinite;
+}
+.particle:nth-child(6) {
+  width: 3px; height: 3px;
+  top: 72%; left: 34%;
+  background: rgba(255, 184, 77, 0.42);
+  animation: particle-drift-6 4500ms ease-in-out infinite;
+}
+
+@keyframes particle-drift-1 {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.55; }
+  50% { transform: translate3d(22px, -18px, 0); opacity: 0.80; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0.55; }
+}
+@keyframes particle-drift-2 {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.50; }
+  50% { transform: translate3d(-18px, 14px, 0); opacity: 0.78; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0.50; }
+}
+@keyframes particle-drift-3 {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.45; }
+  50% { transform: translate3d(14px, -22px, 0) scale(1.4); opacity: 0.72; }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.45; }
+}
+@keyframes particle-drift-4 {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.48; }
+  50% { transform: translate3d(-20px, -16px, 0); opacity: 0.76; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0.48; }
+}
+@keyframes particle-drift-5 {
+  0% { transform: translate3d(0, 0, 0); opacity: 0.50; }
+  50% { transform: translate3d(-10px, 20px, 0); opacity: 0.74; }
+  100% { transform: translate3d(0, 0, 0); opacity: 0.50; }
+}
+@keyframes particle-drift-6 {
+  0% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.42; }
+  50% { transform: translate3d(16px, -12px, 0) scale(1.3); opacity: 0.68; }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.42; }
+}
+
+/* ============================================================
+   WORD CONTAINER
+   ============================================================ */
+.word-container {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 140px;
+}
+
+/* ============================================================
+   LETTER CONTAINER
+   ============================================================ */
+.letter {
+  position: relative;
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ============================================================
+   LETTER PIECE BASE
+   ============================================================ */
+.letter-piece {
+  position: absolute;
+  border-radius: 4px;
+  will-change: transform, opacity, border-radius;
+  pointer-events: none;
+}
+
+/* ============================================================
+   LETTER "M" — 5 pieces
+   ============================================================ */
+.letter-M {
+  width: 82px;
+  height: 120px;
+}
+
+.letter-M .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+  animation: morph-piece var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards,
+             breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite;
+}
+
+/* M left vertical */
+.letter-M .p1 {
+  width: 14px; height: 112px;
+  left: 0; top: 4px;
+  border-radius: 7px;
+}
+/* M right vertical */
+.letter-M .p2 {
+  width: 14px; height: 112px;
+  left: 68px; top: 4px;
+  border-radius: 7px;
+}
+/* M left diagonal */
+.letter-M .p3 {
+  width: 14px; height: 68px;
+  left: 10px; top: 0;
+  border-radius: 7px;
+  transform-origin: bottom left;
+  transform: rotate(-26deg);
+}
+/* M right diagonal */
+.letter-M .p4 {
+  width: 14px; height: 68px;
+  left: 58px; top: 0;
+  border-radius: 7px;
+  transform-origin: bottom right;
+  transform: rotate(26deg);
+}
+/* M center connector */
+.letter-M .p5 {
+  width: 14px; height: 60px;
+  left: 34px; top: 30px;
+  border-radius: 7px;
+}
+
+/* M morph keyframes */
+.letter-M .p1 { animation: morph-M-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-M .p2 { animation: morph-M-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-M .p3 { animation: morph-M-p3 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-M .p4 { animation: morph-M-p4 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-M .p5 { animation: morph-M-p5 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+@keyframes breathe-warm {
+  0%, 100% {
+    background: var(--peach);
+    box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+  }
+  33% {
+    background: #FF9E7A;
+    box-shadow: 0 0 14px rgba(255, 158, 122, 0.42);
+  }
+  66% {
+    background: #FFB84D;
+    box-shadow: 0 0 12px rgba(255, 184, 77, 0.38);
+  }
+}
+
+@keyframes morph-M-p1 {
+  0% {
+    transform: translate3d(-40px, 50px, 0) scale(0.3) rotate(45deg);
+    opacity: 0.2;
+    border-radius: 50%;
+    background: var(--amber);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+    border-radius: 7px;
+  }
+}
+@keyframes morph-M-p2 {
+  0% {
+    transform: translate3d(40px, -40px, 0) scale(0.25) rotate(-35deg);
+    opacity: 0.15;
+    border-radius: 50%;
+    background: var(--coral);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+    border-radius: 7px;
+  }
+}
+@keyframes morph-M-p3 {
+  0% {
+    transform: translate3d(-30px, -50px, 0) scale(0.35) rotate(60deg);
+    opacity: 0.2;
+    border-radius: 50%;
+    background: var(--gold);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(-26deg);
+    opacity: 1;
+    border-radius: 7px;
+  }
+}
+@keyframes morph-M-p4 {
+  0% {
+    transform: translate3d(35px, 45px, 0) scale(0.28) rotate(-50deg);
+    opacity: 0.18;
+    border-radius: 50%;
+    background: var(--amber);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(26deg);
+    opacity: 1;
+    border-radius: 7px;
+  }
+}
+@keyframes morph-M-p5 {
+  0% {
+    transform: translate3d(0, 60px, 0) scale(0.2) rotate(20deg);
+    opacity: 0.1;
+    border-radius: 50%;
+    background: var(--coral);
+  }
+  100% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg);
+    opacity: 1;
+    border-radius: 7px;
+  }
+}
+
+/* ============================================================
+   LETTER "O" — ring (4 bars forming a rounded rect)
+   ============================================================ */
+.letter-O {
+  width: 80px;
+  height: 120px;
+}
+
+.letter-O .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+  animation: morph-piece var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards,
+             breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite;
+  animation-delay: 100ms, calc(100ms + var(--morph-duration));
+}
+
+.letter-O .p1 { /* top */
+  width: 68px; height: 14px;
+  left: 6px; top: 4px;
+  border-radius: 7px;
+}
+.letter-O .p2 { /* right */
+  width: 14px; height: 92px;
+  left: 60px; top: 14px;
+  border-radius: 7px;
+}
+.letter-O .p3 { /* bottom */
+  width: 68px; height: 14px;
+  left: 6px; top: 102px;
+  border-radius: 7px;
+}
+.letter-O .p4 { /* left */
+  width: 14px; height: 92px;
+  left: 6px; top: 14px;
+  border-radius: 7px;
+}
+
+.letter-O .p1 { animation: morph-O-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-O .p2 { animation: morph-O-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-O .p3 { animation: morph-O-p3 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-O .p4 { animation: morph-O-p4 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+.letter-O .p1 { animation-delay: 100ms, calc(100ms + var(--morph-duration)); }
+.letter-O .p2 { animation-delay: 140ms, calc(140ms + var(--morph-duration)); }
+.letter-O .p3 { animation-delay: 180ms, calc(180ms + var(--morph-duration)); }
+.letter-O .p4 { animation-delay: 120ms, calc(120ms + var(--morph-duration)); }
+
+@keyframes morph-O-p1 {
+  0%  { transform: translate3d(0, -55px, 0) scale(0.3) rotate(0deg); opacity: 0.15; border-radius: 50%; background: var(--amber); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-O-p2 {
+  0%  { transform: translate3d(50px, 0, 0) scale(0.28) rotate(0deg); opacity: 0.15; border-radius: 50%; background: var(--coral); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-O-p3 {
+  0%  { transform: translate3d(0, 55px, 0) scale(0.3) rotate(0deg); opacity: 0.15; border-radius: 50%; background: var(--gold); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-O-p4 {
+  0%  { transform: translate3d(-50px, 0, 0) scale(0.28) rotate(0deg); opacity: 0.15; border-radius: 50%; background: var(--amber); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+
+/* ============================================================
+   LETTER "N" — 3 pieces
+   ============================================================ */
+.letter-N {
+  width: 72px;
+  height: 120px;
+}
+
+.letter-N .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+}
+
+.letter-N .p1 { /* left vertical */
+  width: 14px; height: 112px;
+  left: 0; top: 4px;
+  border-radius: 7px;
+}
+.letter-N .p2 { /* diagonal */
+  width: 14px; height: 98px;
+  left: 10px; top: 10px;
+  border-radius: 7px;
+  transform-origin: center center;
+  transform: rotate(28deg);
+}
+.letter-N .p3 { /* right vertical */
+  width: 14px; height: 112px;
+  left: 58px; top: 4px;
+  border-radius: 7px;
+}
+
+.letter-N .p1 { animation: morph-N-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-N .p2 { animation: morph-N-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-N .p3 { animation: morph-N-p3 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+.letter-N .p1 { animation-delay: 200ms, calc(200ms + var(--morph-duration)); }
+.letter-N .p2 { animation-delay: 240ms, calc(240ms + var(--morph-duration)); }
+.letter-N .p3 { animation-delay: 280ms, calc(280ms + var(--morph-duration)); }
+
+@keyframes morph-N-p1 {
+  0%  { transform: translate3d(-45px, -30px, 0) scale(0.3) rotate(-25deg); opacity: 0.12; border-radius: 50%; background: var(--coral); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-N-p2 {
+  0%  { transform: translate3d(0, 55px, 0) scale(0.25) rotate(45deg); opacity: 0.12; border-radius: 50%; background: var(--gold); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(28deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-N-p3 {
+  0%  { transform: translate3d(40px, -40px, 0) scale(0.28) rotate(20deg); opacity: 0.12; border-radius: 50%; background: var(--amber); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+
+/* ============================================================
+   LETTER "L" — 2 pieces
+   ============================================================ */
+.letter-L {
+  width: 50px;
+  height: 120px;
+}
+
+.letter-L .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+}
+
+.letter-L .p1 { /* vertical */
+  width: 14px; height: 112px;
+  left: 0; top: 4px;
+  border-radius: 7px;
+}
+.letter-L .p2 { /* bottom horizontal */
+  width: 50px; height: 14px;
+  left: 0; top: 102px;
+  border-radius: 7px;
+}
+
+.letter-L .p1 { animation: morph-L-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-L .p2 { animation: morph-L-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+.letter-L .p1 { animation-delay: 300ms, calc(300ms + var(--morph-duration)); }
+.letter-L .p2 { animation-delay: 340ms, calc(340ms + var(--morph-duration)); }
+
+@keyframes morph-L-p1 {
+  0%  { transform: translate3d(-35px, 40px, 0) scale(0.3) rotate(30deg); opacity: 0.12; border-radius: 50%; background: var(--gold); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-L-p2 {
+  0%  { transform: translate3d(25px, 45px, 0) scale(0.25) rotate(-40deg); opacity: 0.1; border-radius: 50%; background: var(--amber); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+
+/* ============================================================
+   LETTER "I" — 1 piece + dot
+   ============================================================ */
+.letter-I {
+  width: 20px;
+  height: 120px;
+}
+
+.letter-I .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+}
+
+.letter-I .p1 { /* stem */
+  width: 14px; height: 112px;
+  left: 3px; top: 4px;
+  border-radius: 7px;
+}
+.letter-I .p2 { /* dot */
+  width: 18px; height: 18px;
+  left: 1px; top: -8px;
+  border-radius: 50%;
+}
+
+.letter-I .p1 { animation: morph-I-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-I .p2 { animation: morph-I-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+.letter-I .p1 { animation-delay: 380ms, calc(380ms + var(--morph-duration)); }
+.letter-I .p2 { animation-delay: 400ms, calc(400ms + var(--morph-duration)); }
+
+@keyframes morph-I-p1 {
+  0%  { transform: translate3d(-10px, 55px, 0) scale(0.2) rotate(15deg); opacity: 0.1; border-radius: 50%; background: var(--coral); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-I-p2 {
+  0%  { transform: translate3d(0, 60px, 0) scale(0.0); opacity: 0; border-radius: 50%; background: var(--gold); }
+  100% { transform: translate3d(0, 0, 0) scale(1); opacity: 1; border-radius: 50%; }
+}
+
+/* ============================================================
+   LETTER "T" — 2 pieces
+   ============================================================ */
+.letter-T {
+  width: 62px;
+  height: 120px;
+}
+
+.letter-T .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+}
+
+.letter-T .p1 { /* top horizontal */
+  width: 62px; height: 14px;
+  left: 0; top: 4px;
+  border-radius: 7px;
+}
+.letter-T .p2 { /* center vertical */
+  width: 14px; height: 112px;
+  left: 24px; top: 4px;
+  border-radius: 7px;
+}
+
+.letter-T .p1 { animation: morph-T-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-T .p2 { animation: morph-T-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+.letter-T .p1 { animation-delay: 420ms, calc(420ms + var(--morph-duration)); }
+.letter-T .p2 { animation-delay: 460ms, calc(460ms + var(--morph-duration)); }
+
+@keyframes morph-T-p1 {
+  0%  { transform: translate3d(0, -50px, 0) scale(0.25) rotate(0deg); opacity: 0.1; border-radius: 50%; background: var(--amber); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-T-p2 {
+  0%  { transform: translate3d(0, 45px, 0) scale(0.22) rotate(10deg); opacity: 0.1; border-radius: 50%; background: var(--coral); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+
+/* ============================================================
+   SECOND O — reusing O styles, different delays
+   ============================================================ */
+.letter-O2 .letter-piece {
+  background: var(--peach);
+  box-shadow: 0 0 10px rgba(255, 138, 107, 0.35);
+}
+
+.letter-O2 .p1 { animation: morph-O2-p1 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-O2 .p2 { animation: morph-O2-p2 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-O2 .p3 { animation: morph-O2-p3 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+.letter-O2 .p4 { animation: morph-O2-p4 var(--morph-duration) cubic-bezier(0.45, 0, 0.55, 1) forwards, breathe-warm var(--breathe-duration) cubic-bezier(0.45, 0, 0.55, 1) var(--morph-duration) infinite; }
+
+.letter-O2 .p1 { animation-delay: 520ms, calc(520ms + var(--morph-duration)); }
+.letter-O2 .p2 { animation-delay: 560ms, calc(560ms + var(--morph-duration)); }
+.letter-O2 .p3 { animation-delay: 600ms, calc(600ms + var(--morph-duration)); }
+.letter-O2 .p4 { animation-delay: 540ms, calc(540ms + var(--morph-duration)); }
+
+@keyframes morph-O2-p1 {
+  0%  { transform: translate3d(20px, -50px, 0) scale(0.28) rotate(25deg); opacity: 0.1; border-radius: 50%; background: var(--gold); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-O2-p2 {
+  0%  { transform: translate3d(45px, 15px, 0) scale(0.25) rotate(-15deg); opacity: 0.1; border-radius: 50%; background: var(--coral); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-O2-p3 {
+  0%  { transform: translate3d(-15px, 50px, 0) scale(0.3) rotate(-20deg); opacity: 0.1; border-radius: 50%; background: var(--amber); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+@keyframes morph-O2-p4 {
+  0%  { transform: translate3d(-50px, -10px, 0) scale(0.26) rotate(30deg); opacity: 0.1; border-radius: 50%; background: var(--peach); }
+  100% { transform: translate3d(0, 0, 0) scale(1) rotate(0deg); opacity: 1; border-radius: 7px; }
+}
+
+/* ============================================================
+   CRESCENT MOON ACCENT (brand icon)
+   ============================================================ */
+.crescent-accent {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  z-index: 2;
+  pointer-events: none;
+  will-change: transform, opacity;
+}
+
+.crescent-inner {
+  width: 48px;
+  height: 48px;
+  margin-left: -24px;
+  margin-top: -24px;
+  position: relative;
+  opacity: 0.28;
+  animation: crescent-float 4200ms ease-in-out infinite;
+  animation-delay: 1800ms;
+}
+
+.crescent-core {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 138, 107, 0.18);
+  box-shadow:
+    inset 18px -6px 24px rgba(255, 107, 91, 0.4),
+    0 0 30px rgba(255, 138, 107, 0.2);
+  filter: blur(2px);
+}
+
+@keyframes crescent-float {
+  0%   { transform: translate3d(-320px, 180px, 0) scale(0.8) rotate(0deg); opacity: 0.28; }
+  50%  { transform: translate3d(-320px, 170px, 0) scale(1.1) rotate(10deg); opacity: 0.42; }
+  100% { transform: translate3d(-320px, 180px, 0) scale(0.8) rotate(0deg); opacity: 0.28; }
+}
+
+/* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .glow-one,
+  .glow-two,
+  .particle,
+  .crescent-inner,
+  .letter-piece {
+    animation: none !important;
+  }
+
+  .letter-piece {
+    opacity: 1 !important;
+    border-radius: 7px !important;
+    background: var(--peach) !important;
+    transform: translate3d(0, 0, 0) scale(1) rotate(0deg) !important;
+  }
+
+  .letter-I .p2 {
+    border-radius: 50% !important;
+  }
+
+  .glow-one {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.60;
+  }
+  .glow-two {
+    transform: translate3d(0, 0, 0) scale(1);
+    opacity: 0.31;
+  }
+}
+</style>
+</head>
+<body>
+<main class="viewport">
+  <section class="stage" aria-label="Moonlit lettering shape morph">
+    <div class="background" aria-hidden="true"></div>
+    <div class="ambient-glow glow-one" aria-hidden="true"></div>
+    <div class="ambient-glow glow-two" aria-hidden="true"></div>
+
+    <div class="ambient-particles" aria-hidden="true">
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+      <div class="particle"></div>
+    </div>
+
+    <div class="crescent-accent" aria-hidden="true">
+      <div class="crescent-inner">
+        <div class="crescent-core"></div>
+      </div>
+    </div>
+
+    <article class="word-container" aria-label="Moonlit">
+      <!-- M -->
+      <div class="letter letter-M" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+        <div class="letter-piece p3"></div>
+        <div class="letter-piece p4"></div>
+        <div class="letter-piece p5"></div>
+      </div>
+
+      <!-- O (first) -->
+      <div class="letter letter-O" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+        <div class="letter-piece p3"></div>
+        <div class="letter-piece p4"></div>
+      </div>
+
+      <!-- O (second) -->
+      <div class="letter letter-O letter-O2" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+        <div class="letter-piece p3"></div>
+        <div class="letter-piece p4"></div>
+      </div>
+
+      <!-- N -->
+      <div class="letter letter-N" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+        <div class="letter-piece p3"></div>
+      </div>
+
+      <!-- L -->
+      <div class="letter letter-L" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+      </div>
+
+      <!-- I -->
+      <div class="letter letter-I" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+      </div>
+
+      <!-- T -->
+      <div class="letter letter-T" aria-hidden="true">
+        <div class="letter-piece p1"></div>
+        <div class="letter-piece p2"></div>
+      </div>
+    </article>
+  </section>
+</main>
+<script>
+(function() {
+  'use strict';
+
+  function fitStage() {
+    var stage = document.querySelector('.stage');
+    if (!stage) return;
+    var scale = Math.min(
+      window.innerWidth / 800,
+      window.innerHeight / 600
+    );
+    stage.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+  }
+
+  window.addEventListener('DOMContentLoaded', fitStage);
+  window.addEventListener('resize', fitStage);
+})();
+</script>
+</body>
+</html>

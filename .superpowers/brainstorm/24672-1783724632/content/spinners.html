@@ -1,0 +1,214 @@
+<h2>Native macOS Spinner Styles (CSS approximations)</h2>
+<p class="subtitle">Below the breathing wordmark, paired with a subtle loading indicator. Background is #0D0D0D.</p>
+
+<style>
+  .spinner-demo {
+    background: #0D0D0D;
+    padding: 20px 30px 30px 30px;
+    border-radius: 14px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 110px;
+    gap: 22px;
+  }
+  .wordmark-spin {
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    font-size: 38px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    color: #fff;
+    opacity: 0.35;
+  }
+  
+  /* a) macOS determinate bar */
+  @keyframes bar {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(400%); }
+  }
+  .spinner-bar {
+    width: 80px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .spinner-bar-inner {
+    width: 24px; height: 100%; border-radius: 2px;
+    background: rgba(255,255,255,0.40);
+    animation: bar 1.4s ease-in-out infinite;
+  }
+
+  /* b) macOS indeterminate (longer sweep) */
+  @keyframes bar-indeterminate {
+    0%   { transform: translateX(-100%); width: 30%; }
+    40%  { transform: translateX(120%);  width: 45%; }
+    60%  { transform: translateX(120%);  width: 45%; }
+    100% { transform: translateX(280%); width: 15%; }
+  }
+  .spinner-bar-indet {
+    width: 80px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  .spinner-bar-indet-inner {
+    height: 100%; border-radius: 2px;
+    background: rgba(255,255,255,0.40);
+    animation: bar-indeterminate 2.0s ease-in-out infinite;
+  }
+
+  /* c) Dot pulse (Activity Indicator style) */
+  @keyframes dotPulse {
+    0%, 80%, 100% { opacity: 0.15; transform: scale(0.6); }
+    40%           { opacity: 1;    transform: scale(1); }
+  }
+  .spinner-dots {
+    display: flex; gap: 8px;
+  }
+  .spinner-dot {
+    width: 6px; height: 6px; border-radius: 50%;
+    background: rgba(255,255,255,0.55);
+    animation: dotPulse 1.4s ease-in-out infinite;
+  }
+  .spinner-dot:nth-child(2) { animation-delay: 0.16s; }
+  .spinner-dot:nth-child(3) { animation-delay: 0.32s; }
+
+  /* d) Ring spinner */
+  @keyframes ring {
+    0%   { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+  }
+  @keyframes ringDash {
+    0%   { stroke-dasharray: 1, 150; stroke-dashoffset: 0; }
+    50%  { stroke-dasharray: 90, 150; stroke-dashoffset: -35; }
+    100% { stroke-dasharray: 90, 150; stroke-dashoffset: -124; }
+  }
+  .spinner-ring svg {
+    animation: ring 2s linear infinite;
+  }
+  .spinner-ring circle {
+    animation: ringDash 1.5s ease-in-out infinite;
+  }
+
+  /* e) Thin line sweep (like Apple TV / media apps) */
+  @keyframes thinSweep {
+    0%   { left: -40%; }
+    100% { left: 100%; }
+  }
+  .spinner-thin {
+    width: 100px; height: 1.5px; border-radius: 1px;
+    background: rgba(255,255,255,0.06);
+    position: relative; overflow: hidden;
+  }
+  .spinner-thin-inner {
+    position: absolute; top: 0; left: -20%;
+    width: 30%; height: 100%; border-radius: 1px;
+    background: rgba(255,255,255,0.5);
+    animation: thinSweep 1.8s ease-in-out infinite;
+  }
+
+  /* f) Capsule (current) */
+  @keyframes capsulePulse {
+    0%, 100% { opacity: 0.08; }
+    50%      { opacity: 0.25; }
+  }
+  .spinner-capsule {
+    width: 60px; height: 4px; border-radius: 2px;
+    background: rgba(255,255,255,0.12);
+    animation: capsulePulse 2.0s ease-in-out infinite;
+  }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="bar" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="spinner-demo">
+        <div class="wordmark-spin">M O O N L I T</div>
+        <div class="spinner-bar"><div class="spinner-bar-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Sweep Bar</h3>
+      <p>A small highlight sweeps across a track. Like macOS progress bars.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="bar-indeterminate" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="spinner-demo">
+        <div class="wordmark-spin">M O O N L I T</div>
+        <div class="spinner-bar-indet"><div class="spinner-bar-indet-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Indeterminate Bar</h3>
+      <p>Longer sweep, variable speed. The "I'm working on it" bar.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="dots" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="spinner-demo">
+        <div class="wordmark-spin">M O O N L I T</div>
+        <div class="spinner-dots">
+          <div class="spinner-dot"></div>
+          <div class="spinner-dot"></div>
+          <div class="spinner-dot"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Dot Pulse</h3>
+      <p>Three dots fading in sequence. Classic activity indicator.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="cards">
+
+  <div class="card" data-choice="ring" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="spinner-demo">
+        <div class="wordmark-spin">M O O N L I T</div>
+        <div class="spinner-ring">
+          <svg width="20" height="20" viewBox="0 0 50 50">
+            <circle cx="25" cy="25" r="20" fill="none" stroke="rgba(255,255,255,0.3)" stroke-width="4" stroke-linecap="round"/>
+          </svg>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>D — Ring Spinner</h3>
+      <p>Circular dash rotating. Like the system spinner.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="thin" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="spinner-demo">
+        <div class="wordmark-spin">M O O N L I T</div>
+        <div class="spinner-thin"><div class="spinner-thin-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>E — Thin Sweep</h3>
+      <p>Ultra-minimal hairline sweep. Apple TV / media player style.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="capsule" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="spinner-demo">
+        <div class="wordmark-spin">M O O N L I T</div>
+        <div class="spinner-capsule"></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>F — Pulse Capsule (current)</h3>
+      <p>What's already there. Simple opacity pulse on a pill shape.</p>
+    </div>
+  </div>
+
+</div>

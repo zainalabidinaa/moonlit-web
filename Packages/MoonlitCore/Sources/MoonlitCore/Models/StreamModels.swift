@@ -136,8 +136,8 @@ public struct StreamBehaviorHints: Codable, Sendable {
     public let filename: String?
     public let videoHash: String?
     public let videoSize: Int64?
-    /// True when the stream is already cached on a debrid CDN (Torrentio, Comet, etc.).
-    /// These start instantly — no peer negotiation needed.
+    /// True when the stream is pre-cached and ready for instant playback.
+    /// These start instantly — no download or resolution delay needed.
     public let cached: Bool?
 
     public init(

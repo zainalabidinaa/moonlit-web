@@ -27,21 +27,40 @@ public final class CollectionOrganizerStore: @unchecked Sendable {
     }
 
     public func cachedOrBundledLayout(bundledData: Data) throws -> OrganizedCollections {
+        let bundled = try? CollectionOrganizerParser.parse(jsonData: bundledData)
         if let cachedData = try? Data(contentsOf: cacheURL),
            let attrs = try? FileManager.default.attributesOfItem(atPath: cacheURL.path),
            let modDate = attrs[.modificationDate] as? Date,
            Date().timeIntervalSince(modDate) < cacheTTL,
            let cached = try? CollectionOrganizerParser.parse(jsonData: cachedData),
            !cached.collections.isEmpty {
-            return cached
+            // Merge the cached remote layout ONTO the bundle instead of returning it
+            // raw — a partial remote response must never hide bundle-only collections
+            // for the cache's 24h lifetime.
+            guard let bundled else { return cached }
+            return OrganizedCollections.merged(base: bundled, overlay: cached)
         }
+        if let bundled { return bundled }
         return try CollectionOrganizerParser.parse(jsonData: bundledData)
+    }
+
+    /// The Supabase edge function rejects unauthenticated requests (HTTP 401),
+    /// which used to make every background refresh fail silently and delete the
+    /// cache. All remote organizer fetches must carry the anon key headers.
+    public static func remoteRequest(url: URL, apiKey: String?) -> URLRequest {
+        var request = URLRequest(url: url)
+        if let apiKey, !apiKey.isEmpty {
+            request.setValue(apiKey, forHTTPHeaderField: "apikey")
+            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        }
+        return request
     }
 
     public func refresh(remoteURL: URL?) async -> OrganizedCollections? {
         guard let remoteURL else { return nil }
         do {
-            let (data, response) = try await session.data(from: remoteURL)
+            let request = Self.remoteRequest(url: remoteURL, apiKey: MoonlitConfig.supabaseAnonKey)
+            let (data, response) = try await session.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse else {
                 print("[Moonlit] home-organizer fetch: not an HTTP response")
                 logger.error("home-organizer fetch: not an HTTP response")

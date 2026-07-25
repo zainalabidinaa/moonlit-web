@@ -98,9 +98,26 @@ public final class StreamService: @unchecked Sendable {
     private func getJSONWithNetworkRetry<T: Decodable>(url: String, type: T.Type) async throws -> T {
         do {
             return try await client.getJSON(url: url, type: type)
-        } catch StremioError.networkError(_) {
+        } catch StremioError.networkError(let underlying) {
+            guard Self.isWorthRetrying(underlying) else { throw StremioError.networkError(underlying) }
             try await Task.sleep(for: .seconds(1))
             return try await client.getJSON(url: url, type: type)
+        }
+    }
+
+    /// A retry only pays off for errors that a second attempt can plausibly fix.
+    /// Timeouts and unresolvable hosts are not those: the client already waited
+    /// out `timeoutIntervalForRequest` (12s), and retrying doubles that cost for
+    /// a host that is simply down — which gates playback behind the slowest
+    /// dead addon. Fail fast instead and let the caller rank what did arrive.
+    private static func isWorthRetrying(_ error: Error) -> Bool {
+        guard let urlError = error as? URLError else { return true }
+        switch urlError.code {
+        case .timedOut, .cannotFindHost, .cannotConnectToHost,
+             .dnsLookupFailed, .unsupportedURL, .badURL, .cancelled:
+            return false
+        default:
+            return true
         }
     }
 

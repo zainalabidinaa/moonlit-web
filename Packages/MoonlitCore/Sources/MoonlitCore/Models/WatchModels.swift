@@ -108,6 +108,16 @@ public struct ContinueWatchingItem: Codable, Sendable, Identifiable {
     public let episodeNumber: Int?
     public let episodeTitle: String?
     public let thumbnail: String?
+    /// True when this card represents the next episode of a finished series
+    /// rather than an in-progress watch — the episode has aired but hasn't
+    /// been started yet, so there's nothing to resume. Computed client-side
+    /// by `HomeRepository.loadUpNextAndUpcoming`, never synced.
+    public let isUpNext: Bool
+    /// True when this card represents a finished series' next episode that
+    /// hasn't aired yet. Mutually exclusive with `isUpNext`.
+    public let isUpcoming: Bool
+    /// Air date for the upcoming episode, only set when `isUpcoming` is true.
+    public let upcomingAirsAt: Date?
 
     enum CodingKeys: String, CodingKey {
         case name, poster, logo, background, thumbnail
@@ -120,6 +130,9 @@ public struct ContinueWatchingItem: Codable, Sendable, Identifiable {
         case seasonNumber = "season_number"
         case episodeNumber = "episode_number"
         case episodeTitle = "episode_title"
+        case isUpNext = "is_up_next"
+        case isUpcoming = "is_upcoming"
+        case upcomingAirsAt = "upcoming_airs_at"
     }
 
     public var id: String { mediaId }
@@ -138,7 +151,10 @@ public struct ContinueWatchingItem: Codable, Sendable, Identifiable {
         seasonNumber: Int? = nil,
         episodeNumber: Int? = nil,
         episodeTitle: String? = nil,
-        thumbnail: String? = nil
+        thumbnail: String? = nil,
+        isUpNext: Bool = false,
+        isUpcoming: Bool = false,
+        upcomingAirsAt: Date? = nil
     ) {
         self.mediaId = mediaId
         self.parentMediaId = parentMediaId
@@ -154,6 +170,9 @@ public struct ContinueWatchingItem: Codable, Sendable, Identifiable {
         self.episodeNumber = episodeNumber
         self.episodeTitle = episodeTitle
         self.thumbnail = thumbnail
+        self.isUpNext = isUpNext
+        self.isUpcoming = isUpcoming
+        self.upcomingAirsAt = upcomingAirsAt
     }
 }
 

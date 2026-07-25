@@ -24,8 +24,8 @@ public struct AwardPeople: Sendable {
 }
 
 /// Aggregates the actors / directors / writers behind an award's winning titles
-/// by querying TMDB credits (mirrors Harbor's award-page people rails). Bounded
-/// and best-effort — returns whatever it can and an empty result on failure.
+/// by querying TMDB credits. Bounded and best-effort — returns whatever it can
+/// and an empty result on failure.
 public actor AwardPeopleService {
     public static let shared = AwardPeopleService()
 

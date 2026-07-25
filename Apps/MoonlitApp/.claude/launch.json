@@ -12,6 +12,12 @@
       "runtimeExecutable": "/opt/homebrew/bin/python3.14",
       "runtimeArgs": ["/Users/zain/projects/Moonlit/moonlit-portal/card_generator/server.py"],
       "port": 5050
+    },
+    {
+      "name": "moonlit-portal",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "/Users/zain/projects/Moonlit/moonlit-portal", "run", "dev", "--", "--port", "5173", "--strictPort"],
+      "port": 5173
     }
   ]
 }

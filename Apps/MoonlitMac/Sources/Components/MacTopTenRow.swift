@@ -23,6 +23,7 @@ struct MacTopTenRow: View {
                 .padding(.horizontal, 32)
                 .padding(.leading, 26)
             }
+            .scrollClipDisabled()
         }
     }
 
@@ -35,7 +36,10 @@ struct MacTopTenRow: View {
             posterArtwork(item)
                 .frame(width: 124, height: 180)
                 .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
-                .shadow(color: .black.opacity(0.4), radius: 8, y: 4)
+                .macAutomaticTileGlow(
+                    artworkURL: item.artworkURL(preferring: .portrait),
+                    cornerRadius: MoonlitTheme.radiusControl
+                )
                 .onTapGesture { onTap(item) }
         }
     }

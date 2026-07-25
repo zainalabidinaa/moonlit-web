@@ -38,6 +38,8 @@ import Foundation
         guard prerequisitesSatisfied(for: .phase1), !completedPhases.contains(.phase1) else { return }
 
         Task {
+            let phase1Start = Date()
+            NSLog("[Moonlit][Perf] Phase1 start")
             async let organizerDone: Void = {
                 guard let bundledURL = Bundle.main.url(forResource: "home-organizer", withExtension: "json"),
                       let bundledData = try? Data(contentsOf: bundledURL) else { return }
@@ -50,10 +52,13 @@ import Foundation
             async let addonsDone: Void = addonRepo.loadAddons(profileId: profileId)
 
             _ = await (organizerDone, addonsDone)
+            NSLog("[Moonlit][Perf] Phase1 done in %.2fs", Date().timeIntervalSince(phase1Start))
             completedPhases.insert(.phase1)
             resumeContinuations(for: .phase1)
 
             let addons = await addonRepo.enabledAddons
+            let phase2Start = Date()
+            NSLog("[Moonlit][Perf] Phase2 start")
             async let catalogsDone: Void = {
                 if await collectionRepo.collections.isEmpty {
                     await catalogRepo.loadAllCatalogs(addons: addons)
@@ -71,10 +76,20 @@ import Foundation
 
             _ = await (catalogsDone, recsDone, libraryDone, cwDone)
 
+            // Enrichment pass, not on the critical path: flips finished
+            // cards to Up Next / Upcoming in place and appends cards for
+            // recently-finished series. Also re-run by MacHomeView whenever
+            // watched state changes — this is just the startup kick.
+            Task(priority: .utility) {
+                await homeRepo.advanceContinueWatching(profileId: profileId)
+            }
+
             catalogRows = await catalogRepo.catalogRows
             collectionRows = await catalogRepo.collectionRows
             allFolderRows = await catalogRepo.allFolderRows
 
+            NSLog("[Moonlit][Perf] Phase2 done in %.2fs (catalogs=%ld, collections=%ld)",
+                  Date().timeIntervalSince(phase2Start), catalogRows.count, collectionRows.count)
             completedPhases.insert(.phase2)
             resumeContinuations(for: .phase2)
         }

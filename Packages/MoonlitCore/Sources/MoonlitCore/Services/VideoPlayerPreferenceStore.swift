@@ -29,6 +29,64 @@ public enum CacheMode: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// A selectable audio/subtitle language. `code` is an ISO 639-1 two-letter
+/// code; `aliases` are the common ISO 639-2/text variants used to match
+/// against stream filenames and mpv track languages (e.g. "en" → "eng").
+public struct PlaybackLanguage: Identifiable, Sendable, Hashable {
+    public let code: String
+    public let name: String
+    public let aliases: [String]
+
+    public var id: String { code }
+
+    public init(code: String, name: String, aliases: [String] = []) {
+        self.code = code
+        self.name = name
+        self.aliases = aliases
+    }
+
+    /// All match tokens for this language: the code plus its aliases and name.
+    public var matchTokens: [String] {
+        ([code] + aliases + [name]).map { $0.lowercased() }
+    }
+
+    /// Common languages, ordered for a picker. Matches a neutral approach of a
+    /// curated list with ISO 639-1 codes and 639-2 fallbacks.
+    public static let all: [PlaybackLanguage] = [
+        PlaybackLanguage(code: "en", name: "English", aliases: ["eng"]),
+        PlaybackLanguage(code: "es", name: "Spanish", aliases: ["spa", "esp"]),
+        PlaybackLanguage(code: "fr", name: "French", aliases: ["fre", "fra"]),
+        PlaybackLanguage(code: "de", name: "German", aliases: ["ger", "deu"]),
+        PlaybackLanguage(code: "it", name: "Italian", aliases: ["ita"]),
+        PlaybackLanguage(code: "pt", name: "Portuguese", aliases: ["por"]),
+        PlaybackLanguage(code: "ru", name: "Russian", aliases: ["rus"]),
+        PlaybackLanguage(code: "ja", name: "Japanese", aliases: ["jpn", "jap"]),
+        PlaybackLanguage(code: "ko", name: "Korean", aliases: ["kor"]),
+        PlaybackLanguage(code: "zh", name: "Chinese", aliases: ["chi", "zho", "mandarin", "cantonese"]),
+        PlaybackLanguage(code: "ar", name: "Arabic", aliases: ["ara"]),
+        PlaybackLanguage(code: "hi", name: "Hindi", aliases: ["hin"]),
+        PlaybackLanguage(code: "nl", name: "Dutch", aliases: ["dut", "nld"]),
+        PlaybackLanguage(code: "sv", name: "Swedish", aliases: ["swe"]),
+        PlaybackLanguage(code: "no", name: "Norwegian", aliases: ["nor"]),
+        PlaybackLanguage(code: "da", name: "Danish", aliases: ["dan"]),
+        PlaybackLanguage(code: "fi", name: "Finnish", aliases: ["fin"]),
+        PlaybackLanguage(code: "pl", name: "Polish", aliases: ["pol"]),
+        PlaybackLanguage(code: "tr", name: "Turkish", aliases: ["tur"]),
+        PlaybackLanguage(code: "cs", name: "Czech", aliases: ["cze", "ces"]),
+        PlaybackLanguage(code: "el", name: "Greek", aliases: ["gre", "ell"]),
+        PlaybackLanguage(code: "he", name: "Hebrew", aliases: ["heb"]),
+        PlaybackLanguage(code: "th", name: "Thai", aliases: ["tha"]),
+        PlaybackLanguage(code: "vi", name: "Vietnamese", aliases: ["vie"]),
+        PlaybackLanguage(code: "id", name: "Indonesian", aliases: ["ind"]),
+        PlaybackLanguage(code: "uk", name: "Ukrainian", aliases: ["ukr"]),
+    ]
+
+    public static func named(_ code: String?) -> PlaybackLanguage? {
+        guard let code, !code.isEmpty else { return nil }
+        return all.first { $0.code == code }
+    }
+}
+
 @MainActor
 public final class VideoPlayerPreferenceStore: ObservableObject {
     public static let shared = VideoPlayerPreferenceStore()
@@ -132,5 +190,34 @@ public final class VideoPlayerPreferenceStore: ObservableObject {
     public var showOnlyCompatibleFormats: Bool {
         get { defaults.object(forKey: "\(prefix).showOnlyCompatible") as? Bool ?? false }
         set { objectWillChange.send(); defaults.set(newValue, forKey: "\(prefix).showOnlyCompatible") }
+    }
+
+    // MARK: - Preferred Languages
+    /// Preferred audio language (ISO 639-1). `nil`/empty = system default.
+    /// Streams whose filename advertises this language rank higher, and mpv
+    /// auto-selects a matching embedded audio track on load.
+    public var preferredAudioLanguage: String? {
+        get {
+            let value = defaults.string(forKey: "\(prefix).preferredAudioLanguage") ?? ""
+            return value.isEmpty ? nil : value
+        }
+        set {
+            objectWillChange.send()
+            defaults.set(newValue ?? "", forKey: "\(prefix).preferredAudioLanguage")
+        }
+    }
+
+    /// Preferred subtitle language (ISO 639-1). `nil`/empty = system default.
+    /// mpv auto-selects a matching embedded subtitle track on load, and a
+    /// matching already-loaded external subtitle is preselected. No scanning.
+    public var preferredSubtitleLanguage: String? {
+        get {
+            let value = defaults.string(forKey: "\(prefix).preferredSubtitleLanguage") ?? ""
+            return value.isEmpty ? nil : value
+        }
+        set {
+            objectWillChange.send()
+            defaults.set(newValue ?? "", forKey: "\(prefix).preferredSubtitleLanguage")
+        }
     }
 }

@@ -65,7 +65,16 @@ struct MacHomeView: View {
     }
 
     private var visibleCatalogRows: [CatalogRow] {
-        catalogRepo.catalogRows.compactMap { filteredHomeRow($0, filter: categoryState) }
+        switch categoryState.category {
+        case .featured:
+            return catalogRepo.catalogRows.compactMap { filteredHomeRow($0, filter: categoryState) }
+        case .movies:
+            return catalogRepo.rows(for: .movies, collectionRepo: collectionRepo)
+                .compactMap { filteredHomeRow($0, filter: categoryState) }
+        case .shows:
+            return catalogRepo.rows(for: .series, collectionRepo: collectionRepo)
+                .compactMap { filteredHomeRow($0, filter: categoryState) }
+        }
     }
 
     private let homeGenres: [String] = [
@@ -218,21 +227,10 @@ struct MacHomeView: View {
                         items: featured,
                         currentIndex: $heroIndex,
                         onWatchNow: { item in route(item: item) },
-                        onToggleLibrary: { item in
-                            Task {
-                                guard let profile = profileManager.currentProfile else { return }
-                                await libraryRepo.toggleLibrary(
-                                    profileId: profile.id,
-                                    mediaId: item.id,
-                                    mediaType: item.type.rawValue,
-                                    name: item.name,
-                                        poster: item.poster
-                                    )
-                                }
-                            },
-                            ambientColor: ambientColor,
-                            ambientColor2: ambientColor2
-                        )
+                        onMoreInfo: { item in route(item: item) },
+                        ambientColor: ambientColor,
+                        ambientColor2: ambientColor2
+                    )
                         // `.task(id:)` already re-runs whenever heroIndex or cinematic mode
                         // changes, so a separate .onChange(of: heroIndex) would double-fetch.
                         .task(id: "\(heroIndex)-\(cinematicModeEnabled)") {
@@ -366,6 +364,8 @@ struct MacHomeView: View {
         .background(MoonlitTheme.background)
         .task {
             guard let profile = profileManager.currentProfile else { return }
+            let homeTaskStart = Date()
+            NSLog("[Moonlit][Perf] MacHomeView.task started")
             catalogRepo.isLoading = true
 
             if !(await StartupCoordinator.shared.isPhaseComplete(.phase1)) {
@@ -381,6 +381,7 @@ struct MacHomeView: View {
             }
 
             await StartupCoordinator.shared.waitForPhase(.phase2)
+            NSLog("[Moonlit][Perf] MacHomeView Phase2 awaited in %.2fs", Date().timeIntervalSince(homeTaskStart))
 
             prefetchHeroLogos(from: await StartupCoordinator.shared.catalogRows)
 
@@ -395,9 +396,11 @@ struct MacHomeView: View {
             }
             catalogRepo.allFolderRows = merged
             catalogRepo.isLoading = false
+            NSLog("[Moonlit][Perf] MacHomeView rows assigned in %.2fs", Date().timeIntervalSince(homeTaskStart))
 
             warmupContinueWatching()
             await updateAmbientColorIfNeeded()
+            NSLog("[Moonlit][Perf] MacHomeView.task complete in %.2fs", Date().timeIntervalSince(homeTaskStart))
 
             Task {
                 await StartupCoordinator.shared.startPhase3(
@@ -424,6 +427,13 @@ struct MacHomeView: View {
         .onChange(of: heroStore.revision) { _, _ in
             heroIndex = 0
         }
+        .onChange(of: watchProgressRepo.watchedItems.count) { _, _ in
+            // Watched state changed somewhere (detail page eye toggle, context
+            // menu, finished playback) — re-evaluate the Continue Watching row
+            // so finished cards flip to Up Next / Upcoming immediately.
+            guard let profile = profileManager.currentProfile else { return }
+            Task { await homeRepo.advanceContinueWatching(profileId: profile.id) }
+        }
     }
 
     private var continueWatchingRow: some View {
@@ -440,7 +450,10 @@ struct MacHomeView: View {
                             item: item,
                             isLoading: isResumingItemId == item.mediaId,
                             width: 250,
-                            height: 142
+                            height: 142,
+                            onMarkWatched: { markContinueWatchingItemWatched(item) },
+                            onShowDetail: { showDetail(for: item) },
+                            onRemove: { Task { await homeRepo.removeFromContinueWatching(item) } }
                         )
                         .onTapGesture { resumeItem(item) }
                     }
@@ -448,6 +461,8 @@ struct MacHomeView: View {
                 .padding(.horizontal, 32)
                 .padding(.vertical, 6)
             }
+            // Don't shear the hover halo off at the row bounds.
+            .scrollClipDisabled()
         }
     }
 
@@ -521,6 +536,35 @@ struct MacHomeView: View {
         }
     }
 
+    private func showDetail(for item: ContinueWatchingItem) {
+        let type: MediaType = item.mediaType == "movie" ? .movie : .series
+        onSelectMedia(MetaPreview(
+            id: item.parentMediaId ?? item.mediaId,
+            type: type,
+            name: item.name,
+            poster: item.poster,
+            logo: item.logo
+        ))
+    }
+
+    private func markContinueWatchingItemWatched(_ item: ContinueWatchingItem) {
+        guard let profile = profileManager.currentProfile else { return }
+        Task {
+            await watchProgressRepo.markWatched(
+                profileId: profile.id,
+                mediaId: item.mediaId,
+                mediaType: item.mediaType,
+                name: item.name,
+                poster: item.poster,
+                season: item.seasonNumber,
+                episode: item.episodeNumber
+            )
+            // Marking watched advances the card in place (Up Next / Upcoming),
+            // . Removing the card is its own separate action.
+            await homeRepo.advanceContinueWatching(profileId: profile.id)
+        }
+    }
+
     private func resumeItem(_ item: ContinueWatchingItem) {
         guard isResumingItemId == nil else { return }
         isResumingItemId = item.mediaId
@@ -560,7 +604,8 @@ struct MacHomeView: View {
             guard let stream = await StreamRepository.shared.bestStream(
                 for: item.mediaType, id: item.mediaId,
                 from: addonRepo.enabledAddons,
-                prefer4K: prefer4K
+                prefer4K: prefer4K,
+                preferredAudioLanguage: VideoPlayerPreferenceStore.shared.preferredAudioLanguage
             ), let url = stream.url else { return }
 
             openWindow(id: "player", value: PlayerLaunch(
@@ -637,7 +682,9 @@ struct MacHomeView: View {
                 return
             }
             let oldCount = collectionRepo.collections.count
-            collectionRepo.apply(refreshed)
+            // Merge onto the bundled/cached layout — applying the raw remote
+            // response drops bundle-only collections and their tab flags.
+            collectionRepo.apply(CollectionRepository.mergeByName(base: organized, overlay: refreshed))
             logger.info("home-organizer applied: \(collectionRepo.collections.count) collections (was \(oldCount))")
             guard !collectionRepo.collections.isEmpty else { return }
             await catalogRepo.loadFromCollections(

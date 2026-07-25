@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Top-center player microinteraction (ported from Harbor's stream-check-pill):
+/// Top-center player microinteraction (adapted from a reference's stream-check-pill):
 /// a few seconds after playback starts it asks whether the stream looks right,
 /// and on stall/failure it nudges the viewer to pick another source.
 struct MacStreamCheckPill: View {

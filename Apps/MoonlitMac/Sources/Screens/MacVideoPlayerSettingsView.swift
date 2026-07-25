@@ -34,6 +34,23 @@ struct MacVideoPlayerSettingsView: View {
                         }
                     }
 
+                    sectionLabel("Language")
+                    settingsCard {
+                        languagePickerRow("Preferred audio", selection: Binding(
+                            get: { prefs.preferredAudioLanguage },
+                            set: { prefs.preferredAudioLanguage = $0 }
+                        ))
+                        Divider().background(Color.white.opacity(0.08))
+                        languagePickerRow("Preferred subtitles", selection: Binding(
+                            get: { prefs.preferredSubtitleLanguage },
+                            set: { prefs.preferredSubtitleLanguage = $0 }
+                        ))
+                    }
+                    Text("Prefers streams that offer the selected audio language and preselects matching embedded audio and subtitle tracks. Subtitles aren't scanned or downloaded automatically.")
+                        .font(.caption)
+                        .foregroundColor(MoonlitTheme.textTertiary)
+                        .padding(.horizontal, 20)
+
                     sectionLabel("Skip Intro")
                     settingsCard {
                         toggleRow("Show 'Skip Intro' when detected", isOn: Binding(
@@ -212,6 +229,23 @@ struct MacVideoPlayerSettingsView: View {
             Picker("", selection: engine) {
                 ForEach(VideoPlayerEngineOption.allCases, id: \.self) { e in
                     Text(e.displayName).tag(e)
+                }
+            }
+            .labelsHidden()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 4)
+    }
+
+    private func languagePickerRow(_ title: String, selection: Binding<String?>) -> some View {
+        HStack {
+            Text(title).font(.subheadline).foregroundColor(.white)
+            Spacer()
+            Picker("", selection: selection) {
+                Text("System default").tag(String?.none)
+                ForEach(PlaybackLanguage.all) { language in
+                    Text("\(LanguageFlag.emoji(for: language.code))  \(language.name)")
+                        .tag(String?.some(language.code))
                 }
             }
             .labelsHidden()

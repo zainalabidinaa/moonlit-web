@@ -304,7 +304,7 @@ struct MacLibraryView: View {
         HStack(spacing: 9) {
             Image(systemName: icon)
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(MoonlitTheme.harborGold)
+                .foregroundColor(MoonlitTheme.ratingGold)
             Text(title)
                 .font(.system(size: 19, weight: .bold))
                 .foregroundColor(.white)
@@ -330,7 +330,7 @@ struct MacLibraryView: View {
                         .padding(.horizontal, 14)
                         .padding(.vertical, 6)
                         .background(
-                            Capsule().fill(isSelected ? MoonlitTheme.harborGold : Color.white.opacity(0.08))
+                            Capsule().fill(isSelected ? MoonlitTheme.ratingGold : Color.white.opacity(0.08))
                         )
                 }
                 .buttonStyle(.plain)

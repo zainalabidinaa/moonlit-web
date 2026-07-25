@@ -172,7 +172,9 @@ struct CreateProfileSheet: View {
                 }
             }
             .navigationTitle("New Profile")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { isPresented = false }

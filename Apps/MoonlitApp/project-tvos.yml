@@ -37,6 +37,8 @@ targets:
     platform: tvOS
     sources:
       - path: Sources
+        excludes:
+          - "LaunchScreen.storyboard"
       - path: Resources
     dependencies:
       - package: MoonlitCore

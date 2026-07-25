@@ -52,7 +52,7 @@ struct SubtitleAppearanceScreen: View {
                             }
                         }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     sectionLabel("Font")
@@ -75,7 +75,7 @@ struct SubtitleAppearanceScreen: View {
                             set: { isItalic = $0; store.isItalic = $0 }
                         ))
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     sectionLabel("Colors")
@@ -86,7 +86,7 @@ struct SubtitleAppearanceScreen: View {
                         Divider().background(Color.white.opacity(0.08))
                         colorRow("Background Color", hex: store.backgroundColorHex) { store.backgroundColorHex = $0 }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     sectionLabel("Position")
@@ -101,7 +101,7 @@ struct SubtitleAppearanceScreen: View {
                             store.horizontalMargin = horizontalMargin
                         }
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     sectionLabel("Advanced")
@@ -115,7 +115,7 @@ struct SubtitleAppearanceScreen: View {
                             set: { store.scaleWithWindowSize = $0 }
                         ))
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     Button {
@@ -138,7 +138,7 @@ struct SubtitleAppearanceScreen: View {
                         .frame(maxWidth: .infinity)
                         .padding(14)
                     }
-                    .glassCard(cornerRadius: 14)
+                    .glassCard(cornerRadius: MoonlitTheme.radiusCard)
                     .padding(.horizontal, 16)
 
                     Spacer().frame(height: 32)
@@ -147,7 +147,9 @@ struct SubtitleAppearanceScreen: View {
             }
             .background(MoonlitTheme.background)
             .navigationTitle("Subtitle Appearance")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Done") { dismiss() }
@@ -158,7 +160,7 @@ struct SubtitleAppearanceScreen: View {
 
     private var subtitlePreviewPanel: some View {
         ZStack(alignment: .bottom) {
-            RoundedRectangle(cornerRadius: 12)
+            RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard)
                 .fill(Color.black)
                 .overlay(
                     Image(systemName: "play.rectangle.fill")
@@ -182,7 +184,7 @@ struct SubtitleAppearanceScreen: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 12)
         }
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard))
         .padding(.horizontal, 16)
         .padding(.top, 8)
     }
@@ -236,9 +238,11 @@ struct SubtitleAppearanceScreen: View {
                     .font(.subheadline.weight(.semibold))
                     .foregroundColor(MoonlitTheme.accent)
             }
+#if os(iOS)
             Slider(value: value, in: range, step: step)
                 .tint(MoonlitTheme.accent)
                 .onChange(of: value.wrappedValue) { _, _ in onChange() }
+#endif
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)

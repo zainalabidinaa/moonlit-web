@@ -9,7 +9,7 @@ import Libmpv
 /// Generates seek-preview thumbnails using a **second, in-process libmpv handle**
 /// that runs headless (`vo=null`, no audio) alongside the real player.
 ///
-/// This is Harbor's on-the-fly frame-extraction technique, but where Harbor spawns
+/// This is a neutral on-the-fly frame-extraction technique, but where the reference spawns
 /// an external `mpv` subprocess and talks to it over a JSON IPC pipe, we drive a
 /// libmpv handle directly in-process — no subprocess, no pipe, no external binary.
 /// `screenshot-to-file` runs synchronously on our own serial queue, so we don't
@@ -26,7 +26,7 @@ public final class PlayerThumbnailer: ObservableObject {
     @Published public private(set) var revision = 0
 
     // MARK: Tunables
-    private let bucketSeconds: Double = 2.0        // one frame per 2s of video (matches Harbor)
+    private let bucketSeconds: Double = 2.0        // one frame per 2s of video (matches the reference)
     private let thumbWidth = 320                   // shadow scales frames to this width
     private let jpegQuality = 80
     private let seekWaitSeconds: Double = 4.0      // max wait for a keyframe seek to land
@@ -361,7 +361,7 @@ public final class PlayerThumbnailer: ObservableObject {
     }
 
     /// Heuristic: torrent-streaming servers run on loopback and only serve downloaded
-    /// ranges, so we gate un-buffered regions there. Remote HTTP/debrid is fully
+    /// ranges, so we gate un-buffered regions there. Remote HTTP is fully
     /// seekable and needs no gating.
     private static func looksBufferConstrained(_ url: String) -> Bool {
         guard let host = URL(string: url)?.host?.lowercased() else { return false }

@@ -49,7 +49,7 @@ struct MacAdminView: View {
                             } label: {
                                 HStack(spacing: 6) {
                                     if isGenerating {
-                                        ProgressView().controlSize(.small).tint(.white)
+                                        MacStrokeSpinner(size: 16)
                                     }
                                     Text(isGenerating ? "Generating…" : "Generate Code")
                                         .fontWeight(.semibold)

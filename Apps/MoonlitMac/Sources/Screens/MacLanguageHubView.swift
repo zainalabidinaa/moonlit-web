@@ -8,6 +8,8 @@ struct MacLanguageHubView: View {
     let onSelectMedia: (MetaPreview) -> Void
 
     @StateObject private var addonRepo = AddonRepository.shared
+    @State private var featuredTVRails: [GenreCatalog.LoadedBrowseRail] = []
+    @State private var featuredMovieRails: [GenreCatalog.LoadedBrowseRail] = []
     @State private var tvRails: [GenreCatalog.LoadedBrowseRail] = []
     @State private var movieRails: [GenreCatalog.LoadedBrowseRail] = []
     @State private var isLoading = true
@@ -23,8 +25,15 @@ struct MacLanguageHubView: View {
                 VStack(alignment: .leading, spacing: 56) {
                     header
 
-                    if tvRails.isEmpty && movieRails.isEmpty && !isLoading {
+                    if featuredTVRails.isEmpty && featuredMovieRails.isEmpty && tvRails.isEmpty && movieRails.isEmpty && !isLoading {
                         emptyState
+                    }
+
+                    if !featuredTVRails.isEmpty || !featuredMovieRails.isEmpty {
+                        sectionHeader("Featured")
+                        ForEach(featuredTVRails + featuredMovieRails) { rail in
+                            railView(rail: rail)
+                        }
                     }
 
                     if !tvRails.isEmpty {
@@ -50,20 +59,10 @@ struct MacLanguageHubView: View {
                 await loadRails()
             }
 
-            HStack {
-                Button { onBack() } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .macDarkGlassCapsule(interactive: true)
-                }
-                .buttonStyle(.plain)
-                Spacer()
+            if isLoading && featuredTVRails.isEmpty && featuredMovieRails.isEmpty && tvRails.isEmpty && movieRails.isEmpty {
+                MacLoadingView(size: 44)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
         }
         .background(MoonlitTheme.background)
     }
@@ -77,6 +76,11 @@ struct MacLanguageHubView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
+            Text("LANGUAGE")
+                .font(.system(size: 13, weight: .bold))
+                .tracking(6)
+                .foregroundColor(.white.opacity(0.42))
+                .padding(.horizontal, 32)
             Text(name)
                 .font(.system(size: 60, weight: .bold, design: .serif))
                 .foregroundColor(.white)
@@ -108,7 +112,7 @@ struct MacLanguageHubView: View {
                 LazyHStack(spacing: 12) {
                     ForEach(rail.items) { item in
                         Button { onSelectMedia(item) } label: {
-                            MediaCard(item: item)
+                            PosterCard(item: item)
                         }
                         .buttonStyle(.plain)
                     }
@@ -258,37 +262,56 @@ struct MacLanguageHubView: View {
         let generalDefs = effectiveGeneralDefs
         let specificDefs = Self.languageSpecificDefs[iso] ?? []
 
-        let tvDefs: [RailDef] = generalDefs.filter { $0.kind == "both" || $0.kind == "tv" } + specificDefs.filter { $0.kind == "tv" }
-        let movieDefs: [RailDef] = generalDefs.filter { $0.kind == "both" || $0.kind == "movie" } + specificDefs.filter { $0.kind == "movie" }
+        let tvDefs = generalDefs.filter { $0.kind == "both" || $0.kind == "tv" }
+        let movieDefs = generalDefs.filter { $0.kind == "both" || $0.kind == "movie" }
+        let featuredTVDefs = specificDefs.filter { $0.kind == "tv" }
+        let featuredMovieDefs = specificDefs.filter { $0.kind == "movie" }
 
         async let tvResults = fetchRails(kind: "tv", apiKey: key, defs: tvDefs)
         async let movieResults = fetchRails(kind: "movie", apiKey: key, defs: movieDefs)
+        async let featuredTVResults = fetchRails(kind: "tv", apiKey: key, defs: featuredTVDefs)
+        async let featuredMovieResults = fetchRails(kind: "movie", apiKey: key, defs: featuredMovieDefs)
 
-        let (tv, mov) = await (tvResults, movieResults)
+        let (tv, mov, featuredTV, featuredMovies) = await (tvResults, movieResults, featuredTVResults, featuredMovieResults)
         tvRails = tv
         movieRails = mov
+        featuredTVRails = featuredTV
+        featuredMovieRails = featuredMovies
         isLoading = false
     }
 
     private func fetchRails(kind: String, apiKey: String, defs: [RailDef]) async -> [GenreCatalog.LoadedBrowseRail] {
-        var results: [GenreCatalog.LoadedBrowseRail] = []
-        for def in defs {
-            var params = def.params
-            switch def.filter {
-            case .language:
-                params["with_original_language"] = iso
-            case .country(let codes):
-                params["with_origin_country"] = codes
+        // Fire every rail definition's request at once instead of awaiting them
+        // one at a time — this loop was the main cause of slow hub loads.
+        let indexed = await withTaskGroup(of: (Int, GenreCatalog.LoadedBrowseRail?).self) { group in
+            for (index, def) in defs.enumerated() {
+                var params = def.params
+                switch def.filter {
+                case .language:
+                    params["with_original_language"] = iso
+                case .country(let codes):
+                    params["with_origin_country"] = codes
+                }
+                group.addTask {
+                    let items = await Self.fetchItems(kind: kind, apiKey: apiKey, params: params)
+                    guard !items.isEmpty else { return (index, nil) }
+                    let id = "lang-\(kind)-\(def.title.replacingOccurrences(of: " ", with: "-").lowercased())"
+                    return (index, GenreCatalog.LoadedBrowseRail(id: id, title: def.title, items: items))
+                }
             }
-            let items = await fetchItems(kind: kind, apiKey: apiKey, params: params)
-            if !items.isEmpty {
-                results.append(.init(id: "lang-\(kind)-\(def.title.replacingOccurrences(of: " ", with: "-").lowercased())", title: def.title, items: items))
+            var collected: [(Int, GenreCatalog.LoadedBrowseRail?)] = []
+            for await result in group {
+                collected.append(result)
             }
+            return collected
         }
-        return results
+        return indexed.sorted { $0.0 < $1.0 }.compactMap { $0.1 }
     }
 
-    private func fetchItems(kind: String, apiKey: String, params: [String: String]) async -> [MetaPreview] {
+    // `static` so `fetchRails` can call these from inside a `withTaskGroup`
+    // closure without capturing `self` — MacLanguageHubView is a non-Sendable
+    // View struct, and neither function touches instance state.
+    private static func fetchItems(kind: String, apiKey: String, params: [String: String]) async -> [MetaPreview] {
         let base = "https://api.themoviedb.org/3"
         var components = URLComponents(string: "\(base)/discover/\(kind)")
         var queryItems = [URLQueryItem(name: "api_key", value: apiKey)]
@@ -305,7 +328,7 @@ struct MacLanguageHubView: View {
         }
     }
 
-    private func resolveImdbIds(_ items: [LanguageDiscoverItem], kind: String, apiKey: String) async -> [MetaPreview] {
+    private static func resolveImdbIds(_ items: [LanguageDiscoverItem], kind: String, apiKey: String) async -> [MetaPreview] {
         return await withTaskGroup(of: MetaPreview?.self) { group in
             for item in items.prefix(20) {
                 group.addTask {

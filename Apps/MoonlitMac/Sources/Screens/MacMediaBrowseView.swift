@@ -17,6 +17,7 @@ struct MacMediaBrowseView: View {
 
     @State private var heroIndex = 0
     @State private var selectedGenre: String?
+    @State private var portalRows: [CatalogRow] = []
     @State private var browseRails: [GenreCatalog.LoadedBrowseRail] = []
     @State private var creativeRails: [GenreCatalog.LoadedBrowseRail] = []
     @State private var collectionRails: [GenreCatalog.LoadedBrowseRail] = []
@@ -28,6 +29,7 @@ struct MacMediaBrowseView: View {
 
     private var mediaTypeFilter: String { mediaKind == .movie ? "movie" : "series" }
     private var browseNoun: String { mediaKind == .movie ? "Movies" : "Series" }
+    private var tabContext: CollectionTab { mediaKind == .movie ? .movies : .series }
 
     private let mainRowNames: Set<String> = [
         "Popular Movies", "Popular TV Shows",
@@ -37,7 +39,10 @@ struct MacMediaBrowseView: View {
     ]
 
     private var featuredItems: [MetaPreview] {
-        let allRows = catalogRepo.catalogRows
+        // Hero stays automatic: draw from all loaded folder rows (not gated by
+        // per-tab visibility flags) so hiding a rail from a tab never empties the hero.
+        let folderRows = Array(catalogRepo.allFolderRows.values)
+        let allRows = folderRows.isEmpty ? catalogRepo.catalogRows : folderRows
         let heroRows: [CatalogRow]
         if heroStore.rowOrder.isEmpty {
             let defaults = allRows.filter { mainRowNames.contains($0.title) }
@@ -79,8 +84,6 @@ struct MacMediaBrowseView: View {
         TMDBGenreIDs.availableGenres(for: mediaKind)
     }
 
-    @State private var collectionFolderRow: CatalogRow?
-
     var body: some View {
         ZStack(alignment: .top) {
             MacFusionAmbientBackground(
@@ -100,18 +103,7 @@ struct MacMediaBrowseView: View {
                         items: featuredItems,
                         currentIndex: $heroIndex,
                         onWatchNow: { item in onSelectMedia(item) },
-                        onToggleLibrary: { item in
-                            Task {
-                                guard let profile = profileManager.currentProfile else { return }
-                                await libraryRepo.toggleLibrary(
-                                    profileId: profile.id,
-                                    mediaId: item.id,
-                                    mediaType: item.type.rawValue,
-                                    name: item.name,
-                                    poster: item.poster
-                                )
-                            }
-                        },
+                        onMoreInfo: { item in onSelectMedia(item) },
                         ambientColor: ambientColor,
                         ambientColor2: ambientColor2
                         )
@@ -126,8 +118,14 @@ struct MacMediaBrowseView: View {
                     genrePillRow
                         .padding(.top, featuredItems.isEmpty ? 96 : 14)
 
-                    if let folderRow = collectionFolderRow, selectedGenre == nil {
-                        folderTileSection(row: folderRow)
+                    if selectedGenre == nil {
+                        ForEach(portalRows) { row in
+                            if row.items.first?.id.hasPrefix("folder_") == true {
+                                folderTileSection(row: row)
+                            } else if !row.items.isEmpty {
+                                portalRailSection(row: row)
+                            }
+                        }
                     }
 
                     ForEach(browseRails) { rail in
@@ -147,7 +145,7 @@ struct MacMediaBrowseView: View {
                             ScrollView(.horizontal, showsIndicators: false) {
                                 LazyHStack(spacing: 22) {
                                     ForEach(rail.items) { item in
-                                        MediaCard(item: item, width: 154, height: 231)
+                                        PosterCard(item: item)
                                             .onTapGesture { onSelectMedia(item) }
                                     }
                                 }
@@ -176,7 +174,7 @@ struct MacMediaBrowseView: View {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     LazyHStack(spacing: 22) {
                                         ForEach(rail.items) { item in
-                                            MediaCard(item: item, width: 154, height: 231)
+                                            PosterCard(item: item)
                                                 .onTapGesture { onSelectMedia(item) }
                                         }
                                     }
@@ -206,7 +204,7 @@ struct MacMediaBrowseView: View {
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     LazyHStack(spacing: 22) {
                                         ForEach(rail.items) { item in
-                                            MediaCard(item: item, width: 154, height: 231)
+                                            PosterCard(item: item)
                                                 .onTapGesture { onSelectMedia(item) }
                                         }
                                     }
@@ -242,14 +240,12 @@ struct MacMediaBrowseView: View {
             await addonRepo.loadAddons(profileId: profile.id)
             await libraryRepo.loadLibrary(profileId: profile.id)
             await reloadCatalogRows()
-            let cacheKey = "browse:\(mediaTypeFilter):all"
-            if let cached = BrowseRailCache.shared.get(key: cacheKey), !cached.isEmpty {
-                browseRails = cached
-            } else {
-                await loadDefaultRails()
-                BrowseRailCache.shared.set(key: cacheKey, rails: browseRails)
-            }
+            if selectedGenre == nil { await loadDefaultRails() }
             await updateAmbientColorIfNeeded()
+        }
+        .onReceive(catalogRepo.$allFolderRows) { _ in
+            guard selectedGenre == nil else { return }
+            portalRows = catalogRepo.rows(for: tabContext, collectionRepo: collectionRepo)
         }
         .onChange(of: heroStore.revision) { _, _ in
             heroIndex = 0
@@ -316,23 +312,18 @@ struct MacMediaBrowseView: View {
                 .padding(.vertical, 8)
                 .background(
                     RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(isSelected ? MoonlitTheme.harborGold : Color.white.opacity(0.06))
+                        .fill(isSelected ? MoonlitTheme.ratingGold : Color.white.opacity(0.06))
                 )
         }
         .buttonStyle(.plain)
     }
 
     private func loadDefaultRails() async {
-        let cacheKey = "browse:\(mediaTypeFilter):all"
         isLoadingRails = true
-        async let rails = TMDBDiscoverService.shared.discoverGeneral(mediaKind: mediaKind)
-        async let folderRow = loadCollectionFolderRow(genre: nil)
-        let (r, fr) = await (rails, folderRow)
-        browseRails = r
+        portalRows = catalogRepo.rows(for: tabContext, collectionRepo: collectionRepo)
+        browseRails = []
         creativeRails = []
         collectionRails = []
-        collectionFolderRow = fr
-        BrowseRailCache.shared.set(key: cacheKey, rails: r)
         isLoadingRails = false
     }
 
@@ -342,7 +333,7 @@ struct MacMediaBrowseView: View {
             browseRails = cached
             creativeRails = []
             collectionRails = []
-            collectionFolderRow = nil
+            portalRows = []
             isLoadingRails = false
             return
         }
@@ -354,60 +345,9 @@ struct MacMediaBrowseView: View {
         browseRails = r
         creativeRails = c
         collectionRails = cl
-        collectionFolderRow = nil
+        portalRows = []
         BrowseRailCache.shared.set(key: cacheKey, rails: r)
         isLoadingRails = false
-    }
-
-    private func loadCollectionFolderRow(genre: String?) async -> CatalogRow? {
-        let org = collectionRepo.organized
-        let key = genre.map(GenreCatalog.normalize)
-        let collectionNames: [String] = mediaKind == .series
-            ? ["series universes"] : ["film collections"]
-
-        for cname in collectionNames {
-            guard let collection = org.collections.first(where: {
-                GenreCatalog.normalize($0.name) == cname
-            }) else { continue }
-
-            let folders = org.folders
-                .filter { $0.collectionId == collection.id }
-                .sorted { $0.sortOrder < $1.sortOrder }
-
-            let targetFolders: [DBFolder] = folders.filter { folder in
-                let n = GenreCatalog.normalize(folder.name)
-                let words = n.split(separator: " ")
-                if let key {
-                    return words.first.map(String.init) == key
-                }
-                let first = words.first.map(String.init) ?? ""
-                return !["collection", "collections", "franchise", "franchises", "universe", "universes"].contains(first)
-            }
-
-            guard !targetFolders.isEmpty else { continue }
-
-            let tiles = targetFolders.map { folder -> MetaPreview in
-                let cover = folder.coverImage ?? folder.heroBackdrop ?? folder.titleLogo
-                return MetaPreview(
-                    id: "folder_\(folder.id)",
-                    type: .movie,
-                    name: folder.name,
-                    poster: cover,
-                    banner: folder.coverImage ?? folder.heroBackdrop,
-                    logo: folder.titleLogo,
-                    posterShape: PosterShape(rawValue: folder.tileShape ?? "") ?? .landscape,
-                    backdrop: folder.heroBackdrop
-                )
-            }
-
-            return CatalogRow(
-                id: "collection-folder-row-\(cname)",
-                title: collection.name,
-                items: tiles,
-                tileShape: targetFolders.first?.tileShape ?? "landscape"
-            )
-        }
-        return nil
     }
 
     private func folderTileSection(row: CatalogRow) -> some View {
@@ -443,6 +383,34 @@ struct MacMediaBrowseView: View {
                                 else { return }
                                 onSelectFolder?(resolved)
                             }
+                    }
+                }
+                .padding(.horizontal, 32)
+                .padding(.vertical, 10)
+            }
+        }
+        .padding(.bottom, 48)
+    }
+
+    private func portalRailSection(row: CatalogRow) -> some View {
+        VStack(alignment: .leading, spacing: 16) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(row.title)
+                    .font(.system(size: 24, weight: .bold))
+                    .foregroundColor(.white)
+
+                Text(subtitle(for: row.title))
+                    .font(.system(size: 13, weight: .bold))
+                    .tracking(6)
+                    .foregroundColor(.white.opacity(0.32))
+            }
+            .padding(.horizontal, 32)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(spacing: 22) {
+                    ForEach(row.items) { item in
+                        PosterCard(item: item)
+                            .onTapGesture { onSelectMedia(item) }
                     }
                 }
                 .padding(.horizontal, 32)

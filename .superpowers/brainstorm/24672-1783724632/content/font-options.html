@@ -1,0 +1,150 @@
+<h2>Font Options — Media Logo Fade Style</h2>
+<p class="subtitle">Smoother timing, wider letter spacing. The app uses <strong>JetBrains Sans</strong> (custom TTF registered at launch), but the Mac wordmark currently uses the system font.</p>
+
+<style>
+  /* Shared base for all font demos */
+  .font-demo-bg {
+    background: #0D0D0D;
+    padding: 48px 40px;
+    border-radius: 14px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 140px;
+  }
+  /* Smoother, slower fade */
+  @keyframes logoFadeSmooth {
+    0%, 100% { opacity: 0; transform: scale(0.97); filter: blur(6px); }
+    20%, 80% { opacity: 1; transform: scale(1); filter: blur(0px); }
+  }
+  @keyframes underlineFade {
+    0%, 100% { opacity: 0; }
+    20%, 80% { opacity: 1; }
+  }
+  .fade-logo {
+    color: #ffffff;
+    animation: logoFadeSmooth 4.4s ease-in-out infinite;
+    line-height: 1;
+  }
+  .fade-underline {
+    margin-top: 18px;
+    width: 56px;
+    height: 2.5px;
+    border-radius: 2px;
+    background: rgba(255,255,255,0.12);
+    overflow: hidden;
+  }
+  .fade-underline-inner {
+    height: 100%;
+    width: 100%;
+    background: rgba(255,255,255,0.35);
+    border-radius: 2px;
+    animation: underlineFade 4.4s ease-in-out infinite;
+  }
+  /* Font-specific styles */
+  .font-system {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: 10px;
+  }
+  .font-jetbrains {
+    font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 42px;
+    font-weight: 600;
+    letter-spacing: 8px;
+  }
+  .font-inter {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: 10px;
+  }
+  .font-rounded {
+    font-family: 'SF Pro Rounded', -apple-system, sans-serif;
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: 12px;
+  }
+  .font-montserrat {
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: 8px;
+  }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="system" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-system">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1 — System Font (current)</h3>
+      <p>SF Pro / -apple-system. 44px, weight 700, +10pt letter spacing. Clean, readable, what the Mac wordmark uses today.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="jetbrains" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-jetbrains">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2 — JetBrains Sans (brand font)</h3>
+      <p>The app's registered custom typeface. Mono-inspired but clean. 42px, weight 600, +8pt spacing. Distinctive, ownable.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="inter" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-inter">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3 — Inter</h3>
+      <p>Modern geometric sans. 44px, weight 700, +10pt spacing. Very legible, feels current and premium.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="cards">
+
+  <div class="card" data-choice="rounded" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-rounded">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>4 — Rounded (SF Rounded)</h3>
+      <p>Friendlier, softer. 44px, weight 800, +12pt spacing. Feels more playful and casual.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="montserrat" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-montserrat">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>5 — Montserrat</h3>
+      <p>Wide geometric, very popular for wordmarks. 42px, weight 800, +8pt spacing. Bold presence.</p>
+    </div>
+  </div>
+
+</div>

@@ -133,9 +133,15 @@ public enum GenreCatalog {
         let genreCollectionIds = Set(
             org.collections.filter { normalize($0.name) == "genres" }.map(\.id)
         )
+        let categoryCollectionIds = Set(
+            org.collections.filter { normalize($0.name) == "categories" }.map(\.id)
+        )
         let folderIds = Set(
             org.folders
-                .filter { genreCollectionIds.contains($0.collectionId) && normalize($0.name) == key }
+                .filter {
+                    (genreCollectionIds.contains($0.collectionId) || categoryCollectionIds.contains($0.collectionId))
+                        && normalize($0.name) == key
+                }
                 .map(\.id)
         )
         guard !folderIds.isEmpty else { return [] }
@@ -166,14 +172,15 @@ public enum GenreCatalog {
                 )
             }
 
-        // Any genre folder catalogs that aren't New/Popular/Top (older genre-filtered
-        // discover rows, trakt lists) still surface as a single "Browse" rail so the hub
-        // is never empty when the genre has content.
-        if !leftover.isEmpty {
+        // A curated source is editorial content in its own right. Combining every
+        // remaining source into one anonymous "Browse" row loses that editorial
+        // intent (for example Attenborough, BFI 100 Best Thrillers, or Jackie Chan).
+        // Keep each source as an individually titled rail, in organizer order.
+        for catalog in leftover {
             rails.append(BrowseRail(
-                id: "browse-\(key)-all",
-                title: "Browse",
-                catalogs: leftover,
+                id: "browse-\(key)-\(catalog.id)",
+                title: curatedTitle(for: catalog.catalogId),
+                catalogs: [catalog],
                 sources: []
             ))
         }
@@ -200,6 +207,80 @@ public enum GenreCatalog {
         case "top-of-the-year": return "Top of the year"
         default: return nil
         }
+    }
+
+    /// Display names for imported AIOMetadata catalogs whose layout source omits
+    /// a title. New organizer sources keep their own title upstream; this fallback
+    /// prevents the existing library of list IDs from becoming anonymous rails.
+    private static func curatedTitle(for catalogId: String) -> String {
+        let titles: [String: String] = [
+            "mdblist.128037": "New Action Releases",
+            "mdblist.2407": "Top Action Movies",
+            "trakt.list.11255166": "Action Movies (2000–2020)",
+            "trakt.list.825738": "Action Comedy",
+            "trakt.list.4973644": "100 Best Action Movies",
+            "trakt.list.22847039": "IMDb’s Top Animation Movies",
+            "trakt.list.24484523": "IMDb’s Popular Family Animation",
+            "mdblist.121922": "Popular Animation Movies",
+            "mdblist.121921": "Popular Animation Series",
+            "trakt.list.1522155": "Pixar Animation Studios",
+            "trakt.list.1580797": "DreamWorks Animation",
+            "trakt.list.23334961": "Sony Pictures Animation",
+            "trakt.list.3899489": "Hidden Animation Gems",
+            "trakt.list.837518": "Warner Bros. Animation",
+            "trakt.list.5707382": "100 Anime to Watch Before You Die",
+            "trakt.list.23438792": "100 Best Anime Movies of All Time",
+            "trakt.list.5040627": "Time Out 100 Best Comedy Movies",
+            "trakt.list.9659389": "Best of British Comedy TV Shows",
+            "mdblist.2195": "Top Comedy Movies",
+            "mdblist.3122": "Comedy Series",
+            "mdblist.128040": "New Releases in Comedy",
+            "trakt.list.22097600": "Top 100 TV Comedy Shows",
+            "trakt.list.10235726": "Rotten Tomatoes’ 100 Best Documentaries",
+            "trakt.list.801580": "Documentary Blog’s Top 50 of the Decade",
+            "trakt.list.33762909": "Professor Brian Cox",
+            "trakt.list.1799417": "True Crime Documentaries",
+            "trakt.list.6652940": "History Documentaries",
+            "trakt.list.25298201": "BBC Wildlife & Nature Documentaries",
+            "trakt.list.2565470": "Hacking & Programming Documentaries",
+            "trakt.list.23020633": "Space Documentaries",
+            "trakt.list.19556363": "War Documentaries",
+            "trakt.list.6652017": "Attenborough Documentaries",
+            "trakt.list.26957348": "IMDb: Popular Nature Documentaries",
+            "trakt.list.23440324": "BBC Earth — Life on Our Planet",
+            "mdblist.84487": "Top Nature Shows",
+            "trakt.list.3813071": "Astronomy and Cosmology",
+            "trakt.list.21840363": "Martial Arts: Top 250",
+            "trakt.list.6674425": "Hollywood Martial Arts",
+            "trakt.list.4467615": "Bruce Lee",
+            "trakt.list.11632332": "Jackie Chan",
+            "trakt.list.4974101": "100 Best Musicals",
+            "trakt.list.2619099": "Popular Musicals",
+            "trakt.list.22803128": "BFI 100 Best Thrillers",
+            "trakt.list.22096238": "Top 200 Psychological Thrillers",
+            "trakt.list.19594387": "Murder Mystery Movies",
+            "trakt.list.5221223": "Mystery: 1,000 Titles",
+            "trakt.list.797798": "100 Greatest Sci‑Fi Movies",
+            "trakt.list.4433767": "Best War Movies Ever Made",
+            "trakt.list.21899611": "Spaghetti Westerns",
+            "trakt.list.22847467": "IMDb’s Top Western Movies",
+            "trakt.list.20701912": "Rotten Tomatoes’ Top 100 Romance Movies",
+            "trakt.list.21033097": "Mega Erotic",
+            "trakt.list.4203408": "Rotten Tomatoes: Best Horror Movies",
+            "trakt.list.21193458": "Popular Horror",
+            "mdblist.2410": "Top Horror Movies",
+            "mdblist.128045": "New Horror Releases",
+            "mdblist.3124": "Horror Series",
+            "trakt.list.2067889": "Best Slasher Flicks",
+            "trakt.list.22535146": "Hidden Horror Gems",
+            "trakt.list.10563394": "Classic Horror",
+            "trakt.list.23423498": "Comedy Horror",
+            "trakt.list.1076151": "British Crime & Drama",
+            "trakt.list.21715794": "Courtroom Dramas",
+            "trakt.list.22957181": "Period Drama Movies",
+            "trakt.list.20580022": "Rotten Tomatoes: Top Kids & Family Movies",
+        ]
+        return titles[catalogId] ?? "Curated Collection"
     }
 
     private static func folders(of collection: DBCollection, in org: OrganizedCollections) -> [DBFolder] {

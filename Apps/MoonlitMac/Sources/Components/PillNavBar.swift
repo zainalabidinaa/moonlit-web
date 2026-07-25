@@ -2,13 +2,14 @@ import SwiftUI
 import MoonlitCore
 
 enum MacMainTab: String, CaseIterable {
-    case home, movies, series, library, downloads, settings, admin
+    case home, movies, series, live, library, downloads, settings, admin
 
     var icon: String {
         switch self {
         case .home: return "house.fill"
         case .movies: return "film.fill"
         case .series: return "tv.fill"
+        case .live: return "antenna.radiowaves.left.and.right"
         case .library: return "rectangle.stack.fill"
         case .downloads: return "arrow.down.circle.fill"
         case .settings: return "gear"
@@ -21,6 +22,7 @@ enum MacMainTab: String, CaseIterable {
         case .home: return "Home"
         case .movies: return "Movies"
         case .series: return "Series"
+        case .live: return "Live TV"
         case .library: return "Library"
         case .downloads: return "Downloads"
         case .settings: return "Settings"
@@ -33,10 +35,11 @@ enum MacMainTab: String, CaseIterable {
         case .home: return "1"
         case .movies: return "2"
         case .series: return "3"
-        case .library: return "4"
-        case .downloads: return "5"
-        case .settings: return "6"
-        case .admin: return "7"
+        case .live: return "4"
+        case .library: return "5"
+        case .downloads: return "6"
+        case .settings: return "7"
+        case .admin: return "8"
         }
     }
 }
@@ -53,17 +56,26 @@ struct PillNavBar: View {
     @State private var isAccountMenuPresented = false
     @State private var isSearchHovering = false
 
+    /// Leading inset that keeps the brand clear of the persistent back button
+    /// drawn at the window's top-left corner on pushed sub-views. Wider when a
+    /// labeled "Back" pill is present so the brand never sits under it.
+    var leadingInset: CGFloat = 48
+
     private var visibleTabs: [MacMainTab] {
-        [.home, .movies, .series, .library]
+        [.home, .movies, .series, .live, .library]
+    }
+
+    private var brand: some View {
+        Text("MOONLIT")
+            .font(.system(size: 14, weight: .black))
+            .foregroundColor(.white)
+            .tracking(2)
     }
 
     var body: some View {
         HStack(spacing: 0) {
-            Text("MOONLIT")
-                .font(.system(size: 14, weight: .black))
-                .foregroundColor(.white)
-                .tracking(2)
-                .padding(.leading, 20)
+            brand
+                .padding(.leading, leadingInset)
                 .padding(.trailing, 12)
 
             HStack(spacing: 2) {
@@ -81,6 +93,7 @@ struct PillNavBar: View {
                         .foregroundColor(selectedTab == .downloads ? .white : .white.opacity(0.6))
                         .padding(6)
                         .background(selectedTab == .downloads ? Color.white.opacity(0.10) : .clear, in: Circle())
+                        .frame(width: 34, height: 34)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
@@ -96,7 +109,7 @@ struct PillNavBar: View {
         .fixedSize(horizontal: false, vertical: true)
         .macLiquidGlassCapsule(interactive: true)
         .padding(.horizontal, 24)
-        .padding(.top, 10)
+        .padding(.top, 6)
         .padding(.bottom, 14)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: isSearchHovering)
     }

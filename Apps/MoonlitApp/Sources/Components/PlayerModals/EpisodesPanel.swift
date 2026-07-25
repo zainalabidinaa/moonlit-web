@@ -27,7 +27,9 @@ struct EpisodesPanel: View {
                 .padding()
             }
             .navigationTitle("Episodes")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Done") { dismiss() }

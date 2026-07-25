@@ -99,7 +99,10 @@ public class SearchRepository: ObservableObject {
                 )
             }
             group.addTask {
-                try? await Task.sleep(for: .seconds(6))
+                // Per-addon cap: search results are painted per-source now,
+                // so a slow addon only delays its own rows — but don't let a
+                // dead one hold background tasks for long either.
+                try? await Task.sleep(for: .seconds(4))
                 return nil
             }
             let first = await group.next() ?? nil
@@ -132,7 +135,7 @@ public class SearchRepository: ObservableObject {
         let releaseTokens = [
             "2160p", "1080p", "720p", "480p", "web-dl", "webrip", "web.", "bluray",
             "blu-ray", "brrip", "hdrip", "hdtv", "x264", "x265", "h264", "h265", "hevc",
-            "eac3", "ac3", "ddp", "dts", "aac2", "-rarbg", "yify", "yts", "remux"
+            "eac3", "ac3", "ddp", "dts", "aac2", "remux"
         ]
         if releaseTokens.contains(where: { lower.contains($0) }) { return true }
         // "S01E02"/"S1E2" combined with dots → release name, not a clean title.

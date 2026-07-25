@@ -139,8 +139,8 @@ public enum AddonManifestParser {
             }
             return url
         }()
-        // Prefer URL-derived base — it preserves credentials encoded in the path
-        // (e.g. AIOStreams). The manifest's transportUrl is often the bare domain.
+        // Prefer URL-derived base — it preserves credentials encoded in the path.
+        // The manifest's transportUrl is often the bare domain.
         return derived.hasSuffix("/") ? String(derived.dropLast()) : derived
     }
 

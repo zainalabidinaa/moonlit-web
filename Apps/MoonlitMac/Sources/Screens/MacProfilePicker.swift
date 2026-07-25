@@ -124,7 +124,7 @@ struct MacCreateProfile: View {
                             MacProfileAvatarView(avatarId: index, name: "", avatarColor: nil, size: 54)
                                 .overlay(
                                     Circle().strokeBorder(
-                                        selectedAvatarId == index ? MoonlitTheme.harborGold : Color.clear,
+                                        selectedAvatarId == index ? MoonlitTheme.ratingGold : Color.clear,
                                         lineWidth: 3
                                     )
                                 )
@@ -161,9 +161,7 @@ struct MacCreateProfile: View {
             } label: {
                 HStack(spacing: 8) {
                     if isLoading {
-                        ProgressView()
-                            .scaleEffect(0.7)
-                            .tint(.black)
+                        MacStrokeSpinner(size: 18, color: .black)
                     }
                     Text("Create Profile")
                         .fontWeight(.semibold)

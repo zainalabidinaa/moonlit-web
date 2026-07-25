@@ -16,15 +16,37 @@ public class ProfileManager: ObservableObject {
     private let client = SupabaseClient.shared
 
     private init() {
-        Task { await restoreSession() }
+        Task {
+            await client.setAuthRefreshHandler { [weak self] in
+                await self?.refreshAccessToken()
+            }
+            await restoreSession()
+        }
+    }
+
+    /// Called by SupabaseClient when a request 401s mid-session (access tokens
+    /// expire after ~1h). Refreshes the session and returns the new access
+    /// token so the failed request can be retried instead of silently dropped.
+    private func refreshAccessToken() async -> String? {
+        guard let stored = currentSession ?? SessionStore.load() else { return nil }
+        guard let refreshed = try? await auth.refreshSession(refreshToken: stored.refreshToken) else {
+            NSLog("[Moonlit][Auth] mid-session token refresh FAILED — sync writes will not persist")
+            return nil
+        }
+        currentSession = refreshed
+        SessionStore.save(refreshed)
+        NSLog("[Moonlit][Auth] mid-session token refresh succeeded")
+        return refreshed.accessToken
     }
 
     private func restoreSession() async {
         isLoading = true
         let startTime = Date()
+        NSLog("[Moonlit][Perf] restoreSession start")
         defer {
             Task { @MainActor in
                 let elapsed = Date().timeIntervalSince(startTime)
+                NSLog("[Moonlit][Perf] restoreSession auth done in %.2fs, authenticated=%{public}@", elapsed, self.isAuthenticated ? "YES" : "NO")
                 if self.isAuthenticated, let profile = self.currentProfile {
                     await StartupCoordinator.shared.startPhase1(
                         profileId: profile.id,
@@ -38,8 +60,10 @@ public class ProfileManager: ObservableObject {
                 }
                 let remaining = 1.5 - elapsed
                 if remaining > 0 {
+                    NSLog("[Moonlit][Perf] restoreSession artificial delay %.2fs (elapsed %.2fs)", remaining, elapsed)
                     try? await Task.sleep(for: .seconds(remaining))
                 }
+                NSLog("[Moonlit][Perf] restoreSession complete, total elapsed %.2fs", Date().timeIntervalSince(startTime))
                 self.isLoading = false
                 self.hasRestoredSession = true
             }

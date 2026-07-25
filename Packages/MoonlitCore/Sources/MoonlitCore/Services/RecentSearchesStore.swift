@@ -1,7 +1,7 @@
 import Foundation
 
 /// Last ~8 unique search queries, shown as pills in the Search screen's empty
-/// (pre-typing) state — mirrors Harbor's recent-searches row.
+/// (pre-typing) state.
 @MainActor
 public final class RecentSearchesStore: ObservableObject {
     public static let shared = RecentSearchesStore()

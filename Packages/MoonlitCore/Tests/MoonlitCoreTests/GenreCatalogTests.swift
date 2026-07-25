@@ -83,10 +83,9 @@ final class GenreCatalogTests: XCTestCase {
         XCTAssertEqual(new?.catalogs.count, 2, "New rail merges New Movies + New Series")
     }
 
-    func testGenreFilteredCatalogsFallBackToASingleBrowseRail() {
-        // Mirrors the bundled "Genres" data: a genre folder whose only catalogs are a
-        // genre-filtered discover row + a trakt list (no New/Popular). The hub must still
-        // surface them as one "Browse" rail rather than showing nothing.
+    func testGenreFilteredCatalogsBecomeIndividualCuratedRails() {
+        // A genre folder whose catalogs are not New/Popular must preserve each list's
+        // editorial identity rather than collapsing them into one anonymous Browse rail.
         let org = OrganizedCollections(
             collections: [DBCollection(id: "c-genres", name: "Genres", sortOrder: 0)],
             folders: [DBFolder(id: "f-war", collectionId: "c-genres", name: "War", sortOrder: 0)],
@@ -97,7 +96,62 @@ final class GenreCatalogTests: XCTestCase {
             folderSources: []
         )
         let rails = GenreCatalog.browseRails(for: "War", in: org)
-        XCTAssertEqual(rails.map(\.title), ["Browse"])
-        XCTAssertEqual(rails.first?.catalogs.count, 2)
+        XCTAssertEqual(rails.map(\.title), ["Curated Collection", "100 Best Action Movies"])
+        XCTAssertTrue(rails.allSatisfy { $0.catalogs.count == 1 })
+    }
+
+    func testGenreCuratedCatalogsRemainNamedRails() {
+        let org = OrganizedCollections(
+            collections: [DBCollection(id: "c-genres", name: "Genres", sortOrder: 0)],
+            folders: [DBFolder(id: "f-action", collectionId: "c-genres", name: "Action", sortOrder: 0)],
+            folderCatalogs: [
+                catalog("new", folder: "f-action", catalogId: "tmdb.discover.movie.new-movies.069d5312"),
+                catalog("top-action", folder: "f-action", catalogId: "mdblist.2407"),
+                catalog("action-comedy", folder: "f-action", catalogId: "trakt.list.825738"),
+            ],
+            folderSources: []
+        )
+
+        XCTAssertEqual(
+            GenreCatalog.browseRails(for: "Action", in: org).map(\.title),
+            ["New", "Top Action Movies", "Action Comedy"]
+        )
+    }
+
+    func testMartialArtsCatalogsDoNotAppearInActionRails() {
+        let org = OrganizedCollections(
+            collections: [DBCollection(id: "c-genres", name: "Genres", sortOrder: 0)],
+            folders: [
+                DBFolder(id: "f-action", collectionId: "c-genres", name: "Action", sortOrder: 0),
+                DBFolder(id: "f-martial", collectionId: "c-genres", name: "Martial Arts", sortOrder: 1),
+            ],
+            folderCatalogs: [
+                catalog("action", folder: "f-action", catalogId: "mdblist.2407"),
+                catalog("bruce", folder: "f-martial", catalogId: "trakt.list.4467615"),
+            ],
+            folderSources: []
+        )
+
+        XCTAssertEqual(GenreCatalog.browseRails(for: "Action", in: org).map(\.title), ["Top Action Movies"])
+    }
+
+    func testCategoryFolderRailsAreIncludedInMatchingGenre() {
+        let org = OrganizedCollections(
+            collections: [
+                DBCollection(id: "c-genres", name: "Genres", sortOrder: 0),
+                DBCollection(id: "c-categories", name: "Categories", sortOrder: 1),
+            ],
+            folders: [
+                DBFolder(id: "f-action", collectionId: "c-genres", name: "Action", sortOrder: 0),
+                DBFolder(id: "f-category-action", collectionId: "c-categories", name: "Action", sortOrder: 0),
+            ],
+            folderCatalogs: [
+                catalog("standard", folder: "f-action", catalogId: "tmdb.discover.movie.new-movies.069d5312"),
+                catalog("editorial", folder: "f-category-action", catalogId: "mdblist.128037"),
+            ],
+            folderSources: []
+        )
+
+        XCTAssertEqual(GenreCatalog.browseRails(for: "Action", in: org).map(\.title), ["New", "New Action Releases"])
     }
 }

@@ -73,6 +73,11 @@ struct MacFusionAmbientBackground: View {
     /// gradient back to canvas.
     @ViewBuilder
     private func heroBackdropLayers(size: CGSize) -> some View {
+        // Persistent art-tinted wash so the page never resolves to flat black —
+        // the hero's ambient color carries down the whole scroll (matches the
+        // iOS home background). Sits above the base fill, below the hero image.
+        ambientColor.opacity(0.18 * intensity)
+
         if let url = heroBackdropURL {
             // Heavily blurred (radius 30) — full detail is wasted here, so decode small.
             CachedAsyncImage(url: url, maxDimension: 400) { image in
@@ -122,12 +127,14 @@ struct MacFusionAmbientBackground: View {
             endRadius: size.height * 0.50 * radiusScale
         )
 
+        // Bottom stops stay below full opacity so the persistent ambient wash
+        // shows through and the page never becomes flat black (matches iOS).
         LinearGradient(
             stops: [
                 .init(color: .black.opacity(0.0), location: 0.00),
                 .init(color: .black.opacity(0.10), location: 0.30),
-                .init(color: MoonlitTheme.background.opacity(0.60), location: 0.65),
-                .init(color: MoonlitTheme.background, location: 1.00)
+                .init(color: MoonlitTheme.background.opacity(0.45), location: 0.65),
+                .init(color: MoonlitTheme.background.opacity(0.78), location: 1.00)
             ],
             startPoint: .top, endPoint: .bottom
         )

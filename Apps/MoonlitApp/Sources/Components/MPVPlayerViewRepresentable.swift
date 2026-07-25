@@ -8,8 +8,5 @@ struct MPVPlayerViewRepresentable: UIViewRepresentable {
         playerView
     }
 
-    func updateUIView(_ uiView: UIView, context: Context) {
-        guard let superview = uiView.superview, uiView.frame != superview.bounds else { return }
-        uiView.frame = superview.bounds
-    }
+    func updateUIView(_ uiView: UIView, context: Context) {}
 }

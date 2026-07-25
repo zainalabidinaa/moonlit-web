@@ -65,6 +65,7 @@ private struct PlayerGlassPanelModifier: ViewModifier {
     let cornerRadius: CGFloat
 
     func body(content: Content) -> some View {
+        #if os(iOS)
         if #available(iOS 26, *) {
             content
                 .glassEffect(
@@ -81,6 +82,16 @@ private struct PlayerGlassPanelModifier: ViewModifier {
                         .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
                 }
         }
+        #else
+        content
+            .background(.ultraThinMaterial)
+            .background(Color.black.opacity(0.58))
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+                    .stroke(Color.white.opacity(0.12), lineWidth: 0.5)
+            }
+        #endif
     }
 }
 

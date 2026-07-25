@@ -7,6 +7,7 @@ struct MacMainView: View {
     @StateObject private var addonRepo = AddonRepository.shared
     @StateObject private var catalogRepo = CatalogRepository.shared
     @StateObject private var collectionRepo = CollectionRepository.shared
+    @StateObject private var playerNavBridge = PlayerNavigationBridge.shared
     @State private var selectedTab: MacMainTab = .home
     @State private var detailItem: DetailItem?
     @State private var folderItem: FolderItem?
@@ -45,6 +46,48 @@ struct MacMainView: View {
         detailItem == nil && folderItem == nil && genreHub == nil && streamingServiceRow == nil && actorItem == nil && languageHubIso == nil && awardHub == nil
     }
 
+    /// True when the base tab content is covered by a pushed sub-view. The nav
+    /// bar shows a back affordance in this state instead of the brand alone.
+    private var isShowingOverlay: Bool {
+        !isShowingNavBar
+    }
+
+    /// The topmost pushed sub-view is the folder grid. Mirrors the if-else
+    /// priority in `body` (actor and streaming service sit above folder).
+    private var isFolderTopmost: Bool {
+        actorItem == nil && streamingServiceRow == nil && folderItem != nil
+    }
+
+    /// The topmost pushed sub-view is the detail page.
+    private var isDetailTopmost: Bool {
+        actorItem == nil && streamingServiceRow == nil && folderItem == nil && detailItem != nil
+    }
+
+    /// Dismisses any pushed sub-view, returning to the base tab content.
+    private func clearOverlays() {
+        detailItem = nil
+        folderItem = nil
+        genreHub = nil
+        genreHubMediaKind = nil
+        streamingServiceRow = nil
+        actorItem = nil
+        languageHubIso = nil
+        languageHubName = nil
+        awardHub = nil
+    }
+
+    /// Pops just the topmost pushed sub-view, mirroring the if-else priority in
+    /// `body` (actor → streaming → folder → detail → genre → language → award).
+    private func dismissTopmost() {
+        if actorItem != nil { actorItem = nil }
+        else if streamingServiceRow != nil { streamingServiceRow = nil }
+        else if folderItem != nil { folderItem = nil }
+        else if detailItem != nil { detailItem = nil }
+        else if genreHub != nil { genreHub = nil; genreHubMediaKind = nil }
+        else if languageHubIso != nil { languageHubIso = nil; languageHubName = nil }
+        else if awardHub != nil { awardHub = nil }
+    }
+
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
@@ -72,6 +115,8 @@ struct MacMainView: View {
             }, onSelectFolder: { row in
                 folderItem = FolderItem(id: row.id, row: row)
             })
+        case .live:
+            MacLiveTVView()
         case .library:
             MacLibraryView(onSelectMedia: { item in
                 detailItem = DetailItem(id: item.id, type: item.type.rawValue, name: item.name)
@@ -147,8 +192,12 @@ struct MacMainView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-            if isShowingNavBar {
-                PillNavBar(selectedTab: $selectedTab, onSearchTapped: { isSearchPresented = true })
+            if isShowingNavBar || isDetailTopmost || isFolderTopmost {
+                PillNavBar(
+                    selectedTab: $selectedTab,
+                    onSearchTapped: { isSearchPresented = true },
+                    leadingInset: isShowingOverlay ? 104 : 48
+                )
             }
 
             if isSearchPresented {
@@ -157,11 +206,6 @@ struct MacMainView: View {
                     onSelectMedia: { item in
                         isSearchPresented = false
                         detailItem = DetailItem(id: item.id, type: item.type.rawValue, name: item.name)
-                    },
-                    onSelectGenre: { genre in
-                        isSearchPresented = false
-                        genreHub = genre
-                        genreHubMediaKind = nil
                     },
                     onJumpToTab: { tab in
                         isSearchPresented = false
@@ -176,6 +220,28 @@ struct MacMainView: View {
                     }
                 )
             }
+        }
+        .overlay(alignment: .topLeading) {
+            if isShowingOverlay {
+                // Single clear-glass back pill for every pushed sub-view. Its
+                // top/vertical padding mirrors the nav pill's so the two share
+                // a vertical center; no safe-area ignore, unlike the window
+                // controls, since it aligns to the pill rather than the edge.
+                MacBackButton { dismissTopmost() }
+                    .padding(.leading, 24)
+                    .padding(.top, 6)
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: selectedTab) { _, _ in
+            // Switching tabs from the nav pill (including while a detail or
+            // folder overlay is shown) returns to the base tab content.
+            clearOverlays()
+        }
+        .onChange(of: playerNavBridge.pendingDetail) { _, target in
+            guard let target else { return }
+            detailItem = DetailItem(id: target.id, type: target.type, name: target.name)
+            playerNavBridge.pendingDetail = nil
         }
     }
 

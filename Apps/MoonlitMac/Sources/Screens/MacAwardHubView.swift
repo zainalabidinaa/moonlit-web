@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// Cinematic awards hub (Harbor-style): a mosaic hero with laurel + serif title,
+/// Cinematic awards hub (): a mosaic hero with laurel + serif title,
 /// a Gallery / Full-list toggle, the winning films grid, and people rails for
 /// the actors, directors and writers behind the winners.
 struct MacAwardHubView: View {
@@ -48,6 +48,7 @@ struct MacAwardHubView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     hero
+                        .zIndex(1)
                     description
                     modeToggle
                         .padding(.horizontal, 28)
@@ -57,11 +58,7 @@ struct MacAwardHubView: View {
                         listSearch
                     }
 
-                    if isLoadingInitial && winners.isEmpty {
-                        MacLoadingView(size: 40)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 64)
-                    } else {
+                    if !(isLoadingInitial && winners.isEmpty) {
                         filmGrid
                         if mode == .gallery {
                             peopleRails
@@ -77,20 +74,10 @@ struct MacAwardHubView: View {
                 await loadPeople()
             }
 
-            HStack {
-                Button { onBack() } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .macDarkGlassCapsule(interactive: true)
-                }
-                .buttonStyle(.plain)
-                Spacer()
+            if isLoadingInitial && winners.isEmpty {
+                MacLoadingView(size: 44)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
         }
         .background(MoonlitTheme.background)
     }
@@ -113,7 +100,7 @@ struct MacAwardHubView: View {
     private var hero: some View {
         ZStack(alignment: .bottomLeading) {
             // Mosaic of winner backdrops, faded out toward the left where the
-            // title sits (mirrors Harbor's award hero).
+            // title sits (mirrors the reference award hero).
             let images = heroImages
             if images.count >= 3 {
                 GeometryReader { geo in
@@ -179,6 +166,24 @@ struct MacAwardHubView: View {
         }
         .frame(height: 380)
         .clipped()
+        // Short gradient bleeding past the hero's clip line: full background
+        // color exactly at the boundary, dissolving in both directions, so the
+        // mosaic can never end on a hard edge. Painted after .clipped() (so it
+        // escapes the clip) and the hero is zIndex(1) so the bleed lays over
+        // the top of the section below.
+        .overlay(alignment: .bottom) {
+            LinearGradient(
+                stops: [
+                    .init(color: .clear, location: 0.0),
+                    .init(color: MoonlitTheme.background, location: 0.5),
+                    .init(color: MoonlitTheme.background.opacity(0), location: 1.0),
+                ],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: 120)
+            .offset(y: 60)
+            .allowsHitTesting(false)
+        }
     }
 
     private var laurel: some View {
@@ -274,7 +279,7 @@ struct MacAwardHubView: View {
 
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 130), spacing: 16)], spacing: 20) {
                 ForEach(gridWinners) { item in
-                    MediaCard(item: item, row: gridRow)
+                    awardTile(item)
                         .onTapGesture { onSelectMedia(item) }
                 }
             }
@@ -299,11 +304,19 @@ struct MacAwardHubView: View {
         .padding(.top, 26)
     }
 
+    // MARK: - Winner tile (fills its adaptive column — MediaCard's fixed
+    // 154pt width overflows columns narrower than that, pushing labels and
+    // hover states across the gutter; this tile can't).
+
+    private func awardTile(_ item: MetaPreview) -> some View {
+        AwardHubTile(item: item)
+    }
+
     // MARK: - People rails
 
     @ViewBuilder private var peopleRails: some View {
         if isLoadingPeople {
-            HStack { Spacer(); MacLottieLoadingView(size: 24); Spacer() }
+            HStack { Spacer(); MacStrokeSpinner(size: 17); Spacer() }
                 .padding(.top, 40)
         } else {
             VStack(alignment: .leading, spacing: 28) {
@@ -399,5 +412,61 @@ struct MacAwardHubView: View {
             people = result
             isLoadingPeople = false
         }
+    }
+}
+
+/// Winner-grid tile that stays inside its adaptive column: the poster fills
+/// whatever width the column resolves to (2:3 ratio), everything is clipped,
+/// the label truncates at tile width, and the hover scale is subtle enough
+/// (1.03) to never cross a 16pt gutter.
+private struct AwardHubTile: View {
+    let item: MetaPreview
+
+    @State private var isHovering = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Group {
+                if let url = item.artworkURL(preferring: .portrait) {
+                    CachedAsyncImage(url: url) { image in
+                        image.resizable().scaledToFill()
+                    } placeholder: {
+                        MoonlitTheme.surfaceElevated
+                    }
+                } else {
+                    MoonlitTheme.surfaceElevated
+                }
+            }
+            .aspectRatio(2 / 3, contentMode: .fill)
+            .frame(maxWidth: .infinity)
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .strokeBorder(Color.white.opacity(isHovering ? 0.22 : 0.06), lineWidth: 1)
+            )
+            .macTileGlow(
+                isHovering: isHovering,
+                artworkURL: item.artworkURL(preferring: .portrait),
+                fallbackColor: MoonlitTheme.ratingGold,
+                cornerRadius: 12
+            )
+            .scaleEffect(isHovering ? 1.03 : 1.0)
+            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: isHovering)
+
+            Text(item.name)
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundColor(.white)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let year = item.releaseInfo {
+                Text(year)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundColor(.white.opacity(0.4))
+            }
+        }
+        .contentShape(Rectangle())
+        .onHover { isHovering = $0 }
     }
 }

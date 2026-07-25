@@ -1,0 +1,151 @@
+<h2>Loading Wordmark — Animation Concepts</h2>
+<p class="subtitle">Two approaches for the "MOONLIT" loading splash. Dark background (#0D0D0D) matches the app.</p>
+
+<div class="cards">
+  <div class="card" data-choice="shimmer" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0D0D0D; padding:40px 30px; border-radius:12px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:120px;">
+        <!-- Shimmer sweep -->
+        <style>
+          @keyframes shimmerSweep {
+            0%, 100% { background-position: -100% 0; }
+            50% { background-position: 200% 0; }
+          }
+          @keyframes shimmerPulse {
+            0%, 100% { opacity: 0.3; }
+            50% { opacity: 1; }
+          }
+          .shimmer-text {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: 6px;
+            background: linear-gradient(90deg, 
+              rgba(255,255,255,0.15) 0%, 
+              rgba(255,255,255,0.15) 40%,
+              rgba(255,255,255,0.95) 50%, 
+              rgba(255,255,255,0.95) 52%,
+              rgba(255,255,255,0.15) 62%, 
+              rgba(255,255,255,0.15) 100%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: shimmerSweep 2.2s ease-in-out infinite;
+          }
+        </style>
+        <div class="shimmer-text">M O O N L I T</div>
+        <div style="margin-top:12px; width:48px; height:3px; border-radius:2px; background:rgba(255,255,255,0.08); overflow:hidden;">
+          <div style="height:100%; width:40%; background:rgba(255,255,255,0.3); border-radius:2px; animation: shimmerSweep 2.2s ease-in-out infinite;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Shimmer Sweep</h3>
+      <p>A glow sweeps across the letters left-to-right, like a spotlight passing over each character. The word is always visible — the shimmer just moves through.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="media-logo" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0D0D0D; padding:40px 30px; border-radius:12px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:120px;">
+        <!-- Fade in/out media logo style -->
+        <style>
+          @keyframes logoFadeInOut {
+            0%, 100% { opacity: 0; transform: scale(0.96); filter: blur(4px); }
+            15%, 85% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          }
+          @keyframes logoLetterFade {
+            0%, 100% { opacity: 0; }
+            8% { opacity: 0; }
+            16% { opacity: 1; }
+            84% { opacity: 1; }
+            92% { opacity: 0; }
+          }
+          .logo-text {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: 6px;
+            color: #ffffff;
+            animation: logoFadeInOut 3.2s ease-in-out infinite;
+          }
+          .logo-underline {
+            margin-top:12px; width:48px; height:3px; border-radius:2px; background:rgba(255,255,255,0.15); overflow:hidden;
+          }
+          .logo-underline-inner {
+            height:100%; width:100%; background:rgba(255,255,255,0.25); border-radius:2px;
+            animation: logoFadeInOut 3.2s ease-in-out infinite;
+          }
+        </style>
+        <div class="logo-text">M O O N L I T</div>
+        <div class="logo-underline">
+          <div class="logo-underline-inner"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Media Logo Fade</h3>
+      <p>Entire wordmark fades in, holds, then fades out — like the Netflix/HBO/Disney logo cards. Clean and cinematic. Loops with a subtle scale+blur dissolve.</p>
+    </div>
+  </div>
+</div>
+
+<h2>Combined — Shimmer + Fade Hybrid</h2>
+<p class="subtitle">A third option: the fade-in/out cycle, but with the shimmer sweep during each "hold" phase.</p>
+
+<div class="cards">
+  <div class="card" data-choice="hybrid" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#0D0D0D; padding:40px 30px; border-radius:12px; text-align:center; display:flex; flex-direction:column; align-items:center; justify-content:center; min-height:120px;">
+        <!-- Hybrid -->
+        <style>
+          @keyframes hybridFade {
+            0%, 100% { opacity: 0; transform: scale(0.96); filter: blur(3px); }
+            12%, 88% { opacity: 1; transform: scale(1); filter: blur(0px); }
+          }
+          @keyframes hybridShimmer {
+            0%, 100% { background-position: -100% 0; }
+            50% { background-position: 200% 0; }
+          }
+          .hybrid-text {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: 6px;
+            background: linear-gradient(90deg, 
+              rgba(255,255,255,0.25) 0%, 
+              rgba(255,255,255,0.25) 38%,
+              rgba(255,255,255,1) 50%, 
+              rgba(255,255,255,1) 55%,
+              rgba(255,255,255,0.25) 67%, 
+              rgba(255,255,255,0.25) 100%
+            );
+            background-size: 200% 100%;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            animation: hybridFade 4.0s ease-in-out infinite, hybridShimmer 2.0s ease-in-out infinite;
+          }
+          .hybrid-underline {
+            margin-top:12px; width:48px; height:3px; border-radius:2px; background:rgba(255,255,255,0.06); overflow:hidden;
+            animation: hybridFade 4.0s ease-in-out infinite;
+          }
+          .hybrid-underline-inner {
+            height:100%; width:40%; background:rgba(255,255,255,0.3); border-radius:2px;
+            animation: hybridShimmer 2.0s ease-in-out infinite;
+          }
+        </style>
+        <div class="hybrid-text">M O O N L I T</div>
+        <div class="hybrid-underline">
+          <div class="hybrid-underline-inner"></div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Hybrid</h3>
+      <p>The wordmark fades in (cinematic dissolve), then the shimmer sweeps across during the visible phase, then fades out. Best of both worlds — recognizable and active.</p>
+    </div>
+  </div>
+</div>

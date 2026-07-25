@@ -1,0 +1,100 @@
+<h2>Montserrat — Tight Spacing</h2>
+<p class="subtitle">Breathe + scale. Timing options to dial in the feel.</p>
+
+<style>
+  .font-demo-bg {
+    background: #0D0D0D;
+    padding: 60px 40px;
+    border-radius: 14px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 160px;
+  }
+  @keyframes logoBreathe {
+    0%, 100% { opacity: 0.35; transform: scale(0.96); }
+    50%      { opacity: 1;    transform: scale(1); }
+  }
+  @keyframes logoBreatheSlow {
+    0%, 100% { opacity: 0.35; transform: scale(0.96); }
+    50%      { opacity: 1;    transform: scale(1); }
+  }
+  @keyframes underlineBreathe {
+    0%, 100% { opacity: 0.2; }
+    50%      { opacity: 1; }
+  }
+  .fade-logo {
+    color: #ffffff;
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: 4px;
+    animation: logoBreathe 3.2s ease-in-out infinite;
+    line-height: 1;
+  }
+  .fade-logo-slow {
+    animation: logoBreathe 5.0s ease-in-out infinite;
+  }
+  .fade-logo-fast {
+    animation: logoBreathe 2.2s ease-in-out infinite;
+  }
+  .fade-underline {
+    margin-top: 18px;
+    width: 56px;
+    height: 2.5px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .fade-underline-inner {
+    height: 100%;
+    width: 100%;
+    background: rgba(255,255,255,0.35);
+    border-radius: 2px;
+    animation: underlineBreathe 3.2s ease-in-out infinite;
+  }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="medium" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3.2s — Medium</h3>
+      <p>Balanced breathing pace.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="slow" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo fade-logo-slow">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner" style="animation: underlineBreathe 5.0s ease-in-out infinite;"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>5.0s — Slow</h3>
+      <p>Relaxed, meditative.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="fast" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo fade-logo-fast">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner" style="animation: underlineBreathe 2.2s ease-in-out infinite;"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2.2s — Fast</h3>
+      <p>Energetic, lively.</p>
+    </div>
+  </div>
+
+</div>

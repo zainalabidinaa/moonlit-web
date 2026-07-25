@@ -103,7 +103,7 @@ struct SubtitlePickerPanel: View {
             }
         }
         .frame(width: 210)
-        .playerGlassPanel(cornerRadius: 14)
+        .playerGlassPanel(cornerRadius: MoonlitTheme.radiusCard)
     }
 
     @ViewBuilder

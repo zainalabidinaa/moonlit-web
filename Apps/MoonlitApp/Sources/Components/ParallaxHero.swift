@@ -11,8 +11,10 @@ struct ParallaxHero: View {
     @State private var autoTimer: Timer?
     @StateObject private var libraryRepo = LibraryRepository.shared
     @StateObject private var artwork = HeroArtworkProvider.shared
+    @StateObject private var awardsMeta = AwardsMetadataService.shared
+    @StateObject private var awardIndex = AwardIndex.shared
     private let autoAdvanceSeconds: TimeInterval = 60
-    private static let heroHeight: CGFloat = 620
+    static let heroHeight: CGFloat = 620
 
     private var isCurrentInLibrary: Bool {
         guard let item = items[safe: currentIndex] else { return false }
@@ -21,24 +23,26 @@ struct ParallaxHero: View {
 
     var body: some View {
         GeometryReader { geometry in
-            ZStack(alignment: .bottomLeading) {
+            ZStack(alignment: .bottom) {
                 TabView(selection: $currentIndex) {
                     ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                         heroImage(for: item, width: geometry.size.width)
+                            .contentShape(Rectangle())
+                            .onTapGesture { onWatchNow(item) }
                             .tag(index)
                     }
                 }
                 .tabViewStyle(.page(indexDisplayMode: .never))
                 .id(items.map(\.id).joined())
                 .frame(width: geometry.size.width, height: Self.heroHeight)
-                // Alpha dissolve: the image fades to transparent so the ambient
-                // background shows through — no opaque terminal color to clash with.
+                // Alpha dissolve: the image stays sharp lower down, then fades to
+                // transparent so the ambient background shows through.
                 .mask(
                     LinearGradient(
                         stops: [
                             .init(color: .black, location: 0.0),
-                            .init(color: .black, location: 0.52),
-                            .init(color: .black.opacity(0.42), location: 0.80),
+                            .init(color: .black, location: 0.62),
+                            .init(color: .black.opacity(0.45), location: 0.84),
                             .init(color: .clear, location: 1.0),
                         ],
                         startPoint: .top,
@@ -46,14 +50,7 @@ struct ParallaxHero: View {
                     )
                 )
 
-                VStack(alignment: .leading, spacing: 6) {
-                    if let category = items[safe: currentIndex]?.genres?.first {
-                        Text(category.uppercased())
-                            .font(.system(size: 11, weight: .bold))
-                            .tracking(2)
-                            .foregroundColor(MoonlitTheme.accent)
-                    }
-
+                VStack(alignment: .center, spacing: 8) {
                     // Show title logo image when available, fall back to text title
                     if let logoURL = items[safe: currentIndex]?.logo.flatMap(URL.init) {
                         CachedAsyncImage(url: logoURL) { phase in
@@ -62,13 +59,14 @@ struct ParallaxHero: View {
                                 image
                                     .resizable()
                                     .scaledToFit()
-                                    .frame(maxWidth: 260, maxHeight: 100, alignment: .leading)
+                                    .frame(maxWidth: 260, maxHeight: 100)
                                     .shadow(color: .black.opacity(0.5), radius: 6, x: 0, y: 2)
                             default:
                                 Text(items[safe: currentIndex]?.name ?? "")
                                     .font(.system(size: 40, weight: .black))
                                     .foregroundColor(.white)
                                     .lineLimit(2)
+                                    .multilineTextAlignment(.center)
                                     .minimumScaleFactor(0.7)
                             }
                         }
@@ -77,29 +75,61 @@ struct ParallaxHero: View {
                             .font(.system(size: 40, weight: .black))
                             .foregroundColor(.white)
                             .lineLimit(2)
+                            .multilineTextAlignment(.center)
                             .minimumScaleFactor(0.7)
                     }
 
                     metaRow
 
-                    buttonRow
+                    if let description = items[safe: currentIndex]?.description, !description.isEmpty {
+                        Text(description)
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.75))
+                            .lineLimit(2)
+                            .multilineTextAlignment(.center)
+                            .shadow(color: .black.opacity(0.4), radius: 3)
+                    }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, metrics.horizontalPadding)
-                .padding(.bottom, 44)
+                .padding(.bottom, 52)
+                // The hero copy is non-interactive so a tap anywhere on the hero
+                // reaches the image's tap gesture (opens detail); the bookmark
+                // button sits in its own overlay above this.
+                .allowsHitTesting(false)
             }
             .overlay(alignment: .bottom) {
                 pageIndicator
                     .padding(.bottom, 18)
             }
+            .overlay(alignment: .bottomTrailing) {
+                bookmarkButton
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 120)
+            }
+            .overlay(alignment: .topTrailing) {
+                if let item = items[safe: currentIndex] {
+                    let summary = awardsMeta.summary(forId: item.id)
+                    CompactAwardBadgeView(
+                        asset: summary?.isWinner == true
+                            ? summary?.primaryBodyWithAsset?.assetName
+                            : awardIndex.assetName(forId: item.id)
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.top, 50)
+                    .allowsHitTesting(false)
+                }
+            }
         }
         .frame(height: Self.heroHeight)
         .onAppear {
             artwork.prefetch(items: items)
+            awardsMeta.prefetch(ids: items.map(\.id))
             startAutoAdvance()
         }
         .onChange(of: items.map(\.id)) { _, _ in
             artwork.prefetch(items: items)
+            awardsMeta.prefetch(ids: items.map(\.id))
         }
         .onDisappear { stopAutoAdvance() }
     }
@@ -133,18 +163,23 @@ struct ParallaxHero: View {
     /// (the title logo is overlaid separately), addon poster as fallback; the
     /// explicit frame keeps layout stable while images load.
     private func heroImage(for item: MetaPreview, width: CGFloat) -> some View {
-        Group {
-            if let url = artwork.heroArtURL(for: item) {
-                CachedAsyncImage(url: url) { phase in
-                    switch phase {
-                    case .success(let image):
-                        image.resizable().scaledToFill()
-                    default:
-                        MoonlitTheme.surfaceContainer
+        let candidates = artwork.heroArtCandidates(for: item)
+        // The placeholder is always the base layer; once the textless poster
+        // resolves it fades in on top (LadderedCachedImage animates the success
+        // phase), so there's no hard cut — and the addon/btttr poster never shows.
+        return ZStack {
+            MoonlitTheme.surfaceContainer
+            if !candidates.isEmpty {
+                LadderedCachedImage(urls: candidates) { phase in
+                    if case .success(let image) = phase {
+                        image
+                            .resizable()
+                            .scaledToFill()
+                            .transition(.opacity)
+                    } else {
+                        Color.clear
                     }
                 }
-            } else {
-                MoonlitTheme.surfaceContainer
             }
         }
         .frame(width: width, height: Self.heroHeight)
@@ -154,60 +189,35 @@ struct ParallaxHero: View {
     private var metaRow: some View {
         HStack(spacing: 8) {
             if let rating = items[safe: currentIndex]?.imdbRating {
-                HStack(spacing: 3) {
-                    Image(systemName: "star.fill")
-                        .font(.caption)
-                        .foregroundColor(.yellow)
-                    Text(rating)
-                        .font(.caption)
-                        .foregroundColor(.white.opacity(0.6))
-                }
+                IMDbRatingBadge(rating: rating)
             }
             if let year = items[safe: currentIndex]?.releaseInfo {
-                Text("• \(year)")
+                Text(year)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.6))
             }
-            if let genres = items[safe: currentIndex]?.genres {
-                Text(genres.prefix(2).joined(separator: ", "))
+            if let genre = items[safe: currentIndex]?.genres?.first {
+                Text(genre)
                     .font(.caption)
                     .foregroundColor(.white.opacity(0.6))
-                    .lineLimit(1)
             }
         }
     }
 
-    private var buttonRow: some View {
-        HStack(spacing: 12) {
-            Button {
-                if let item = items[safe: currentIndex] {
-                    onWatchNow(item)
-                }
-            } label: {
-                Text("Watch Now")
-                    .font(.subheadline.weight(.bold))
-                    .foregroundColor(.black)
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 11)
-                    .background(Capsule().fill(.white))
+    /// Small bookmark toggle on the right of the hero, replacing the old
+    /// Watch Now + My List button pair. Watch Now is now the hero tap itself.
+    private var bookmarkButton: some View {
+        Button {
+            if let item = items[safe: currentIndex] {
+                onToggleLibrary(item)
             }
-
-            Button {
-                if let item = items[safe: currentIndex] {
-                    onToggleLibrary(item)
-                }
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: isCurrentInLibrary ? "bookmark.fill" : "bookmark")
-                    Text(isCurrentInLibrary ? "In My List" : "My List")
-                }
-                .font(.subheadline.weight(.semibold))
+        } label: {
+            Image(systemName: isCurrentInLibrary ? "bookmark.fill" : "bookmark")
+                .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.white)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-            }
-            .glassCapsule(interactive: true, clear: true)
+                .frame(width: 40, height: 40)
         }
+        .glassCircle(clear: true)
     }
 
     private func startAutoAdvance() {

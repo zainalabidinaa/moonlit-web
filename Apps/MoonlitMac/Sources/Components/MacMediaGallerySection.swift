@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// Harbor-style "Media" section: pill tabs for Videos / Backdrops / Posters /
+///  "Media" section: pill tabs for Videos / Backdrops / Posters /
 /// Logos (each showing a count), with a horizontal-scroll gallery below for
 /// whichever tab is selected.
 struct MacMediaGallerySection: View {

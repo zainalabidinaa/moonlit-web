@@ -1,7 +1,7 @@
 import SwiftUI
 import MoonlitCore
 
-/// Harbor-exact audio track picker (`src/components/player/audio-menu`): a
+/// reference-style audio track picker (`src/components/player/audio-menu`): a
 /// solid-surface panel with circle-check track rows (flag + codec/channels)
 /// and a delay-sync footer.
 struct AudioTrackPanel: View {
@@ -53,7 +53,7 @@ struct AudioTrackPanel: View {
                      disabled: engine.availableAudioTracks.count < 2, onDelay: engine.setAudioDelay)
         }
         .frame(width: 360)
-        .harborPanel(cornerRadius: 16)
+        .playerChromePanel(cornerRadius: 16)
         .animation(.easeInOut(duration: 0.12), value: engine.selectedAudioTrackId)
     }
 

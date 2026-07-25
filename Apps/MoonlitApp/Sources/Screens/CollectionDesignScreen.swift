@@ -60,11 +60,15 @@ struct CollectionDesignScreen: View {
                         }
                     }
                 }
+#if os(iOS)
                 .scrollContentBackground(.hidden)
+#endif
             }
         }
         .navigationTitle("Collection Design")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+#endif
     }
 
     private var rowTitles: [String] {
@@ -86,6 +90,7 @@ struct CollectionDesignScreen: View {
         case .heroBanner: return "Wide lead image with smaller picks"
         case .cardStack: return "Featured stacked card plus scroll"
         case .carouselCinematic: return "Wide 16:9 cinematic carousel"
+        case .topTen: return "Numbered ranking, 1 through 10"
         }
     }
 }
@@ -95,7 +100,7 @@ private struct CollectionStylePreview: View {
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 8)
+            RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl)
                 .fill(Color.white.opacity(0.08))
             preview
                 .padding(6)
@@ -131,11 +136,18 @@ private struct CollectionStylePreview: View {
                 previewCard(width: 26, height: 18)
                 previewCard(width: 18, height: 18)
             }
+        case .topTen:
+            HStack(spacing: -6) {
+                Text("1")
+                    .font(.system(size: 22, weight: .black, design: .rounded))
+                    .foregroundColor(.white.opacity(0.4))
+                previewCard(width: 16, height: 22)
+            }
         }
     }
 
     private func previewCard(width: CGFloat, height: CGFloat = 24) -> some View {
-        RoundedRectangle(cornerRadius: 3)
+        RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
             .fill(Color.white.opacity(0.55))
             .frame(width: width, height: height)
     }

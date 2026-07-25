@@ -30,6 +30,16 @@ struct MacContentView: View {
                 MacAuthView()
             }
         }
+        .overlay(alignment: .topTrailing) {
+            // `.hiddenTitleBar` still reserves a top safe area for the native
+            // traffic-light hit region even though we draw our own controls —
+            // without ignoring it here, this padding stacks on top of that
+            // invisible inset and the controls sit far lower than intended.
+            MacWindowControls()
+                .padding(.trailing, 16)
+                .padding(.top, 8)
+                .ignoresSafeArea(.container, edges: .top)
+        }
         .onChange(of: profileManager.currentProfile) { _, newProfile in
             roleManager.evaluateRole(profile: newProfile)
         }

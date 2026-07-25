@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Harbor's player surface palette — exact oklch→sRGB resolved from
-/// `src/index.css` @theme block. Harbor's popovers use fully opaque `elevated`
+/// a neutral player surface palette — exact oklch→sRGB resolved from
+/// `src/index.css` @theme block. a neutral popovers use fully opaque `elevated`
 /// (no alpha); `backdrop-blur-xl` is a no-op on opaque fills, so we match
 /// with a pure solid background — no Material, no translucency.
 ///
@@ -23,7 +23,7 @@ enum PlayerPalette {
     static let edge = Color(.sRGB, red: 60/255, green: 61/255, blue: 63/255, opacity: 0.55)
     static let edgeSoft = Color(.sRGB, red: 60/255, green: 61/255, blue: 63/255, opacity: 0.25)
 
-    // Harbor-pinned badge tints (sky/amber, from `subtitle-menu.tsx`).
+    //  badge tints (sky/amber, from `subtitle-menu.tsx`).
     static let infoTintBg = rgb(56, 189, 248).opacity(0.15)
     static let infoTintText = rgb(186, 230, 253)
     static let infoTintRing = rgb(56, 189, 248).opacity(0.30)
@@ -33,10 +33,10 @@ enum PlayerPalette {
 }
 
 extension View {
-    /// Harbor's popover/panel chrome: solid `elevated` fill, 1px `edge` border,
-    /// and Harbor's exact shadow — `0 24px 60px -18px rgba(0,0,0,0.8)`.
-    /// No Material, no translucency — matches Harbor's fully opaque panels.
-    func harborPanel(cornerRadius: CGFloat = 16) -> some View {
+    /// a neutral popover/panel chrome: solid `elevated` fill, 1px `edge` border,
+    /// and a neutral exact shadow — `0 24px 60px -18px rgba(0,0,0,0.8)`.
+    /// No Material, no translucency — matches the reference fully opaque panels.
+    func playerChromePanel(cornerRadius: CGFloat = 16) -> some View {
         self
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)

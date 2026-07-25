@@ -37,7 +37,9 @@ extension View {
         if #available(macOS 26.0, *) {
             self
                 .glassEffect(
-                    interactive ? .clear.interactive() : .clear,
+                    interactive
+                        ? .clear.tint(Color.black.opacity(0.28)).interactive()
+                        : .clear.tint(Color.black.opacity(0.28)),
                     in: .capsule
                 )
                 .shadow(color: .black.opacity(0.3), radius: 12, y: 4)

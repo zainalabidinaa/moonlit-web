@@ -13,14 +13,16 @@ struct MediaRow: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 18) {
                     ForEach(row.items) { item in
-                        MediaCard(item: item, row: row)
-                            .equatable()
+                        PosterCard(item: item, row: row)
                             .onTapGesture { onTap(item) }
                     }
                 }
                 .padding(.horizontal, 32)
                 .padding(.vertical, 10)
             }
+            // ScrollViews clip by default, shearing the hover halo into a hard
+            // band at the row bounds. Let the glow bloom past the row edges.
+            .scrollClipDisabled()
         }
     }
 }
@@ -167,8 +169,7 @@ private struct MacCardStackRow: View {
         let layout = stackLayout(index: index)
         let isFront = index == frontIndex
 
-        return MediaCard(item: item, row: CatalogRow(id: row.id, title: row.title, items: row.items, tileShape: "poster"))
-            .equatable()
+        return PosterCard(item: item, row: CatalogRow(id: row.id, title: row.title, items: row.items, tileShape: "poster"))
             .scaleEffect(layout.scale)
             .rotationEffect(.degrees(layout.rotation))
             .offset(x: layout.x, y: layout.y)
@@ -236,6 +237,7 @@ private struct MacCarouselCinematicRow: View {
                 .padding(.horizontal, 32)
                 .padding(.vertical, 10)
             }
+            .scrollClipDisabled()
         }
     }
 }
@@ -244,6 +246,7 @@ private struct CinematicTile: View {
     let item: MetaPreview
     let width: CGFloat
     let height: CGFloat
+    @State private var isHovering = false
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
@@ -267,6 +270,14 @@ private struct CinematicTile: View {
             RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                 .strokeBorder(Color.white.opacity(0.08), lineWidth: 1)
         )
+        .macTileGlow(
+            isHovering: isHovering,
+            artworkURL: item.artworkURL(preferring: .landscape),
+            cornerRadius: MoonlitTheme.radiusCard
+        )
+        .offset(y: isHovering ? -5 : 0)
+        .animation(.spring(response: 0.3, dampingFraction: 0.82), value: isHovering)
+        .onHover { isHovering = $0 }
     }
 }
 

@@ -164,10 +164,25 @@ public class CatalogRepository: ObservableObject {
         pageSize: Int = 50
     ) -> CatalogRow {
         var updated = row
-        updated.items.append(contentsOf: nextPageItems)
+        var seenIds = Set(updated.items.map(\.id))
+        let newItems = nextPageItems.filter { seenIds.insert($0.id).inserted }
+        updated.items.append(contentsOf: newItems)
         updated.page += 1
-        updated.hasMore = nextPageItems.count >= pageSize
+        updated.hasMore = !newItems.isEmpty && nextPageItems.count >= pageSize
         return updated
+    }
+
+    /// Whether a folder's sources can serve additional pages. TMDB collection
+    /// catalogs (tmdb.collection.*) return the whole franchise in one response
+    /// and ignore `skip`, so a folder backed only by them has no further pages —
+    /// paginating it would re-fetch and append the same items (the "Horror
+    /// Vault duplicates" bug).
+    nonisolated public static func sourcesSupportPagination(
+        normalizedSources: [DBFolderCatalog],
+        rawSources: [DBFolderSource]
+    ) -> Bool {
+        if !rawSources.isEmpty { return true }
+        return normalizedSources.contains { !$0.catalogId.hasPrefix("tmdb.collection.") }
     }
 
     /// A content-less row built purely from folder/collection metadata (cover art,
@@ -222,10 +237,11 @@ public class CatalogRepository: ObservableObject {
         for collection: DBCollection,
         folders: [DBFolder],
         folderRows: [CatalogRow],
-        preferences: CollectionDisplayPreferences
+        preferences: CollectionDisplayPreferences,
+        tab: CollectionTab = .home
     ) -> [CatalogRow] {
         guard preferences.enabledCollectionIds.contains(collection.id) else { return [] }
-        guard collection.showOnHome ?? true else { return [] }
+        guard collection.isVisible(in: tab) else { return [] }
 
         let visibleFolders = folders.filter { !preferences.hiddenFolderIds.contains($0.id) }
         let visibleRows = visibleFolders.compactMap { folder in
@@ -262,7 +278,7 @@ public class CatalogRepository: ObservableObject {
                 banner: banner,
                 logo: folder.titleLogo,
                 posterShape: PosterShape(rawValue: folder.tileShape ?? "") ?? .landscape,
-                // Clean backdrop art for Harbor-style tiles that draw their own title.
+                // Clean backdrop art for  tiles that draw their own title.
                 backdrop: folder.heroBackdrop?.nonEmpty,
                 itemCount: count,
                 countKind: kind,
@@ -288,6 +304,41 @@ public class CatalogRepository: ObservableObject {
             pinToTop: collection.pinToTop,
             backdropImage: collection.backdropImage
         )]
+    }
+
+    /// Portal-driven rows for a specific tab (Movies/Series/Home), assembled from the
+    /// already-loaded folder rows. Collections are gated by their per-platform tab
+    /// flags; within Movies/Series, content rows are narrowed to the matching media
+    /// kind while folder/group tiles pass through untouched.
+    public func rows(for tab: CollectionTab, collectionRepo: CollectionRepository) -> [CatalogRow] {
+        let preferences = CollectionDisplayPreferenceStore.shared.preferences(for: collectionRepo.collections)
+        var rows: [CatalogRow] = []
+        for collection in collectionRepo.collections {
+            let folders = collectionRepo.folders(for: collection)
+            let folderRows = folders.compactMap { folder in
+                allFolderRows["folder_\(folder.id)"]
+                    ?? catalogRows.first { $0.id == "folder_\(folder.id)" }
+            }
+            rows.append(contentsOf: Self.displayRows(
+                for: collection,
+                folders: folders,
+                folderRows: folderRows,
+                preferences: preferences,
+                tab: tab
+            ))
+        }
+        guard tab != .home else { return rows }
+        return rows.compactMap { row in
+            guard !row.items.isEmpty else { return row }
+            let items = row.items.filter { item in
+                if item.id.hasPrefix("folder_") { return true }
+                return tab == .movies ? item.isMovieKind : item.isShowKind
+            }
+            guard !items.isEmpty else { return nil }
+            var narrowed = row
+            narrowed.items = items
+            return narrowed
+        }
     }
 
     /// Fetches addon catalogs not already represented in catalogRows and appends them.
@@ -534,17 +585,10 @@ public class CatalogRepository: ObservableObject {
                         }
                         for await (idx, result) in inner { buckets[idx] = result }
                     }
-                    var items = Self.deduplicated(buckets.keys.sorted().flatMap { buckets[$0] ?? [] })
-                    if work.folder.name.localizedCaseInsensitiveContains("coming soon") {
-                        items = Self.sortedByReleaseDateAscending(items)
-                    }
-                    if work.folder.name.localizedCaseInsensitiveContains("top rated") {
-                        items = items.sorted {
-                            let a = Double(($0.imdbRating ?? "").replacingOccurrences(of: "/10", with: "")) ?? 0
-                            let b = Double(($1.imdbRating ?? "").replacingOccurrences(of: "/10", with: "")) ?? 0
-                            return a > b
-                        }
-                    }
+                    let items = Self.applyTitleBasedFilters(
+                        Self.deduplicated(buckets.keys.sorted().flatMap { buckets[$0] ?? [] }),
+                        title: work.folder.name
+                    )
                     guard !items.isEmpty else { return nil }
                     return FolderResult(
                         collectionIdx: work.collectionIdx,
@@ -555,7 +599,10 @@ public class CatalogRepository: ObservableObject {
                             items: items,
                             addonName: "AIOMetadata",
                             page: 0,
-                            hasMore: false,
+                            hasMore: Self.sourcesSupportPagination(
+                                normalizedSources: work.normalizedSources,
+                                rawSources: work.rawSources
+                            ),
                             tileShape: work.folder.tileShape,
                             coverImage: work.folder.coverImage,
                             focusGif: work.folder.focusGif,
@@ -864,7 +911,7 @@ public class CatalogRepository: ObservableObject {
         let rawSources = collectionRepo.sources(for: folder)
         guard !normalizedSources.isEmpty || !rawSources.isEmpty else { return .unavailable(.missingSources) }
 
-        let items = await fetchFolderItems(
+        let fetchedItems = await fetchFolderItems(
             normalizedSources: normalizedSources,
             rawSources: rawSources,
             fallbackURL: fallbackURL,
@@ -872,14 +919,20 @@ public class CatalogRepository: ObservableObject {
             skip: 0,
             sortByReleaseDate: folder.name.localizedCaseInsensitiveContains("coming soon")
         )
+        let items = Self.applyTitleBasedFilters(fetchedItems, title: folder.name)
 
         guard !items.isEmpty else { return .unavailable(.emptyResponse) }
+
+        let hasMore = !items.isEmpty && Self.sourcesSupportPagination(
+            normalizedSources: normalizedSources,
+            rawSources: rawSources
+        )
 
         // Patch the stored row with the fetched items.
         if var row = allFolderRows[normalizedFolderId] {
             row.items = items
             row.page = 0
-            row.hasMore = !items.isEmpty
+            row.hasMore = hasMore
             allFolderRows[normalizedFolderId] = row
         } else {
             allFolderRows[normalizedFolderId] = CatalogRow(
@@ -888,7 +941,7 @@ public class CatalogRepository: ObservableObject {
                 items: items,
                 addonName: "AIOMetadata",
                 page: 0,
-                hasMore: !items.isEmpty,
+                hasMore: hasMore,
                 tileShape: folder.tileShape,
                 coverImage: folder.coverImage,
                 focusGif: folder.focusGif,
@@ -904,7 +957,7 @@ public class CatalogRepository: ObservableObject {
         if let idx = catalogRows.firstIndex(where: { $0.id == normalizedFolderId }) {
             catalogRows[idx].items = items
             catalogRows[idx].page = 0
-            catalogRows[idx].hasMore = !items.isEmpty
+            catalogRows[idx].hasMore = hasMore
         }
         return .loaded
     }
@@ -934,14 +987,25 @@ public class CatalogRepository: ObservableObject {
         let rawSources = collectionRepo.sources(for: folder)
         guard !normalizedSources.isEmpty || !rawSources.isEmpty else { return }
 
+        // Rows cached before pagination support was source-aware may carry a
+        // stale hasMore=true for non-paginatable (tmdb.collection-only) folders.
+        guard Self.sourcesSupportPagination(normalizedSources: normalizedSources, rawSources: rawSources) else {
+            allFolderRows[normalizedFolderId]?.hasMore = false
+            if let idx = catalogRows.firstIndex(where: { $0.id == normalizedFolderId }) {
+                catalogRows[idx].hasMore = false
+            }
+            return
+        }
+
         let skip = (row.page + 1) * 50
-        let items = await fetchFolderItems(
+        let fetchedItems = await fetchFolderItems(
             normalizedSources: normalizedSources,
             rawSources: rawSources,
             fallbackURL: fallbackURL,
             addons: addons,
             skip: skip
         )
+        let items = Self.applyTitleBasedFilters(fetchedItems, title: folder.name)
 
         guard !items.isEmpty else {
             allFolderRows[normalizedFolderId]?.hasMore = false
@@ -961,14 +1025,56 @@ public class CatalogRepository: ObservableObject {
     /// Loads a genre hub: `GenreCatalog` sections (folder tiles, no fetch), the
     /// bundled addon-catalog browse rails (New / Popular / Top …), and — when a
     /// TMDB key is configured and `mediaKind` narrows the genre to Movies or
-    /// Shows — Harbor-style curated TMDB discover rails (Trending, Top Rated,
+    /// Shows —  curated TMDB discover rails (Trending, Top Rated,
     /// New, Hidden Gems, companion media-kind) layered on top. The addon rails
     /// are the fallback for users without a TMDB key.
+    // MARK: Genre hub cache
+    //
+    // Without this, every visit to a genre refetches a dozen rails. Whether a hub
+    // felt instant was down to whatever URLSession happened to still hold — which
+    // is why the same build showed Adventure instantly and Comedy after six
+    // seconds. Memory-only by design; see the spec's non-goals.
+    private var genreHubCache: [String: (content: GenreCatalog.HubContent, at: Date)] = [:]
+    private static let genreHubTTL: TimeInterval = 6 * 3600
+
+    private static func genreHubKey(genre: String, mediaKind: MediaType?) -> String {
+        "\(GenreCatalog.normalize(genre))|\(mediaKind?.rawValue ?? "any")"
+    }
+
+    /// Previously loaded hub content for this genre, if still within TTL.
+    /// Callers paint this immediately and refresh behind it.
+    public func cachedGenreHub(genre: String, mediaKind: MediaType? = nil) -> GenreCatalog.HubContent? {
+        let key = Self.genreHubKey(genre: genre, mediaKind: mediaKind)
+        guard let hit = genreHubCache[key],
+              Date().timeIntervalSince(hit.at) < Self.genreHubTTL else { return nil }
+        return hit.content
+    }
+
     public func loadGenreHub(
         genre: String,
         collectionRepo: CollectionRepository,
         addons: [AddonManifest],
         mediaKind: MediaType? = nil
+    ) async -> GenreCatalog.HubContent {
+        await loadGenreHubProgressive(
+            genre: genre,
+            collectionRepo: collectionRepo,
+            addons: addons,
+            mediaKind: mediaKind,
+            onPartial: { _ in }
+        )
+    }
+
+    /// As `loadGenreHub`, but reports rails as they resolve instead of only at the
+    /// end. The TMDB discover rails land well before the addon catalog fan-out, so
+    /// the screen can paint something instead of holding a spinner until the
+    /// slowest rail returns.
+    public func loadGenreHubProgressive(
+        genre: String,
+        collectionRepo: CollectionRepository,
+        addons: [AddonManifest],
+        mediaKind: MediaType? = nil,
+        onPartial: @MainActor ([GenreCatalog.LoadedBrowseRail]) -> Void
     ) async -> GenreCatalog.HubContent {
         let org = collectionRepo.organized
         let key = GenreCatalog.normalize(genre)
@@ -985,25 +1091,46 @@ public class CatalogRepository: ObservableObject {
             return await TMDBDiscoverService.shared.discoverCreativeRails(genreName: genre, mediaKind: mediaKind)
         }()
 
+        // Publish the TMDB rails the moment they resolve — they are a single fast
+        // request each, while the addon fan-out below is a dozen. Waiting for both
+        // is what left the screen blank behind a spinner.
+        let tmdbRails = await discoverRails + creativeRails
+        if !tmdbRails.isEmpty {
+            onPartial(tmdbRails)
+        }
+
         let fallbackURL = addons.first(where: {
             $0.transportUrl?.contains("aiometadata") == true || $0.id.contains("aio")
         })?.transportUrl ?? addons.first?.transportUrl
 
         var loaded: [GenreCatalog.LoadedBrowseRail] = []
         if let fallbackURL {
-            for rail in rails {
-                let items = await fetchFolderItems(
-                    normalizedSources: rail.catalogs,
-                    rawSources: rail.sources,
-                    fallbackURL: fallbackURL,
-                    addons: addons,
-                    skip: 0
-                )
-                let deduped = Self.deduplicated(items)
-                if !deduped.isEmpty {
-                    loaded.append(GenreCatalog.LoadedBrowseRail(id: rail.id, title: rail.title, items: deduped))
+            // Fire every rail's request at once instead of awaiting them one at a
+            // time — with a dozen rails on a genre page, serial fetches were the
+            // dominant cause of slow hub loads. Indices keep the result order
+            // matching `rails` since task-group completion order is unspecified.
+            let indexed = await withTaskGroup(of: (Int, GenreCatalog.LoadedBrowseRail?).self) { group in
+                for (index, rail) in rails.enumerated() {
+                    group.addTask {
+                        let items = await self.fetchFolderItems(
+                            normalizedSources: rail.catalogs,
+                            rawSources: rail.sources,
+                            fallbackURL: fallbackURL,
+                            addons: addons,
+                            skip: 0
+                        )
+                        let deduped = Self.deduplicated(items)
+                        guard !deduped.isEmpty else { return (index, nil) }
+                        return (index, GenreCatalog.LoadedBrowseRail(id: rail.id, title: rail.title, items: deduped))
+                    }
                 }
+                var collected: [(Int, GenreCatalog.LoadedBrowseRail?)] = []
+                for await result in group {
+                    collected.append(result)
+                }
+                return collected
             }
+            loaded = indexed.sorted { $0.0 < $1.0 }.compactMap { $0.1 }
         }
 
         var collectionRails: [GenreCatalog.LoadedBrowseRail] = []
@@ -1011,11 +1138,87 @@ public class CatalogRepository: ObservableObject {
             collectionRails = await fetchCollectionRails(genre: genre, key: key, org: org, fallbackURL: fallbackURL, addons: addons, mediaKind: mediaKind)
         }
 
-        return GenreCatalog.HubContent(
+        let content = GenreCatalog.HubContent(
             sections: sections,
-            browse: await discoverRails + creativeRails + loaded,
+            browse: tmdbRails + loaded,
             collectionRails: collectionRails
         )
+        if !content.browse.isEmpty || !content.collectionRails.isEmpty {
+            genreHubCache[Self.genreHubKey(genre: genre, mediaKind: mediaKind)] = (content, Date())
+        }
+        onPartial(content.browse)
+        return content
+    }
+
+    /// Editorial rows for the top-level Movies and Series tabs. Unlike a genre
+    /// hub, these deliberately stay broad: cinema history, decades, and a small
+    /// set of category spotlights. Genre identity lists remain in their genre hub.
+    public func loadMediaEditorialRails(
+        mediaKind: MediaType,
+        collectionRepo: CollectionRepository,
+        addons: [AddonManifest]
+    ) async -> [GenreCatalog.LoadedBrowseRail] {
+        guard let fallbackURL = addons.first(where: {
+            $0.transportUrl?.contains("aiometadata") == true || $0.id.contains("aio")
+        })?.transportUrl ?? addons.first?.transportUrl else { return [] }
+
+        let org = collectionRepo.organized
+        let categoryNames: Set<String> = mediaKind == .movie
+            ? ["action", "animation", "comedy", "drama", "fantasy & sci-fi", "horror", "mystery", "romance", "thriller", "western"]
+            : ["action", "animation", "comedy", "drama", "fantasy & sci-fi", "horror", "romance", "thriller"]
+        let categoryCollectionIds = Set(org.collections
+            .filter { GenreCatalog.normalize($0.name) == "categories" }
+            .map(\.id))
+        let folders = org.folders.filter { folder in
+            if categoryCollectionIds.contains(folder.collectionId) {
+                return categoryNames.contains(GenreCatalog.normalize(folder.name))
+            }
+            return false
+        }
+
+        var railInputs: [(id: String, title: String, catalogs: [DBFolderCatalog])] = folders.map { folder in
+            (folder.id, "\(folder.name) Spotlight", org.folderCatalogs.filter { $0.folderId == folder.id })
+        }
+
+        if mediaKind == .movie {
+            func source(_ id: String, _ title: String, _ catalogId: String) -> (id: String, title: String, catalogs: [DBFolderCatalog]) {
+                (id, title, [DBFolderCatalog(id: "editorial-\(id)", folderId: "editorial-\(id)", catalogId: catalogId, mediaType: "movie")])
+            }
+            railInputs.insert(contentsOf: [
+                source("all-time-greats", "All-Time Greats", "tmdb.discover.movie.top-all-time-movies.39f5a0c4"),
+                source("1001-greatest", "1001 Greatest Movies of All Time", "trakt.list.1282987"),
+                source("70s-auteurs", "70s Auteurs", "tmdb.discover.movie.most-popular-of-the-decade-1970s.a5d4aa4a"),
+                source("80s-classics", "80s Classics", "mdblist.91301"),
+                source("essential-90s", "Essential 90s", "mdblist.91300"),
+                source("defining-2010s", "Defining the 2010s", "mdblist.91303"),
+                source("2020s-now", "2020s Now", "mdblist.91304"),
+            ], at: 0)
+        }
+
+        let results = await withTaskGroup(of: (Int, GenreCatalog.LoadedBrowseRail?).self) { group in
+            for (index, input) in railInputs.enumerated() where !input.catalogs.isEmpty {
+                group.addTask {
+                    let items = await self.fetchFolderItems(
+                        normalizedSources: input.catalogs,
+                        rawSources: [],
+                        fallbackURL: fallbackURL,
+                        addons: addons,
+                        skip: 0
+                    ).filter { mediaKind == .movie ? $0.isMovieKind : $0.isShowKind }
+                    guard !items.isEmpty else { return (index, nil) }
+                    return (index, GenreCatalog.LoadedBrowseRail(
+                        id: "editorial-\(mediaKind.rawValue)-\(input.id)",
+                        title: input.title,
+                        items: Self.deduplicated(items),
+                        subtitle: input.id.contains("70s") || input.id.contains("80s") || input.id.contains("90s") || input.id.contains("2010") || input.id.contains("2020") ? "CINEMA HISTORY" : "EDITORIAL"
+                    ))
+                }
+            }
+            var collected: [(Int, GenreCatalog.LoadedBrowseRail?)] = []
+            for await result in group { collected.append(result) }
+            return collected
+        }
+        return results.sorted { $0.0 < $1.0 }.compactMap(\.1)
     }
 
     /// Returns franchise-collection content rails for a genre so they can be
@@ -1245,6 +1448,16 @@ public class CatalogRepository: ObservableObject {
         items.filter { ($0.voteCount ?? 0) >= min }
     }
 
+    /// Below this, a "trending" title is almost always a single-review or
+    /// single-mention spike rather than genuine broad interest.
+    private nonisolated static let trendingMinVoteCount = 20
+
+    /// TMDB TV genres for daily-broadcast formats (news, talk, reality) — these
+    /// rack up huge vote/episode counts just by airing every weekday, which lets
+    /// them crowd out actual series in a "trending"/"popular" rail even though
+    /// they're not the kind of show someone is browsing a streaming catalog for.
+    private nonisolated static let nonScriptedGenres: Set<String> = ["News", "Talk", "Reality"]
+
     private nonisolated static func applyTitleBasedFilters(_ items: [MetaPreview], title: String) -> [MetaPreview] {
         var result = items
         if title.localizedCaseInsensitiveContains("coming soon") {
@@ -1255,6 +1468,15 @@ public class CatalogRepository: ObservableObject {
                 let a = Double(($0.imdbRating ?? "").replacingOccurrences(of: "/10", with: "")) ?? 0
                 let b = Double(($1.imdbRating ?? "").replacingOccurrences(of: "/10", with: "")) ?? 0
                 return a > b
+            }
+        }
+        if title.localizedCaseInsensitiveContains("trending") {
+            // Only drop items where we actually know the vote count is low —
+            // missing voteCount (some sources don't populate it) is left alone
+            // rather than treated as a strike against the item.
+            result = result.filter { ($0.voteCount ?? trendingMinVoteCount) >= trendingMinVoteCount }
+            result = result.filter { item in
+                !(item.genres ?? []).contains { nonScriptedGenres.contains($0) }
             }
         }
         return result
@@ -1315,33 +1537,76 @@ public class CatalogRepository: ObservableObject {
               let (data, _) = try? await URLSession.shared.data(from: url),
               let response = try? JSONDecoder().decode(TMDBCollectionResponse.self, from: data) else { return [] }
 
-        return await withTaskGroup(of: MetaPreview?.self) { group in
-            for part in response.parts {
-                let partId = part.id
-                let partTitle = part.title ?? part.originalTitle ?? ""
-                let partRelease = part.releaseDate
-                group.addTask {
-                    guard let extUrl = URL(string: "\(tmdbBase)/movie/\(partId)/external_ids?api_key=\(apiKey)"),
-                          let (extData, _) = try? await URLSession.shared.data(from: extUrl),
-                          let extResult = try? JSONDecoder().decode(TMDBExternalIdsResponse.self, from: extData),
-                          let imdbId = extResult.imdbId, imdbId.hasPrefix("tt") else { return nil }
-                    let year = partRelease.flatMap { String($0.prefix(4)) }
-                    return MetaPreview(
-                        id: imdbId,
-                        type: .movie,
-                        name: partTitle,
-                        poster: PosterService.posterURL(forImdbId: imdbId),
-                        releaseInfo: year,
-                        rawReleaseDate: partRelease
-                    )
-                }
-            }
-            var results: [MetaPreview] = []
-            for await item in group {
-                if let item { results.append(item) }
-            }
-            return results.sorted { ($0.rawReleaseDate ?? "") < ($1.rawReleaseDate ?? "") }
+        let parts = response.parts.map {
+            CollectionPart(tmdbId: $0.id, title: $0.title ?? $0.originalTitle ?? "", releaseDate: $0.releaseDate)
         }
+        let items = await Self.resolveCollectionParts(parts) { tmdbId in
+            await TMDBDiscoverService.shared.resolveImdbId(tmdbId: tmdbId, kind: "movie", apiKey: apiKey)
+        }
+        TMDBDiscoverService.shared.persistCache()
+        return items.sorted { ($0.rawReleaseDate ?? "") < ($1.rawReleaseDate ?? "") }
+    }
+
+    struct CollectionPart: Sendable {
+        let tmdbId: Int
+        let title: String
+        let releaseDate: String?
+    }
+
+    /// Resolves collection parts to IMDB-keyed previews with bounded
+    /// concurrency, preserving input order. Unbounded resolution (one in-flight
+    /// request per movie across 27 concurrent franchise fetches) tripped TMDB
+    /// rate limits and silently dropped whatever failed, so folders came up
+    /// missing titles. Transient failures get one retry pass; parts with no
+    /// usable IMDB id after that are dropped (nothing in the app can act on them).
+    nonisolated static func resolveCollectionParts(
+        _ parts: [CollectionPart],
+        chunkSize: Int = 6,
+        resolver: @escaping @Sendable (Int) async -> String?
+    ) async -> [MetaPreview] {
+        func resolvePass(_ pending: [(Int, CollectionPart)]) async -> (resolved: [Int: MetaPreview], failed: [(Int, CollectionPart)]) {
+            var resolved: [Int: MetaPreview] = [:]
+            var failed: [(Int, CollectionPart)] = []
+            var index = 0
+            while index < pending.count {
+                let chunk = pending[index..<min(index + chunkSize, pending.count)]
+                await withTaskGroup(of: (Int, CollectionPart, MetaPreview?).self) { group in
+                    for (position, part) in chunk {
+                        group.addTask {
+                            guard let imdbId = await resolver(part.tmdbId), imdbId.hasPrefix("tt") else {
+                                return (position, part, nil)
+                            }
+                            return (position, part, MetaPreview(
+                                id: imdbId,
+                                type: .movie,
+                                name: part.title,
+                                poster: PosterService.posterURL(forImdbId: imdbId),
+                                releaseInfo: part.releaseDate.flatMap { String($0.prefix(4)) },
+                                rawReleaseDate: part.releaseDate
+                            ))
+                        }
+                    }
+                    for await (position, part, preview) in group {
+                        if let preview {
+                            resolved[position] = preview
+                        } else {
+                            failed.append((position, part))
+                        }
+                    }
+                }
+                index += chunkSize
+            }
+            return (resolved, failed)
+        }
+
+        let indexed = Array(parts.enumerated().map { ($0.offset, $0.element) })
+        let firstPass = await resolvePass(indexed)
+        var resolved = firstPass.resolved
+        if !firstPass.failed.isEmpty {
+            let retryPass = await resolvePass(firstPass.failed.sorted { $0.0 < $1.0 })
+            resolved.merge(retryPass.resolved) { current, _ in current }
+        }
+        return resolved.keys.sorted().compactMap { resolved[$0] }
     }
 }
 
@@ -1359,11 +1624,6 @@ private struct TMDBCollectionPart: Decodable {
         case originalTitle = "original_title"
         case releaseDate = "release_date"
     }
-}
-
-private struct TMDBExternalIdsResponse: Decodable {
-    let imdbId: String?
-    enum CodingKeys: String, CodingKey { case imdbId = "imdb_id" }
 }
 
 private extension String {

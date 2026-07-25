@@ -66,6 +66,10 @@ struct MacGenreHubView: View {
         GenreCatalog.sections(for: genre, in: collectionRepo.organized).map { $0.asRow() }
     }
 
+    private var hasAnyRail: Bool {
+        !sectionRows.isEmpty || !filteredBrowseRails.isEmpty || !filteredCollectionRails.isEmpty
+    }
+
     var body: some View {
         ZStack(alignment: .top) {
             MacFusionAmbientBackground(
@@ -110,7 +114,10 @@ struct MacGenreHubView: View {
                         )
                     }
 
-                    if isLoading {
+                    // Still loading with some rails already visible — small
+                    // inline indicator below them. The empty first load shows
+                    // the centered state outside the scroll instead.
+                    if isLoading && hasAnyRail {
                         MacLoadingView(size: 40)
                             .frame(maxWidth: .infinity)
                             .padding(.top, 60)
@@ -122,20 +129,10 @@ struct MacGenreHubView: View {
             }
             .task(id: genre) { await load() }
 
-            HStack {
-                Button { onBack() } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .macDarkGlassCapsule(interactive: true)
-                }
-                .buttonStyle(.plain)
-                Spacer()
+            if isLoading && !hasAnyRail {
+                MacLoadingView(size: 44)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
         }
         .background(MoonlitTheme.background)
     }
@@ -252,7 +249,7 @@ struct MacGenreHubView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 24) {
                     ForEach(row.items) { item in
-                        MediaCard(item: item, row: row)
+                        PosterCard(item: item, row: row)
                             .onTapGesture { onTap(item) }
                     }
                 }
@@ -356,6 +353,7 @@ struct MacStreamingServiceView: View {
     @StateObject private var addonRepo = AddonRepository.shared
     @State private var selectedCategory: ServiceCategory = .all
     @State private var isLoading = false
+    @AppStorage(PosterStyle.scaleKey) private var posterScale: Double = PosterStyle.defaultScale
     @State private var unavailableReason: FolderLoadUnavailableReason?
     @State private var discoverMovies: [MetaPreview] = []
     @State private var discoverShows: [MetaPreview] = []
@@ -428,7 +426,7 @@ struct MacStreamingServiceView: View {
         case let s where s.contains("paramount"): return Color(hex: "#0064FF")
         case let s where s.contains("peacock"): return Color(hex: "#FF7112")
         case let s where s.contains("crunchyroll"): return Color(hex: "#F47521")
-        default: return MoonlitTheme.harborGold
+        default: return MoonlitTheme.ratingGold
         }
     }
 
@@ -467,9 +465,8 @@ struct MacStreamingServiceView: View {
                     categoryPills
 
                     if isLoading && displayRow.items.isEmpty {
-                        MacLoadingView(size: 40)
-                            .frame(maxWidth: .infinity)
-                            .padding(.top, 60)
+                        // Centered full-viewport state lives outside the scroll.
+                        EmptyView()
                     } else if selectedCategory == .all {
                         serviceRail(title: "Top 10 Movies on \(serviceName)", items: Array(movieItems.prefix(10)), ranked: true)
                         serviceRail(title: "More Movies", items: Array(movieItems.dropFirst(10).prefix(24)), ranked: false)
@@ -487,20 +484,10 @@ struct MacStreamingServiceView: View {
             }
             .task(id: row.id) { await load() }
 
-            HStack {
-                Button { onBack() } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .macDarkGlassCapsule(interactive: true)
-                }
-                .buttonStyle(.plain)
-                Spacer()
+            if isLoading && displayRow.items.isEmpty {
+                MacLoadingView(size: 44)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
         }
         .background(MoonlitTheme.background)
     }
@@ -533,7 +520,7 @@ struct MacStreamingServiceView: View {
                     Text("POPULAR ON")
                         .font(.system(size: 13, weight: .semibold))
                         .tracking(5)
-                        .foregroundColor(MoonlitTheme.harborGold.opacity(0.85))
+                        .foregroundColor(MoonlitTheme.ratingGold.opacity(0.85))
 
                     if let logo = displayRow.titleLogo.flatMap(URL.init) {
                         CachedAsyncImage(url: logo) { image in
@@ -594,7 +581,7 @@ struct MacStreamingServiceView: View {
                         let libraryIds = libraryIds
                         ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                             ZStack(alignment: .topLeading) {
-                                MediaCard(item: item, width: 154, height: 231)
+                                PosterCard(item: item)
                                     .onTapGesture { onSelectMedia(item) }
                                 if !libraryIds.contains(item.id) {
                                     Text("DISCOVER")
@@ -620,7 +607,7 @@ struct MacStreamingServiceView: View {
                                             ),
                                             in: Circle()
                                         )
-                                        .overlay(Circle().strokeBorder(MoonlitTheme.harborGold.opacity(0.5), lineWidth: 1.2))
+                                        .overlay(Circle().strokeBorder(MoonlitTheme.ratingGold.opacity(0.5), lineWidth: 1.2))
                                         .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
                                         .offset(x: -8, y: -8)
                                 }
@@ -635,9 +622,9 @@ struct MacStreamingServiceView: View {
     }
 
     private func posterGrid(items: [MetaPreview]) -> some View {
-        LazyVGrid(columns: [GridItem(.adaptive(minimum: 154), spacing: 22)], spacing: 28) {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: PosterStyle.width(scale: posterScale)), spacing: 22)], spacing: 28) {
             ForEach(items) { item in
-                MediaCard(item: item, width: 154, height: 231)
+                PosterCard(item: item)
                     .onTapGesture { onSelectMedia(item) }
             }
         }

@@ -555,6 +555,7 @@ struct HomeScreen: View {
 
     @ViewBuilder
     private var homeBrowseMenu: some View {
+#if os(iOS)
         if #available(iOS 26, *) {
             GlassEffectContainer {
                 browseMenu
@@ -568,6 +569,12 @@ struct HomeScreen: View {
                 .padding(.vertical, 7)
                 .glassCapsule(interactive: true)
         }
+#elseif os(tvOS)
+        browseMenu
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .glassCapsule(interactive: true)
+#endif
     }
 
     private var browseMenu: some View {

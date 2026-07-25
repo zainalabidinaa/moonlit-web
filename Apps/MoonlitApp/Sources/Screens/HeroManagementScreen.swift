@@ -42,10 +42,26 @@ struct HeroManagementScreen: View {
     var body: some View {
         List {
             Section {
-                Text("Choose which catalog rows feed into the hero carousel and drag to set priority order.")
+                Text("Pick a single catalog to feed the hero, or leave it on Default to use trending. The order/toggles below are a fallback used only when the selected catalog is unavailable.")
                     .font(.caption)
                     .foregroundColor(MoonlitTheme.textSecondary)
                     .listRowBackground(Color.clear)
+            }
+
+            // ── HERO SOURCE (single catalog that feeds the hero) ─────
+            Section("Hero Source") {
+                Picker("Source", selection: Binding(
+                    get: { heroStore.heroCatalogId ?? "" },
+                    set: { heroStore.setHeroCatalogId($0.isEmpty ? nil : $0) }
+                )) {
+                    Text("Default (Trending)").tag("")
+                    ForEach(allRows) { row in
+                        Text(row.title).tag(row.id)
+                    }
+                }
+                .pickerStyle(.navigationLink)
+                .tint(.white)
+                .listRowBackground(MoonlitTheme.surfaceElevated.opacity(0.5))
             }
 
             // ── CATALOG ORDER (enabled rows, draggable) ──────────────
@@ -122,10 +138,14 @@ struct HeroManagementScreen: View {
                 }
             }
         }
+#if os(iOS)
         .scrollContentBackground(.hidden)
+#endif
         .background(MoonlitTheme.background)
         .navigationTitle("Hero Management")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.large)
+#endif
         .environment(\.editMode, .constant(.active))
     }
 }

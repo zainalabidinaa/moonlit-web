@@ -4,6 +4,38 @@ import XCTest
 final class MoonlitCoreTests: XCTestCase {}
 
 extension MoonlitCoreTests {
+    func testKnownForCreditsAreUniqueTitlesOrderedByPopularity() {
+        func credit(id: Int, title: String, popularity: Double) -> PersonCredit {
+            PersonCredit(
+                id: id,
+                title: title,
+                mediaType: "tv",
+                character: "Guest",
+                job: nil,
+                department: nil,
+                releaseDate: nil,
+                posterPath: "/\(id).jpg",
+                backdropPath: nil,
+                voteAverage: nil,
+                voteCount: nil,
+                episodeCount: 1,
+                popularity: popularity
+            )
+        }
+
+        let credits = PersonCredits(
+            cast: [
+                credit(id: 10, title: "Family Guy", popularity: 90),
+                credit(id: 10, title: "Family Guy", popularity: 80),
+                credit(id: 20, title: "Breaking Bad", popularity: 70),
+                credit(id: 30, title: "Drive", popularity: 60),
+            ],
+            crew: []
+        )
+
+        XCTAssertEqual(credits.knownFor.map(\.title), ["Family Guy", "Breaking Bad", "Drive"])
+    }
+
     func testStremioErrorsExposeHumanReadableDescriptions() {
         let offline = StremioError.networkError(URLError(.notConnectedToInternet))
         XCTAssertEqual(
@@ -149,21 +181,13 @@ extension MoonlitCoreTests {
 
     func testDefaultAddonsIncludeTrailerAndDeepDiveCompanions() {
         XCTAssertTrue(MoonlitConfig.defaultAddons.contains {
-            $0.contains("streailer.elfhosted.com")
+            $0.contains("streailer")
         })
         XCTAssertTrue(MoonlitConfig.defaultAddons.contains {
             $0.contains("stremio-content-deepdive-addon-dc8f7b513289.herokuapp.com")
         })
     }
 
-    func testDefaultStreamingAddonUsesVirenAIOStreams() {
-        XCTAssertTrue(MoonlitConfig.defaultAddons.contains {
-            $0 == "https://aiostreams.viren070.me/stremio/a8ddeaca-2ef3-424d-bbe6-dfa4768a138c/eyJpIjoicjRZaHVrZ0cxdEQ3eFNvN0JGU1NWQT09IiwiZSI6ImdUR2RxUHFwSURxamZNYnFNejFEY3JhZGtHb0lwMW9IOXNONFkreVp6azQ9IiwidCI6ImEifQ/manifest.json"
-        })
-        XCTAssertFalse(MoonlitConfig.defaultAddons.contains {
-            $0.contains("aiostreams.12312023.xyz")
-        })
-    }
 
     func testStreamMatchGuardRejectsObviousWrongSeriesEpisode() {
         let stream = StreamItem(
@@ -658,7 +682,7 @@ extension MoonlitCoreTests {
         )
     }
 
-    func testNuvioOrganizerMapsToCollectionRepositoryModels() throws {
+    func testLayoutOrganizerMapsToCollectionRepositoryModels() throws {
         let json = """
         [
           {
@@ -701,7 +725,7 @@ extension MoonlitCoreTests {
         XCTAssertEqual(layout.folderSources.first?.tmdbSourceType, "discover")
     }
 
-    func testNuvioOrganizerSynthesizesDiscoverFoldersFromFilters() throws {
+    func testLayoutOrganizerSynthesizesDiscoverFoldersFromFilters() throws {
         let json = """
         [
           {

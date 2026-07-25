@@ -42,7 +42,7 @@ public enum AwardBody: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    /// Per-body laurel tint, matching Harbor's award corner treatment.
+    /// Per-body laurel tint, matching a neutral award corner treatment.
     public var tintColor: Color {
         switch self {
         case .oscar, .emmy, .goldenGlobe: return Color(red: 0.831, green: 0.686, blue: 0.216) // #D4AF37
@@ -87,7 +87,7 @@ public enum AwardBody: String, Codable, CaseIterable, Sendable {
         return nil
     }
 
-    // MARK: - Awards hub metadata (Harbor-style cinematic hero)
+    // MARK: - Awards hub metadata ( cinematic hero)
 
     /// Uppercase eyebrow shown above the hub title, e.g. "THE OSCARS".
     public var shorthand: String {
@@ -200,11 +200,16 @@ public struct AwardEntry: Codable, Sendable, Hashable {
     public let body: AwardBody
     public let category: String
     public let year: Int?
+    /// The work this entry was for — set on person-scoped summaries (a person's
+    /// wins span multiple titles); left `nil` on title-scoped summaries, where
+    /// the work is already implicit.
+    public let workTitle: String?
 
-    public init(body: AwardBody, category: String, year: Int?) {
+    public init(body: AwardBody, category: String, year: Int?, workTitle: String? = nil) {
         self.body = body
         self.category = category
         self.year = year
+        self.workTitle = workTitle
     }
 }
 

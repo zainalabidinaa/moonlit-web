@@ -5,13 +5,12 @@ struct HomeHero: View {
     let items: [MetaPreview]
     @Binding var currentIndex: Int
     let onWatchNow: (MetaPreview) -> Void
-    let onToggleLibrary: (MetaPreview) -> Void
+    let onMoreInfo: (MetaPreview) -> Void
     var ambientColor: Color = .clear
     var ambientColor2: Color = .clear
 
     @State private var autoTimer: Timer?
     @Environment(\.controlActiveState) private var controlActiveState
-    @StateObject private var libraryRepo = LibraryRepository.shared
     @StateObject private var artwork = MacHeroArtworkProvider.shared
     @StateObject private var awardsMeta = AwardsMetadataService.shared
     @StateObject private var awardIndex = AwardIndex.shared
@@ -21,11 +20,6 @@ struct HomeHero: View {
     private var currentItem: MetaPreview? {
         guard items.indices.contains(currentIndex) else { return nil }
         return items[currentIndex]
-    }
-
-    private var isCurrentInLibrary: Bool {
-        guard let currentItem else { return false }
-        return libraryRepo.libraryItems.contains { $0.mediaId == currentItem.id }
     }
 
     var body: some View {
@@ -119,9 +113,9 @@ struct HomeHero: View {
                         .buttonStyle(.plain)
 
                         Button {
-                            if let currentItem { onToggleLibrary(currentItem) }
+                            if let currentItem { onMoreInfo(currentItem) }
                         } label: {
-                            Label(isCurrentInLibrary ? "In My List" : "My List", systemImage: isCurrentInLibrary ? "bookmark.fill" : "bookmark")
+                            Label("More Info", systemImage: "info.circle")
                                 .font(.system(size: 14, weight: .semibold))
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 16)
@@ -138,16 +132,15 @@ struct HomeHero: View {
                 pageIndicator
                     .padding(.bottom, 22)
             }
-            .overlay(alignment: .topTrailing) {
+            .overlay(alignment: .bottomTrailing) {
                 if let currentItem {
                     let summary = awardsMeta.summary(forId: currentItem.id)
-                    MacCompactAwardBadgeView(
-                        asset: summary?.isWinner == true
-                            ? summary?.primaryBodyWithAsset?.assetName
-                            : awardIndex.assetName(forId: currentItem.id)
+                    MacAwardBadgeView(
+                        summary: summary,
+                        fallbackAsset: awardIndex.assetName(forId: currentItem.id)
                     )
-                    .padding(.trailing, 28)
-                    .padding(.top, 24)
+                    .padding(.trailing, 42)
+                    .padding(.bottom, 64)
                     .allowsHitTesting(false)
                 }
             }
@@ -271,10 +264,12 @@ struct HomeHero: View {
     private func heroStepButton(systemName: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(.white)
-                .frame(width: 40, height: 40)
+                .frame(width: 32, height: 32)
                 .macDarkGlassCapsule(interactive: true)
+                .frame(width: 48, height: 48)
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }

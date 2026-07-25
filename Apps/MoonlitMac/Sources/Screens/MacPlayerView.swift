@@ -28,6 +28,7 @@ struct MacPlayerView: View {
     @State private var triedUrls = Set<String>()
     @State private var isTryingNextSource = false
     @State private var errorUIVisible = false
+    @State private var showTitleInfoPanel = false
     @State private var introStart: Double?
     @State private var introEnd: Double?
     @State private var hasAutoSkippedIntro = false
@@ -152,7 +153,7 @@ struct MacPlayerView: View {
                     .transition(.opacity)
             }
 
-            if let start = introStart, let end = introEnd, start > 0, !hasAutoSkippedIntro, !skipPillDismissed {
+            if videoPrefs.showSkipIntroButton, let start = introStart, let end = introEnd, start > 0, !hasAutoSkippedIntro, !skipPillDismissed {
                 SkipIntroPill(onSkip: skipIntro, onDismiss: { skipPillDismissed = true })
                     .padding(.trailing, 28)
                     .padding(.bottom, 176)
@@ -252,10 +253,17 @@ struct MacPlayerView: View {
                     writers: episodeWriters,
                     guestStarIDs: episodeGuestStarIDs,
                     isLoadingGuestStars: isLoadingGuestStars,
-                    onClose: { showEpisodeInfoPanel = false }
+                    onClose: { showEpisodeInfoPanel = false },
+                    onOpenFullDetails: { openFullDetailsFromPlayer() }
                 )
                 .transition(.opacity)
                 .zIndex(2)
+            }
+
+            if showTitleInfoPanel {
+                titleInfoPanel
+                    .transition(.opacity)
+                    .zIndex(2)
             }
 
             // #6 — top-center feedback microinteraction + resume prompt
@@ -299,6 +307,7 @@ struct MacPlayerView: View {
         }
         .animation(.easeInOut(duration: 0.25), value: showUpNextPanel)
         .animation(.easeInOut(duration: 0.2), value: showEpisodeInfoPanel)
+        .animation(.easeInOut(duration: 0.2), value: showTitleInfoPanel)
         .background(
             PlayerWindowAccessor { window in
                 guard playerWindow == nil else { return }
@@ -402,17 +411,15 @@ struct MacPlayerView: View {
                     Text(launch.title)
                         .font(.system(size: 15, weight: .semibold))
                         .foregroundStyle(.white)
-                    if launch.contentType == .series {
-                        Button {
-                            openEpisodeInfoPanel()
-                        } label: {
-                            Image(systemName: "info.circle")
-                                .font(.system(size: 13))
-                                .foregroundStyle(.white.opacity(0.6))
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Episode info")
+                    Button {
+                        showTitleInfoPanel = true
+                    } label: {
+                        Image(systemName: "info.circle")
+                            .font(.system(size: 13))
+                            .foregroundStyle(.white.opacity(0.6))
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("About this title")
                 }
                 if let subtitle = episodeSubtitle {
                     Text(subtitle)
@@ -593,7 +600,7 @@ struct MacPlayerView: View {
 
     private func flashCachedFallbackToast() {
         cachedToastTask?.cancel()
-        cachedFallbackToast = "Last source wasn't cached on your debrid yet. Trying another…"
+        cachedFallbackToast = "Last source wasn't ready yet. Trying another…"
         cachedToastTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
             guard !Task.isCancelled else { return }
@@ -900,7 +907,7 @@ struct MacPlayerView: View {
                 guard await StreamPreflight.isReachable(url: url, headers: headers) else {
                     triedUrls.insert(url)
                     // The previous source resolved but wasn't actually playable
-                    // (uncached debrid / stub file) — tell the viewer we're moving on.
+                    // (stub file or incomplete cache) — tell the viewer we're moving on.
                     flashCachedFallbackToast()
                     continue
                 }
@@ -1033,6 +1040,47 @@ struct MacPlayerView: View {
         )
     }
 
+    private var titleInfoMediaId: String {
+        if let parentId = launch.parentMetaId { return parentId }
+        return launch.videoId.components(separatedBy: ":").first ?? launch.videoId
+    }
+
+    private var titleInfoPanel: some View {
+        TitleInfoPanel(
+            title: launch.title,
+            mediaId: titleInfoMediaId,
+            mediaType: launch.contentType == .movie ? "movie" : "series",
+            posterURL: launch.poster.flatMap(URL.init),
+            backgroundURL: launch.background.flatMap(URL.init),
+            onClose: { showTitleInfoPanel = false },
+            onOpenFullDetails: { openFullDetailsFromPlayer() },
+            onShowEpisodes: launch.contentType == .series ? {
+                showTitleInfoPanel = false
+                Task {
+                    await loadUpNextIfNeeded()
+                    showUpNextPanel = true
+                }
+            } : nil,
+            onOpenMeta: { item in
+                PlayerNavigationBridge.shared.pendingDetail = .init(
+                    id: item.id, type: item.type.rawValue, name: item.name
+                )
+                dismiss()
+            }
+        )
+    }
+
+    /// The player has no detail page of its own — this hands the target off
+    /// to the main window's navigation (a separate `WindowGroup`) and closes
+    /// the player. The main window is already open behind it, so it becomes
+    /// key as soon as this one closes.
+    private func openFullDetailsFromPlayer() {
+        let id = launch.parentMetaId ?? launch.videoId
+        let type = launch.parentMetaType ?? launch.contentType.rawValue
+        PlayerNavigationBridge.shared.pendingDetail = .init(id: id, type: type, name: launch.title)
+        dismiss()
+    }
+
     private func openEpisodeInfoPanel() {
         Task {
             await loadUpNextIfNeeded()
@@ -1088,6 +1136,7 @@ struct MacPlayerView: View {
     }
 
     private func fetchIntroTimestamps() async {
+        guard videoPrefs.useIntroDB else { return }
         guard let imdbId = launch.videoId.components(separatedBy: ":").first,
               let season = launch.seasonNumber,
               let episode = launch.episodeNumber else { return }
@@ -1106,7 +1155,8 @@ struct MacPlayerView: View {
     }
 
     private func checkAutoSkipIntro(at position: Double) {
-        guard !hasAutoSkippedIntro,
+        guard videoPrefs.autoSkipIntros,
+              !hasAutoSkippedIntro,
               let start = introStart,
               let end = introEnd,
               position > 0 else { return }
@@ -1145,7 +1195,7 @@ struct MacPlayerView: View {
 }
 
 /// Resolves the hosting NSWindow once so the player can hide the native
-/// traffic lights and draw Harbor-style custom minimize/maximize/close
+/// traffic lights and draw  custom minimize/maximize/close
 /// buttons in `topBar` instead.
 private struct PlayerWindowAccessor: NSViewRepresentable {
     let onResolve: (NSWindow) -> Void
@@ -1295,6 +1345,18 @@ private struct NativeLikePlayerControls: View {
                         ) {
                             onInteraction()
                             onTogglePip()
+                        }
+
+                        PlayerControlButton(
+                            systemName: engine.isFillingVideo
+                                ? "arrow.down.right.and.arrow.up.left"
+                                : "arrow.up.left.and.arrow.down.right",
+                            size: 17,
+                            frameSize: 52,
+                            tooltip: engine.isFillingVideo ? "Scale to Fit" : "Scale to Fill"
+                        ) {
+                            onInteraction()
+                            engine.toggleVideoFill()
                         }
 
                         PlayerControlButton(
@@ -1505,9 +1567,7 @@ private struct SeekPreviewCard: View {
                             .font(.system(size: 22))
                             .foregroundStyle(.white.opacity(0.28))
                     } else {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(.white)
+                        MacStrokeSpinner(size: 18)
                     }
                 }
             }
@@ -1553,7 +1613,7 @@ private struct PlayerControlButton: View {
     }
 }
 
-/// Harbor-style transport button: transparent at rest, a soft white wash on
+///  transport button: transparent at rest, a soft white wash on
 /// hover/press — no persistent glass background like the rest of the app.
 private struct FlatPlayerButtonStyle: ButtonStyle {
     var baseOpacity: Double = 0.10
@@ -1800,7 +1860,7 @@ private struct PlayerMouseTrackingView: View {
 }
 #endif
 
-/// Harbor's skip-intro pill: `rounded-full`, `bg-black/75`, 14px semibold
+/// a neutral skip-intro pill: `rounded-full`, `bg-black/75`, 14px semibold
 /// white text, border `white/20`, shadow `0 18px 50px -15px black/0.85`,
 /// backdrop blur. Appears at the trailing edge and slides in with a 200ms
 /// ease-out.

@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hero Artwork Strategies</title>
+  <style>
+    :root { color-scheme: dark; font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", sans-serif; background: #0c0d0e; color: #f4f4f5; }
+    * { box-sizing: border-box; }
+    body { margin: 0; padding: 42px 30px 64px; background: radial-gradient(circle at 20% 0%, #263a46 0, #101114 34%, #0c0d0e 68%); }
+    main { max-width: 1320px; margin: 0 auto; }
+    h1 { margin: 0; font-size: 34px; letter-spacing: 0; }
+    .intro { max-width: 830px; margin: 12px 0 34px; color: #aeb3ba; font-size: 16px; line-height: 1.55; }
+    .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+    .option { overflow: hidden; border: 1px solid rgba(255,255,255,.13); border-radius: 12px; background: #16181b; cursor: pointer; transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease; }
+    .option:hover, .option.selected { transform: translateY(-3px); border-color: #d4af37; box-shadow: 0 16px 38px rgba(0,0,0,.38); }
+    .preview { position: relative; height: 490px; overflow: hidden; background: #090a0b; }
+    .preview img { width: 100%; height: 100%; object-fit: cover; object-position: center top; filter: saturate(.88) contrast(1.05); }
+    .preview::after { content: ""; position: absolute; inset: 0; background: linear-gradient(to bottom, rgba(0,0,0,.03) 20%, rgba(0,0,0,.05) 46%, rgba(5,6,8,.93) 100%); pointer-events: none; }
+    .landscape img { transform: scale(1.35); object-position: 55% 22%; filter: saturate(.8) contrast(1.05) brightness(.78); }
+    .landscape::before { content: ""; position: absolute; z-index: 1; inset: 0; background: linear-gradient(90deg, rgba(9,10,12,.88), rgba(9,10,12,.32) 58%, transparent); }
+    .copy { position: absolute; z-index: 2; left: 20px; right: 20px; bottom: 21px; }
+    .eyebrow { margin-bottom: 6px; color: rgba(255,255,255,.65); font-size: 10px; font-weight: 700; letter-spacing: 2px; }
+    .logo { font-size: 32px; font-weight: 900; line-height: .94; text-shadow: 0 3px 12px #000; }
+    .chip { display: inline-block; margin-top: 13px; padding: 6px 9px; border: 1px solid rgba(255,255,255,.2); border-radius: 999px; background: rgba(25,25,25,.7); font-size: 11px; }
+    .details { padding: 19px 20px 22px; }
+    .label { margin: 0 0 8px; color: #d4af37; font-size: 11px; font-weight: 800; letter-spacing: 1.4px; }
+    h2 { margin: 0 0 8px; font-size: 19px; }
+    .details p { min-height: 68px; margin: 0; color: #b7bbc1; font-size: 13px; line-height: 1.5; }
+    .key { display: flex; gap: 7px; margin-top: 15px; color: #dfe1e5; font-size: 12px; }
+    .key strong { color: #fff; }
+    .decision { margin: 32px 0 0; padding: 18px 20px; border-left: 3px solid #d4af37; background: rgba(212,175,55,.07); color: #d8d9dc; line-height: 1.5; }
+    @media (max-width: 860px) { body { padding: 28px 18px 52px; } .grid { grid-template-columns: 1fr; } .preview { height: 420px; } }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>How should Moonlit choose iPhone hero artwork?</h1>
+    <p class="intro">Fusion's exact selector is unavailable because its app binary is encrypted. Its shipped configuration distinguishes <code>poster</code> and <code>backdrop</code>, and your screenshots show exceptionally strong portrait key art. These previews compare the resulting composition, not a claim that Fusion uses one specific algorithm.</p>
+    <section class="grid">
+      <article class="option" data-choice="portrait-hybrid" onclick="toggleSelect(this)">
+        <div class="preview">
+          <img src="/files/fusion-mushoku.png" alt="Portrait-first hero example">
+          <div class="copy"><div class="eyebrow">CATALOG PORTRAIT FIRST</div><div class="logo">MUSHOKU<br>TENSEI</div><span class="chip">TMDB fallback: most-voted portrait</span></div>
+        </div>
+        <div class="details"><div class="label">A · RECOMMENDED</div><h2>Portrait-first hybrid</h2><p>Use the addon's portrait when present, then choose TMDB's most-voted portrait. This keeps the Fusion-style full-height, character-led iPhone hero.</p><div class="key"><strong>Best for:</strong> visual impact and title identity</div></div>
+      </article>
+      <article class="option" data-choice="landscape-hybrid" onclick="toggleSelect(this)">
+        <div class="preview landscape">
+          <img src="/files/fusion-binnelanders.png" alt="Landscape-first hero example">
+          <div class="copy"><div class="eyebrow">CATALOG BACKDROP FIRST</div><div class="logo">BINNELANDERS</div><span class="chip">TMDB fallback: most-voted backdrop</span></div>
+        </div>
+        <div class="details"><div class="label">B · MACOS PARITY</div><h2>Landscape-first cinematic</h2><p>Use a supplied backdrop, then TMDB's most-voted backdrop. This matches Moonlit macOS and protects text with a left-side scrim.</p><div class="key"><strong>Best for:</strong> macOS visual consistency</div></div>
+      </article>
+      <article class="option" data-choice="tmdb-only" onclick="toggleSelect(this)">
+        <div class="preview">
+          <img src="/files/fusion-jeopardy.png" alt="TMDB-only hero example">
+          <div class="copy"><div class="eyebrow">TMDB IMAGE GALLERY ONLY</div><div class="logo">JEOPARDY!</div><span class="chip">Rank by vote count, then average</span></div>
+        </div>
+        <div class="details"><div class="label">C · CONSISTENCY FIRST</div><h2>TMDB-only ranking</h2><p>Ignore addon artwork and always use TMDB. The results are more uniform, but a community favorite can still be dated or a poor crop for the title.</p><div class="key"><strong>Best for:</strong> predictable sourcing</div></div>
+      </article>
+    </section>
+    <p class="decision">Recommendation: <strong>A</strong>. It matches the visual quality you are reacting to in Fusion, while retaining a deterministic TMDB fallback when an addon does not supply good art.</p>
+  </main>
+</body>
+</html>

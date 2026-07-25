@@ -96,7 +96,9 @@ struct AppIconPickerScreen: View {
         }
         .background(MoonlitTheme.background)
         .navigationTitle("App Icon")
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
     }
 
     @ViewBuilder

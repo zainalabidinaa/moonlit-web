@@ -2,7 +2,7 @@ import Foundation
 
 /// Fetches award wins/nominations for titles from Wikidata (no API key needed),
 /// so movie posters and detail views can show "Academy Award Winner · 3 wins ·
-/// 5 nominations" style badges — mirrors how Harbor sources award metadata.
+/// 5 nominations" style badges.
 ///
 /// Coexists with `AwardIndex`: `AwardIndex` is instant, collection-curated, and
 /// winner-only (one body per title); this service is authoritative for counts

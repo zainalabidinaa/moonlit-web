@@ -19,11 +19,11 @@ public struct ToastOverlay: View {
                 }
                 .padding(14)
                 .background(
-                    RoundedRectangle(cornerRadius: 18)
+                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge)
                         .fill(MoonlitTheme.surface)
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 18)
+                    RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge)
                         .stroke(MoonlitTheme.outline, lineWidth: 0.5)
                 )
                 .shadow(color: .black.opacity(0.3), radius: 16, y: 8)

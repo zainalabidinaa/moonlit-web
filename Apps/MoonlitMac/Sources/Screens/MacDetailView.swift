@@ -20,6 +20,9 @@ struct MacDetailView: View {
     @State private var isResolvingPlayback = false
     @State private var selectedSeasonId: String?
     @State private var showSeasonPicker = false
+    @State private var episodeDetailTarget: EpisodeDetailTarget?
+    @State private var movieExtras: MovieExtras?
+    @State private var collectionTarget: CollectionTarget?
     @State private var selectedVideoId: String?
     @State private var selectedSeasonNum: Int?
     @State private var selectedEpisodeNum: Int?
@@ -35,7 +38,7 @@ struct MacDetailView: View {
     @State private var ambientColor: Color = .clear
     @State private var ambientColor2: Color = .clear
     /// TMDB best-rated backdrop, fetched as a fallback when the meta has no
-    /// `background` (mirrors Harbor's hero, which resolves the top-voted TMDB
+    /// `background` (mirrors the reference hero, which resolves the top-voted TMDB
     /// backdrop when the title lacks one).
     @State private var resolvedBackdrop: String?
     @AppStorage("moonlit.cinematicModeEnabled") private var cinematicModeEnabled = true
@@ -74,16 +77,14 @@ struct MacDetailView: View {
 
             ScrollView {
                 if let detail = metaRepo.detail {
+                    let hasLinks = !(detail.links ?? []).isEmpty
+                    let hasSeasons = !(detail.seasons ?? []).isEmpty
+
                     VStack(alignment: .leading, spacing: 0) {
                         hero(for: detail)
 
                         if metaRepo.isShowingStaleDetail {
                             staleIndicator
-                        }
-
-                        if let directors = detail.director, !directors.isEmpty {
-                            directorsView(directors)
-                                .padding(.top, 12)
                         }
 
                         if let links = detail.links, !links.isEmpty {
@@ -93,15 +94,12 @@ struct MacDetailView: View {
 
                         if let seasons = detail.seasons, !seasons.isEmpty {
                             episodesView(seasons)
-                                .padding(.top, 48)
+                                .padding(.top, hasLinks ? 48 : 28)
                         }
-
-                        contentRail { MacCrewInfoGrid(detail: detail) }
-                            .padding(.top, 48)
 
                         if let cast = detail.cast, !cast.isEmpty {
                             castView(cast)
-                                .padding(.top, 48)
+                                .padding(.top, (hasLinks || hasSeasons) ? 48 : 28)
                         }
 
                         contentRail { MacMediaGallerySection(detail: detail, trailers: trailers) }
@@ -152,21 +150,28 @@ struct MacDetailView: View {
             // content compensates with extra top padding to clear the
             // traffic-light controls.
             .ignoresSafeArea(.container, edges: .top)
-
-            HStack {
-                Button { onBack() } label: {
-                    Label("Back", systemImage: "chevron.left")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .macDarkGlassCapsule(interactive: true)
-                }
-                .buttonStyle(.plain)
-                Spacer()
-            }
-            .padding(.horizontal, 28)
-            .padding(.top, 48)
+        }
+        .sheet(item: $collectionTarget) { target in
+            MacCollectionView(collectionId: target.id, fallbackName: target.name, onClose: { collectionTarget = nil })
+        }
+        .sheet(item: $episodeDetailTarget) { target in
+            MacEpisodeDetailView(
+                seriesId: target.seriesId,
+                seriesName: target.seriesName,
+                episode: target.episode,
+                seasonNumber: target.seasonNumber,
+                onPlay: {
+                    episodeDetailTarget = nil
+                    playNow(
+                        detail: metaRepo.detail,
+                        videoId: target.episode.id,
+                        seasonNum: target.seasonNumber,
+                        episodeNum: target.episode.episode,
+                        initialPositionMs: nil
+                    )
+                },
+                onClose: { episodeDetailTarget = nil }
+            )
         }
         .sheet(isPresented: $showSourcePicker) {
             MacSourcePickerView(
@@ -203,10 +208,19 @@ struct MacDetailView: View {
             }
         }
         .task(id: metaRepo.detail?.id) {
+            movieExtras = nil
+            guard type == "movie", let detail = metaRepo.detail, detail.id.hasPrefix("tt") else { return }
+            guard let tmdbId = await TMDBCollectionService.shared.resolveTmdbMovieId(imdbId: detail.id) else { return }
+            movieExtras = await TMDBCollectionService.shared.movieExtras(tmdbId: tmdbId)
+        }
+        .task(id: metaRepo.detail?.id) {
             resolvedBackdrop = nil
-            guard let detail = metaRepo.detail else { return }
-            // Always resolve the same top-voted TMDB backdrop the home hero uses,
-            // so the detail hero matches the artwork shown on the home page.
+            guard let detail = metaRepo.detail, detail.background == nil else { return }
+            // The addon didn't supply a backdrop for this title — fall back to
+            // the same top-voted TMDB pick the home hero uses. When the addon
+            // *does* have one, it wins: TMDB's highest-voted backdrop tends to
+            // be an older image (it's had longer to accumulate votes), so
+            // always preferring it made hero art skew stale.
             let preview = MetaPreview(id: detail.id, type: MediaType(rawValue: type) ?? .movie, name: detail.name)
             MacHeroArtworkProvider.shared.prefetch(items: [preview])
         }
@@ -227,7 +241,7 @@ struct MacDetailView: View {
 
     private func updateAmbientColorIfNeeded() async {
         guard cinematicModeEnabled,
-              let urlString = resolvedBackdrop ?? metaRepo.detail?.background,
+              let urlString = metaRepo.detail?.background ?? resolvedBackdrop,
               let url = URL(string: urlString) else {
             ambientColor = .clear
             ambientColor2 = .clear
@@ -248,7 +262,7 @@ struct MacDetailView: View {
 
     private func hero(for detail: MetaDetail) -> some View {
         ZStack(alignment: .bottomLeading) {
-            backdrop(for: resolvedBackdrop ?? detail.background)
+            backdrop(for: detail.background ?? resolvedBackdrop)
 
             contentRail {
                 VStack(alignment: .leading, spacing: 22) {
@@ -269,6 +283,11 @@ struct MacDetailView: View {
                     heroMetadata(for: detail)
                         .frame(maxWidth: .infinity, alignment: .leading)
 
+                    if let movieExtras {
+                        watchOnAndCollectionRow(movieExtras)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+
                     VStack(alignment: .leading, spacing: 22) {
                         heroActions(for: detail)
                             .padding(.top, 10)
@@ -281,7 +300,7 @@ struct MacDetailView: View {
                     .frame(maxWidth: 760, alignment: .leading)
                 }
             }
-            .padding(.bottom, 90)
+            .padding(.bottom, 56)
         }
         .frame(height: heroHeight)
     }
@@ -322,7 +341,7 @@ struct MacDetailView: View {
                             image.resizable()
                                 .scaledToFill()
                         } placeholder: {
-                            ProgressView()
+                            MacStrokeSpinner(size: 28)
                         }
 
                         LinearGradient(
@@ -376,7 +395,7 @@ struct MacDetailView: View {
             .font(.system(size: 66, weight: .medium, design: .serif))
             .foregroundStyle(
                 LinearGradient(
-                    colors: [.white, MoonlitTheme.harborGold.opacity(0.85)],
+                    colors: [.white, MoonlitTheme.ratingGold.opacity(0.85)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -394,10 +413,10 @@ struct MacDetailView: View {
                 metadataChip {
                     Text("IMDb")
                         .font(.system(size: 11, weight: .black))
-                        .foregroundColor(MoonlitTheme.harborGold)
+                        .foregroundColor(MoonlitTheme.ratingGold)
                     Image(systemName: "star.fill")
                         .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(MoonlitTheme.harborGold)
+                        .foregroundColor(MoonlitTheme.ratingGold)
                     Text(rating)
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundColor(.white.opacity(0.9))
@@ -415,6 +434,60 @@ struct MacDetailView: View {
             if let summary = awardsMeta.summary(forId: detail.id) {
                 Spacer(minLength: 20)
                 inlineAwardBadge(summary)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func watchOnAndCollectionRow(_ extras: MovieExtras) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            if !extras.providers.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("WATCH ON")
+                        .font(.system(size: 11, weight: .bold))
+                        .tracking(1.2)
+                        .foregroundColor(.white.opacity(0.45))
+                    HStack(spacing: 10) {
+                        ForEach(extras.providers) { provider in
+                            HStack(spacing: 8) {
+                                Group {
+                                    if let url = provider.logoURL {
+                                        CachedAsyncImage(url: url) { img in
+                                            img.resizable().scaledToFit()
+                                        } placeholder: {
+                                            Color.white.opacity(0.08)
+                                        }
+                                    } else {
+                                        Color.white.opacity(0.08)
+                                    }
+                                }
+                                .frame(width: 22, height: 22)
+                                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
+                                Text(provider.name)
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(.white.opacity(0.85))
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.white.opacity(0.07), in: Capsule())
+                        }
+                    }
+                }
+            }
+
+            if let collectionId = extras.collectionId, let collectionName = extras.collectionName {
+                Button {
+                    collectionTarget = CollectionTarget(id: collectionId, name: collectionName)
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "square.stack.fill")
+                        Text("Part of \(collectionName)")
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .foregroundColor(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
             }
         }
     }
@@ -529,9 +602,7 @@ struct MacDetailView: View {
                 } label: {
                     HStack(spacing: 8) {
                         if isResolvingPlayback {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(.black)
+                            MacStrokeSpinner(size: 18, color: .black)
                         } else {
                             Image(systemName: progress == nil ? "play.fill" : "play.circle.fill")
                         }
@@ -603,7 +674,7 @@ struct MacDetailView: View {
                 } label: {
                     Group {
                         if isResolvingDownload {
-                            ProgressView().controlSize(.small).tint(.white)
+                            MacStrokeSpinner(size: 18)
                         } else if existingDownload?.state == .completed {
                             Image(systemName: "arrow.down.circle.fill")
                                 .foregroundColor(MoonlitTheme.accent)
@@ -752,21 +823,6 @@ struct MacDetailView: View {
 
     // MARK: - Overview
 
-    // MARK: - Directors
-
-    private func directorsView(_ directors: [Person]) -> some View {
-        contentRail {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Director")
-                    .font(.caption)
-                    .foregroundColor(MoonlitTheme.textTertiary)
-                Text(directors.map(\.name).joined(separator: ", "))
-                    .font(.subheadline)
-                    .foregroundColor(.white)
-            }
-        }
-    }
-
     // MARK: - Links
 
     private func linksView(_ links: [MetaLink]) -> some View {
@@ -821,7 +877,7 @@ struct MacDetailView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
                     ForEach(items.prefix(20)) { item in
-                        MediaCard(item: item, width: 154, height: 231)
+                        PosterCard(item: item)
                             .onTapGesture {
                                 onBack()
                             }
@@ -1007,6 +1063,14 @@ struct MacDetailView: View {
                                             episodeNum: ep.episode,
                                             initialPositionMs: progress.map { $0.positionSeconds * 1000 }
                                         )
+                                    },
+                                    onOpenDetails: {
+                                        episodeDetailTarget = EpisodeDetailTarget(
+                                            seriesId: detailId(for: activeSeason),
+                                            seriesName: metaRepo.detail?.name ?? name,
+                                            episode: ep,
+                                            seasonNumber: seasonNumber
+                                        )
                                     }
                                 )
                             }
@@ -1059,12 +1123,12 @@ struct MacDetailView: View {
                                 .foregroundColor(.black)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 3)
-                                .background(MoonlitTheme.harborGold, in: Capsule())
+                                .background(MoonlitTheme.ratingGold, in: Capsule())
                         }
                         if season.id == (activeId ?? seasons.first?.id) {
                             Image(systemName: "checkmark")
                                 .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(MoonlitTheme.harborGold)
+                                .foregroundColor(MoonlitTheme.ratingGold)
                         }
                     }
                     .padding(.horizontal, 14)
@@ -1139,7 +1203,8 @@ struct MacDetailView: View {
             )
             let candidates = StreamSourceSelector.cachedCandidates(
                 currentUrl: nil,
-                from: StreamRepository.shared.streams
+                from: StreamRepository.shared.streams,
+                preferredAudioLanguage: VideoPlayerPreferenceStore.shared.preferredAudioLanguage
             )
             isResolvingPlayback = false
 
@@ -1259,6 +1324,20 @@ struct MacDetailView: View {
 
 // MARK: - Episode Row
 
+struct CollectionTarget: Identifiable {
+    let id: Int
+    let name: String
+}
+
+struct EpisodeDetailTarget: Identifiable {
+    let seriesId: String
+    let seriesName: String
+    let episode: MetaVideo
+    let seasonNumber: Int
+
+    var id: String { episode.id }
+}
+
 private struct MacEpisodeListRow: View {
     let episode: MetaVideo
     let seasonNumber: Int
@@ -1266,6 +1345,7 @@ private struct MacEpisodeListRow: View {
     let isWatched: Bool
     let onToggleWatched: () -> Void
     let onPlay: () -> Void
+    var onOpenDetails: (() -> Void)?
 
     @State private var isHovering = false
 
@@ -1297,6 +1377,9 @@ private struct MacEpisodeListRow: View {
                             .padding(.top, 2)
                     }
                 }
+                // Reserve the same vertical space whether or not this episode has an
+                // overview yet, so every tile in the grid row lines up.
+                .frame(minHeight: 72, alignment: .top)
 
                 Spacer(minLength: 6)
 
@@ -1317,6 +1400,18 @@ private struct MacEpisodeListRow: View {
         .contentShape(Rectangle())
         .onTapGesture(perform: onPlay)
         .onHover { isHovering = $0 }
+        .contextMenu {
+            Button {
+                onOpenDetails?()
+            } label: {
+                Label("Episode Details", systemImage: "info.circle")
+            }
+            Button {
+                onToggleWatched()
+            } label: {
+                Label(isWatched ? "Mark as Unwatched" : "Mark as Watched", systemImage: isWatched ? "eye.slash" : "eye")
+            }
+        }
     }
 
     private var still: some View {

@@ -40,7 +40,9 @@ struct LibraryScreen: View {
             }
             .background(MoonlitTheme.background)
             .navigationTitle("Library")
+#if os(iOS)
             .navigationBarTitleDisplayMode(.large)
+#endif
         }
         .task {
             guard let profile = profileManager.currentProfile else { return }

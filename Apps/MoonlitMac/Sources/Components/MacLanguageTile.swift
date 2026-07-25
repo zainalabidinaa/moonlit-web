@@ -20,7 +20,7 @@ struct MacLanguageTile: View {
     private var to: Color { OklchPalette.oklchToColor(L: 0.17, C: 0.07, h: hue) }
     private var ink: Color { OklchPalette.oklchToColor(L: 0.96, C: 0.02, h: hue) }
 
-    // Harbor uses a 150° gradient (from ≈ top-left → to ≈ bottom-right).
+    // the reference uses a 150° gradient (from ≈ top-left → to ≈ bottom-right).
     private let gradStart = UnitPoint(x: 0.15, y: 0.0)
     private let gradEnd = UnitPoint(x: 0.85, y: 1.0)
 
@@ -103,6 +103,13 @@ struct MacLanguageTile: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
                     .strokeBorder(Color.white.opacity(0.10), lineWidth: 1)
+            )
+            // Glow with the tile's own hue-derived palette rather than a color
+            // extracted from the dimmed backdrop images underneath it.
+            .macTileGlow(
+                isHovering: isHovering,
+                artworkURL: nil,
+                fallbackColor: from
             )
             .offset(y: isHovering ? -4 : 0)
             .animation(.easeOut(duration: 0.30), value: isHovering)

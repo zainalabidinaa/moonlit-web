@@ -101,10 +101,10 @@ struct CreateFirstProfileScreen: View {
                                             selectedEmoji == emoji
                                                 ? gold.opacity(0.18)
                                                 : Color.white.opacity(0.05),
-                                            in: RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                                         )
                                         .overlay(
-                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                            RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                                                 .stroke(
                                                     selectedEmoji == emoji
                                                         ? gold.opacity(0.45)
@@ -135,9 +135,9 @@ struct CreateFirstProfileScreen: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 16)
                             .padding(.vertical, 14)
-                            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            .background(.white.opacity(0.05), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous))
                             .overlay(
-                                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                                RoundedRectangle(cornerRadius: MoonlitTheme.radiusCard, style: .continuous)
                                     .stroke(.white.opacity(0.09), lineWidth: 1)
                             )
                     }
@@ -205,9 +205,9 @@ private extension View {
     func goldProfileCTA() -> some View {
         self
             .foregroundStyle(gold)
-            .background(gold.opacity(0.12), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .background(gold.opacity(0.12), in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous))
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                RoundedRectangle(cornerRadius: MoonlitTheme.radiusLarge, style: .continuous)
                     .stroke(gold.opacity(0.32), lineWidth: 1)
             )
     }

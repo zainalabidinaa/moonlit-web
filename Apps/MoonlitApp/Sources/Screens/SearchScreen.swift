@@ -101,7 +101,9 @@ struct SearchScreen: View {
             }
             .modifier(SystemSearchFieldModifier(query: $query, enabled: usesSystemSearchField))
             .onChange(of: query) { _, newValue in performSearch(newValue) }
+#if os(iOS)
             .navigationBarTitleDisplayMode(.inline)
+#endif
             .navigationDestination(item: $selectedMedia) { media in
                 DetailScreen(mediaId: media.id, type: media.type.rawValue, name: media.name)
             }
@@ -524,7 +526,9 @@ private struct YearBrowseScreen: View {
         }
         .background(MoonlitTheme.background.ignoresSafeArea())
         .navigationTitle(String(year))
+#if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
+#endif
         .navigationDestination(item: $selected) { item in
             DetailScreen(mediaId: item.id, type: item.type.rawValue, name: item.name)
         }
@@ -572,6 +576,7 @@ private struct SystemSearchFieldModifier: ViewModifier {
     let enabled: Bool
 
     func body(content: Content) -> some View {
+#if os(iOS)
         if #available(iOS 26.0, *), enabled {
             content.searchable(
                 text: $query,
@@ -581,6 +586,9 @@ private struct SystemSearchFieldModifier: ViewModifier {
         } else {
             content
         }
+#else
+        content
+#endif
     }
 }
 

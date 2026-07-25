@@ -5,7 +5,7 @@ import UniformTypeIdentifiers
 import AppKit
 #endif
 
-/// Harbor-exact subtitle picker (`src/components/player/subtitle-menu`): a
+/// reference-style subtitle picker (`src/components/player/subtitle-menu`): a
 /// solid-surface panel with filter chips, a language sidebar, circle-check
 /// track rows with sky/amber badges, a search + local-file loader, and a
 /// delay-sync footer.
@@ -131,7 +131,7 @@ struct SubtitleTrackPanel: View {
             DelayRow(title: "Subtitle Sync", delay: engine.subDelaySec, disabled: isOff, onDelay: engine.setSubtitleDelay)
         }
         .frame(width: 500)
-        .harborPanel(cornerRadius: 16)
+        .playerChromePanel(cornerRadius: 16)
         .animation(.easeInOut(duration: 0.12), value: category)
         .animation(.easeInOut(duration: 0.12), value: selectedLanguage)
         .animation(.easeInOut(duration: 0.12), value: showHIOnly)

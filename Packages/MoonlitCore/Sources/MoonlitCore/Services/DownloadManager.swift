@@ -1,3 +1,4 @@
+#if os(macOS)
 import Foundation
 
 @MainActor
@@ -206,3 +207,4 @@ extension DownloadManager: URLSessionDownloadDelegate {
         }
     }
 }
+#endif

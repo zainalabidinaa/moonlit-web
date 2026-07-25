@@ -6,7 +6,6 @@ public struct StreamMetadata: Codable, Sendable {
     public let audioCodec: String?
     public let hdr: String?
     public let fileSize: String?
-    public let debridSource: String?
     public let releaseGroup: String?
 
     public init(
@@ -15,7 +14,6 @@ public struct StreamMetadata: Codable, Sendable {
         audioCodec: String? = nil,
         hdr: String? = nil,
         fileSize: String? = nil,
-        debridSource: String? = nil,
         releaseGroup: String? = nil
     ) {
         self.resolution = resolution
@@ -23,7 +21,6 @@ public struct StreamMetadata: Codable, Sendable {
         self.audioCodec = audioCodec
         self.hdr = hdr
         self.fileSize = fileSize
-        self.debridSource = debridSource
         self.releaseGroup = releaseGroup
     }
 }
@@ -39,8 +36,7 @@ public extension StreamItem {
             if desc.contains(r) {
                 meta = StreamMetadata(resolution: r.uppercased(), videoCodec: meta.videoCodec,
                     audioCodec: meta.audioCodec, hdr: meta.hdr,
-                    fileSize: meta.fileSize, debridSource: meta.debridSource,
-                    releaseGroup: meta.releaseGroup)
+                    fileSize: meta.fileSize, releaseGroup: meta.releaseGroup)
                 break
             }
         }
@@ -52,8 +48,7 @@ public extension StreamItem {
                 let label = h == "dolby vision" ? "Dolby Vision" : h.uppercased()
                 meta = StreamMetadata(resolution: meta.resolution, videoCodec: meta.videoCodec,
                     audioCodec: meta.audioCodec, hdr: label,
-                    fileSize: meta.fileSize, debridSource: meta.debridSource,
-                    releaseGroup: meta.releaseGroup)
+                    fileSize: meta.fileSize, releaseGroup: meta.releaseGroup)
                 break
             }
         }
@@ -66,8 +61,7 @@ public extension StreamItem {
             if desc.contains(key) {
                 meta = StreamMetadata(resolution: meta.resolution, videoCodec: label,
                     audioCodec: meta.audioCodec, hdr: meta.hdr,
-                    fileSize: meta.fileSize, debridSource: meta.debridSource,
-                    releaseGroup: meta.releaseGroup)
+                    fileSize: meta.fileSize, releaseGroup: meta.releaseGroup)
                 break
             }
         }
@@ -79,8 +73,7 @@ public extension StreamItem {
                 let label = a == "dolby atmos" ? "Dolby Atmos" : a.uppercased()
                 meta = StreamMetadata(resolution: meta.resolution, videoCodec: meta.videoCodec,
                     audioCodec: label, hdr: meta.hdr,
-                    fileSize: meta.fileSize, debridSource: meta.debridSource,
-                    releaseGroup: meta.releaseGroup)
+                    fileSize: meta.fileSize, releaseGroup: meta.releaseGroup)
                 break
             }
         }
@@ -89,20 +82,8 @@ public extension StreamItem {
         if let range = desc.range(of: "\\d+(\\.\\d+)?\\s*(gb|mb|gib|mib)", options: .regularExpression) {
             meta = StreamMetadata(resolution: meta.resolution, videoCodec: meta.videoCodec,
                 audioCodec: meta.audioCodec, hdr: meta.hdr,
-                fileSize: String(desc[range]).uppercased(), debridSource: meta.debridSource,
+                fileSize: String(desc[range]).uppercased(),
                 releaseGroup: meta.releaseGroup)
-        }
-
-        // Debrid source
-        let debrids = ["real-debrid", "alldebrid", "premiumize", "torbox", "debrid-link", "easydebrid", "rd+", "ad+", "ed+"]
-        for d in debrids {
-            if desc.contains(d) {
-                meta = StreamMetadata(resolution: meta.resolution, videoCodec: meta.videoCodec,
-                    audioCodec: meta.audioCodec, hdr: meta.hdr,
-                    fileSize: meta.fileSize, debridSource: d.uppercased(),
-                    releaseGroup: meta.releaseGroup)
-                break
-            }
         }
 
         return meta

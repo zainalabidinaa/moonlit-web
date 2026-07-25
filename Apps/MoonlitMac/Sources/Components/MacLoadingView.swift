@@ -1,10 +1,10 @@
 import SwiftUI
 import MoonlitCore
 
-/// Full-page / standalone loading state: the spinner plus one randomly
-/// chosen caption from `MacLoadingCaptions`, picked once per appearance.
-/// Not for use inside buttons or small inline indicators — those should use
-/// `MacLottieLoadingView` directly with no caption.
+/// Full-page / standalone loading state: a white `MacStrokeSpinner` plus one
+/// randomly chosen caption from `MacLoadingCaptions`, picked once per
+/// appearance. Not for use inside buttons or small inline indicators — those
+/// should use `MacStrokeSpinner` directly with no caption.
 struct MacLoadingView: View {
     var size: CGFloat = 44
 
@@ -16,7 +16,7 @@ struct MacLoadingView: View {
 
     var body: some View {
         VStack(spacing: size * 0.2) {
-            MacLottieLoadingView(size: size)
+            MacStrokeSpinner(size: size * 0.64)
             Text(caption)
                 .font(.system(size: captionSize, weight: .semibold))
                 .foregroundColor(.white.opacity(0.6))

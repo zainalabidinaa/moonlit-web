@@ -30,29 +30,7 @@
 			</array>
 			<key>CFBundleIconName</key>
 			<string>AppIcon</string>
-		</dict>
-		<key>CFBundleAlternateIcons</key>
-		<dict>
-			<key>AppIconOnePiece</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>AppIconOnePiece</string>
-				</array>
-				<key>CFBundleIconName</key>
-				<string>AppIconOnePiece</string>
-			</dict>
-			<key>AppIconOnePieceDark</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>AppIconOnePieceDark</string>
-				</array>
-				<key>CFBundleIconName</key>
-				<string>AppIconOnePieceDark</string>
-			</dict>
-		</dict>
-	</dict>
+		</dict>	</dict>
 	<key>CFBundleIcons~ipad</key>
 	<dict>
 		<key>CFBundlePrimaryIcon</key>
@@ -64,29 +42,7 @@
 			</array>
 			<key>CFBundleIconName</key>
 			<string>AppIcon</string>
-		</dict>
-		<key>CFBundleAlternateIcons</key>
-		<dict>
-			<key>AppIconOnePiece</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>AppIconOnePiece</string>
-				</array>
-				<key>CFBundleIconName</key>
-				<string>AppIconOnePiece</string>
-			</dict>
-			<key>AppIconOnePieceDark</key>
-			<dict>
-				<key>CFBundleIconFiles</key>
-				<array>
-					<string>AppIconOnePieceDark</string>
-				</array>
-				<key>CFBundleIconName</key>
-				<string>AppIconOnePieceDark</string>
-			</dict>
-		</dict>
-	</dict>
+		</dict>	</dict>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>CFBundleURLTypes</key>
@@ -95,12 +51,6 @@
 			<key>CFBundleURLSchemes</key>
 			<array>
 				<string>moonlit</string>
-			</array>
-		</dict>
-		<dict>
-			<key>CFBundleURLSchemes</key>
-			<array>
-				<string>stremio</string>
 			</array>
 		</dict>
 	</array>

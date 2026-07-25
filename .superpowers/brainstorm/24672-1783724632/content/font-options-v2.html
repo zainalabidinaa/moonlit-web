@@ -1,0 +1,149 @@
+<h2>Font Options — Media Logo Fade (Completely Gone)</h2>
+<p class="subtitle">Longer invisible pause between cycles — fades <em>fully</em> out, stays dark, then fades back in. Like a real production logo card.</p>
+
+<style>
+  .font-demo-bg {
+    background: #0D0D0D;
+    padding: 52px 40px;
+    border-radius: 14px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 150px;
+  }
+  /* Gone -> fade in -> hold -> fade out -> gone */
+  @keyframes logoFadeGone {
+    0%, 25%   { opacity: 0; transform: scale(0.97); filter: blur(8px); }
+    35%, 65%  { opacity: 1; transform: scale(1); filter: blur(0px); }
+    75%, 100% { opacity: 0; transform: scale(0.97); filter: blur(8px); }
+  }
+  @keyframes underlineGone {
+    0%, 25%   { opacity: 0; }
+    35%, 65%  { opacity: 1; }
+    75%, 100% { opacity: 0; }
+  }
+  .fade-logo {
+    color: #ffffff;
+    animation: logoFadeGone 5.4s ease-in-out infinite;
+    line-height: 1;
+  }
+  .fade-underline {
+    margin-top: 18px;
+    width: 56px;
+    height: 2.5px;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .fade-underline-inner {
+    height: 100%;
+    width: 100%;
+    background: rgba(255,255,255,0.35);
+    border-radius: 2px;
+    animation: underlineGone 5.4s ease-in-out infinite;
+  }
+  .font-system {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: 10px;
+  }
+  .font-jetbrains {
+    font-family: 'SF Mono', 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 42px;
+    font-weight: 600;
+    letter-spacing: 8px;
+  }
+  .font-inter {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: 10px;
+  }
+  .font-rounded {
+    font-family: 'SF Pro Rounded', -apple-system, sans-serif;
+    font-size: 44px;
+    font-weight: 800;
+    letter-spacing: 12px;
+  }
+  .font-montserrat {
+    font-family: 'Montserrat', -apple-system, sans-serif;
+    font-size: 42px;
+    font-weight: 800;
+    letter-spacing: 8px;
+  }
+</style>
+
+<div class="cards">
+
+  <div class="card" data-choice="system" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-system">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>1 — System Font (current)</h3>
+      <p>SF Pro, 44px / 700 / +10pt spacing. Clean, readable.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="jetbrains" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-jetbrains">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>2 — JetBrains Sans (brand)</h3>
+      <p>App's custom typeface. 42px / 600 / +8pt. Distinctive.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="inter" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-inter">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>3 — Inter</h3>
+      <p>Modern geometric sans. 44px / 700 / +10pt. Premium feel.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="cards">
+
+  <div class="card" data-choice="rounded" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-rounded">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>4 — SF Rounded</h3>
+      <p>Softer, friendlier. 44px / 800 / +12pt.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="montserrat" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="font-demo-bg">
+        <div class="fade-logo font-montserrat">M O O N L I T</div>
+        <div class="fade-underline"><div class="fade-underline-inner"></div></div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>5 — Montserrat</h3>
+      <p>Wide geometric. 42px / 800 / +8pt. Bold.</p>
+    </div>
+  </div>
+
+</div>

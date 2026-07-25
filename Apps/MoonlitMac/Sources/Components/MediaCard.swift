@@ -6,6 +6,9 @@ struct MediaCard: View, Equatable {
     var row: CatalogRow?
     var width: CGFloat?
     var height: CGFloat?
+    /// Explicit corner radius override (used by poster tiles driven by the
+    /// user's "Poster card style" setting). `nil` falls back to the shape default.
+    var cornerRadius: CGFloat?
 
     @State private var primaryFailed = false
     @State private var isHovering = false
@@ -19,6 +22,7 @@ struct MediaCard: View, Equatable {
             && lhs.row?.id == rhs.row?.id
             && lhs.width == rhs.width
             && lhs.height == rhs.height
+            && lhs.cornerRadius == rhs.cornerRadius
     }
 
     var body: some View {
@@ -33,9 +37,6 @@ struct MediaCard: View, Equatable {
             primaryFailed = false
             haloColor = nil
         }
-        // Resolve the image-derived glow for every tile up front (not just on
-        // hover) so each card carries a soft color halo at rest.
-        .task(id: item.id) { resolveHaloIfNeeded() }
     }
 
     // MARK: - Folder / service tile
@@ -49,8 +50,8 @@ struct MediaCard: View, Equatable {
         }
     }
 
-    /// "Film Collections" row only — landscape tile with count badge
-    /// and the title placed underneath like standard media tiles.
+    /// "Film Collections" row only — landscape tile with the title placed
+    /// underneath like standard media tiles.
     private var filmCollectionTile: some View {
         VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .bottomLeading) {
@@ -61,15 +62,9 @@ struct MediaCard: View, Equatable {
                     startPoint: .bottom,
                     endPoint: .center
                 )
-
-                if let count = item.itemCount {
-                    countBadge(count)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .padding(8)
-                }
             }
             .frame(width: cardWidth, height: cardHeight)
-            .modifier(TileChrome(cornerRadius: cornerRadius, isHovering: isHovering, haloColor: haloColor))
+            .modifier(TileChrome(cornerRadius: resolvedCornerRadius, isHovering: isHovering, haloColor: haloColor))
             .scaleEffect(isHovering ? 1.04 : 1.0)
             .animation(.spring(response: 0.30, dampingFraction: 0.78), value: isHovering)
 
@@ -85,8 +80,7 @@ struct MediaCard: View, Equatable {
         }
     }
 
-    /// Every other folder/collection row — the original tile: art + count badge
-    /// with the title as a caption underneath.
+    /// Every other folder/collection row — art with the title as a caption underneath.
     private var standardFolderTile: some View {
         VStack(alignment: .leading, spacing: 4) {
             ZStack(alignment: .bottomLeading) {
@@ -97,15 +91,9 @@ struct MediaCard: View, Equatable {
                     startPoint: .bottom,
                     endPoint: .center
                 )
-
-                if let count = item.itemCount {
-                    countBadge(count)
-                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                        .padding(8)
-                }
             }
             .frame(width: cardWidth, height: cardHeight)
-            .modifier(TileChrome(cornerRadius: cornerRadius, isHovering: isHovering, haloColor: haloColor))
+            .modifier(TileChrome(cornerRadius: resolvedCornerRadius, isHovering: isHovering, haloColor: haloColor))
             .scaleEffect(isHovering ? 1.04 : 1.0)
             .animation(.spring(response: 0.30, dampingFraction: 0.78), value: isHovering)
 
@@ -121,51 +109,45 @@ struct MediaCard: View, Equatable {
         }
     }
 
-    private func countBadge(_ count: Int) -> some View {
-        let kind = item.countKind ?? (item.type == .series ? .shows : .films)
-        let icon: String
-        let noun: String
-        switch kind {
-        case .shows: icon = "tv"; noun = "SHOWS"
-        case .collections: icon = "square.stack"; noun = "COLLECTIONS"
-        case .films: icon = "film"; noun = "FILMS"
-        }
-        return HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 9, weight: .bold))
-            Text(count >= 100 ? "99+" : "\(count) \(noun)")
-                .font(.system(size: 9, weight: .bold))
-        }
-        .foregroundColor(.white)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.black.opacity(0.55), in: Capsule())
-        .overlay(Capsule().strokeBorder(Color.white.opacity(0.16), lineWidth: 0.75))
-    }
-
     @ViewBuilder
     private var folderBackground: some View {
-        if isHovering,
-           let gif = item.focusGif ?? row?.focusGif,
-           (item.focusGifEnabled ?? row?.focusGifEnabled) == true,
-           let gifURL = URL(string: gif) {
-            AnimatedRemoteImage(url: gifURL, contentMode: .resizeAspectFill)
-                .frame(width: cardWidth, height: cardHeight)
-                .clipped()
-        } else if let url = folderArtURL {
-            CachedAsyncImage(url: url) { image in
-                image.resizable()
-                    .aspectRatio(contentMode: .fill)
-                    .frame(width: cardWidth, height: cardHeight)
-                    .clipped()
-                    .background(MoonlitTheme.surfaceElevated)
-            } placeholder: {
+        // Cover art and focus GIF are stacked and crossfaded (the cover artwork is
+        // out and the GIF in over 500ms rather than hard-swapping them).
+        ZStack {
+            if let url = folderArtURL {
+                CachedAsyncImage(url: url) { image in
+                    image.resizable()
+                        .aspectRatio(contentMode: .fill)
+                        .frame(width: cardWidth, height: cardHeight)
+                        .clipped()
+                        .background(MoonlitTheme.surfaceElevated)
+                } placeholder: {
+                    placeholder
+                }
+                .opacity(isShowingFocusGif ? 0 : 1)
+            } else {
                 placeholder
             }
-        } else {
-            placeholder
+
+            if let gifURL = focusGifURL {
+                AnimatedRemoteImage(url: gifURL, contentMode: .resizeAspectFill)
+                    .frame(width: cardWidth, height: cardHeight)
+                    .clipped()
+                    .opacity(isShowingFocusGif ? 1 : 0)
+            }
         }
+        .animation(.easeInOut(duration: 0.5), value: isShowingFocusGif)
     }
+
+    /// The folder's focus GIF, when one is configured and enabled.
+    private var focusGifURL: URL? {
+        guard let gif = item.focusGif ?? row?.focusGif,
+              (item.focusGifEnabled ?? row?.focusGifEnabled) == true
+        else { return nil }
+        return URL(string: gif)
+    }
+
+    private var isShowingFocusGif: Bool { isHovering && focusGifURL != nil }
 
     private var folderArtURL: URL? {
         // Only the "Film Collections" row uses a clean landscape backdrop behind
@@ -185,7 +167,7 @@ struct MediaCard: View, Equatable {
         VStack(alignment: .leading, spacing: 7) {
             artwork(contentMode: .fill)
                 .frame(width: cardWidth, height: cardHeight)
-                .modifier(TileChrome(cornerRadius: cornerRadius, isHovering: isHovering, haloColor: haloColor))
+                .modifier(TileChrome(cornerRadius: resolvedCornerRadius, isHovering: isHovering, haloColor: haloColor))
                 .overlay(alignment: .topTrailing) {
                     LibraryToggleButton(item: item)
                         .padding(7)
@@ -209,10 +191,10 @@ struct MediaCard: View, Equatable {
                 HStack(spacing: 4) {
                     Text("IMDb")
                         .font(.system(size: 9, weight: .black))
-                        .foregroundColor(MoonlitTheme.harborGold)
+                        .foregroundColor(MoonlitTheme.ratingGold)
                     Image(systemName: "star.fill")
                         .font(.system(size: 8, weight: .bold))
-                        .foregroundColor(MoonlitTheme.harborGold)
+                        .foregroundColor(MoonlitTheme.ratingGold)
                     Text(rating.replacingOccurrences(of: "/10", with: ""))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.white.opacity(0.85))
@@ -297,8 +279,14 @@ struct MediaCard: View, Equatable {
         isFolderTile && (row?.title.localizedCaseInsensitiveContains("Film Collections") ?? false)
     }
 
-    private var cornerRadius: CGFloat {
-        isFolderTile || resolvedShape == .landscape ? 16 : 14
+    private var resolvedCornerRadius: CGFloat {
+        // Folder tiles always use a neutral larger rounded-2xl (16), regardless of
+        // any passed override — so poster-scoped settings never leak onto folders.
+        if isFolderTile { return 16 }
+        // Poster tiles pass an explicit radius from the "Poster card style" setting.
+        if let cornerRadius { return cornerRadius }
+        // Landscape / square tiles use a neutral standard 12.
+        return 12
     }
 
     private var resolvedShape: PosterShape? {
@@ -351,7 +339,7 @@ struct MediaCard: View, Equatable {
 
 }
 
-// MARK: - Shared tile chrome (soft borderless clip + Harbor focus halo)
+// MARK: - Shared tile chrome (soft borderless clip + focus halo)
 
 private struct TileChrome: ViewModifier {
     let cornerRadius: CGFloat
@@ -365,18 +353,54 @@ private struct TileChrome: ViewModifier {
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                     .strokeBorder(Color.white.opacity(isHovering ? 0.14 : 0.05), lineWidth: 0.75)
             )
-            .shadow(
-                color: (haloColor ?? .black).opacity(glowOpacity),
-                radius: isHovering ? 24 : 14,
-                y: isHovering ? 12 : 7
-            )
+            .macTileGlow(isHovering: isHovering, color: haloColor ?? .clear, cornerRadius: cornerRadius)
     }
+}
 
-    /// Once the image color is resolved, every tile carries a soft colored glow
-    /// at rest that deepens on hover. Falls back to a subtle black drop shadow
-    /// until (or if) the color resolves.
-    private var glowOpacity: Double {
-        if haloColor == nil { return isHovering ? 0.40 : 0.22 }
-        return isHovering ? 0.65 : 0.42
+// MARK: - Poster card style (user-tunable size + corner radius)
+
+/// Central definition of the user-tunable poster tile geometry, mirroring
+/// a neutral "Poster card style" panel. Posters scale from a 2:3 base; the
+/// caller reads the two `@AppStorage` keys and feeds the results into `MediaCard`.
+enum PosterStyle {
+    /// UserDefaults keys (also referenced by the settings UI via `@AppStorage`).
+    static let scaleKey = "moonlit.posterScale"
+    static let radiusKey = "moonlit.posterRadius"
+
+    static let defaultScale: Double = 1.0
+    static let defaultRadius: Double = 12
+
+    /// Standard poster width at scale 1 (matches the prior hardcoded 154×231).
+    static let baseWidth: CGFloat = 154
+
+    static func width(scale: Double) -> CGFloat { (baseWidth * scale).rounded() }
+    static func height(scale: Double) -> CGFloat { (width(scale: scale) * 1.5).rounded() }
+}
+
+/// A poster `MediaCard` whose size and corner radius follow the user's
+/// "Poster card style" setting. Reading `@AppStorage` here (rather than inside
+/// the `.equatable()` `MediaCard`) is what lets tiles update live: this wrapper
+/// re-renders on change and feeds fresh values into `MediaCard`'s `==`.
+struct PosterCard: View {
+    let item: MetaPreview
+    var row: CatalogRow?
+
+    @AppStorage(PosterStyle.scaleKey) private var scale: Double = PosterStyle.defaultScale
+    @AppStorage(PosterStyle.radiusKey) private var radius: Double = PosterStyle.defaultRadius
+
+    /// Rows mix media and folder tiles. Folders keep their own layout, so
+    /// don't hand them poster values at all rather than relying on `MediaCard` to
+    /// discard them.
+    private var isFolderTile: Bool { item.id.hasPrefix("folder_") }
+
+    var body: some View {
+        MediaCard(
+            item: item,
+            row: row,
+            width: isFolderTile ? nil : PosterStyle.width(scale: scale),
+            height: isFolderTile ? nil : PosterStyle.height(scale: scale),
+            cornerRadius: isFolderTile ? nil : radius
+        )
+        .equatable()
     }
 }

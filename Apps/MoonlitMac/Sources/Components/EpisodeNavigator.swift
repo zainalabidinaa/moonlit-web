@@ -3,7 +3,7 @@ import MoonlitCore
 
 /// Finds the previous/next episode relative to a launch's current
 /// season/episode, and resolves a fresh `PlayerLaunch` for one of them —
-/// mirrors Harbor's `useEpisodeNavigation`, which reloads a new source rather
+/// mirrors the reference `useEpisodeNavigation`, which reloads a new source rather
 /// than seeking within the current one.
 enum EpisodeNavigator {
     static func adjacentEpisodes(for launch: PlayerLaunch, addons: [AddonManifest]) async -> (prev: MetaVideo?, next: MetaVideo?) {
@@ -59,8 +59,11 @@ enum EpisodeNavigator {
                 PlaybackQualityPreferenceStore.shared.prefers4K(profileId: $0.id)
             } ?? false
         }
+        let preferredAudioLanguage = await MainActor.run {
+            VideoPlayerPreferenceStore.shared.preferredAudioLanguage
+        }
         let streams = await StreamRepository.shared.streams
-        guard let stream = StreamSourceSelector.candidatesForAutoPlay(from: streams, prefer4K: prefer4K).first else {
+        guard let stream = StreamSourceSelector.candidatesForAutoPlay(from: streams, prefer4K: prefer4K, preferredAudioLanguage: preferredAudioLanguage).first else {
             return nil
         }
         return PlayerLaunch(

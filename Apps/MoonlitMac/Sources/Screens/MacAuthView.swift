@@ -94,9 +94,7 @@ struct MacAuthView: View {
                     Button(action: performAuth) {
                         HStack(spacing: 8) {
                             if isLoading {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                    .tint(.black)
+                                MacStrokeSpinner(size: 18, color: .black)
                             }
                             Text(isSignUp ? "Create Account" : "Sign In")
                                 .font(.system(size: 14, weight: .semibold))

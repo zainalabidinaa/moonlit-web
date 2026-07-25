@@ -67,7 +67,7 @@ struct SourcesPanel: View {
             }
         }
         .frame(width: 250)
-        .playerGlassPanel(cornerRadius: 16)
+        .playerGlassPanel(cornerRadius: MoonlitTheme.radiusLarge)
         .onAppear {
             playableStreams = StreamSourceSelector.rankedCandidates(from: streamRepo.streams)
         }

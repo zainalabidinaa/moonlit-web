@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Glass Torus Orb — Dribbble Recreation (HTML Render)</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #000;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+  canvas {
+    display: block;
+  }
+</style>
+</head>
+<body>
+<canvas id="orb"></canvas>
+
+<script>
+const canvas = document.getElementById('orb');
+const ctx = canvas.getContext('2d');
+
+// Reference canvas: 800x600
+const W = 800, H = 600;
+canvas.width = W;
+canvas.height = H;
+
+// Responsive scaling
+function resize() {
+  const scale = Math.min(window.innerWidth / W, window.innerHeight / H);
+  canvas.style.width = (W * scale) + 'px';
+  canvas.style.height = (H * scale) + 'px';
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Orb geometry
+const cx = W / 2, cy = H / 2;
+const innerR = 130;
+const outerR = 225;
+const ringWidth = outerR - innerR;
+
+// === MOTION CONSTANTS ===
+const TOTAL_DURATION = 7.7; // seconds
+const HIGHLIGHT_CENTER_ANGLE = 55; // degrees, bottom-right
+const HIGHLIGHT_WANDER = 25; // ± degrees drift
+const COLOR_DRIFT = 15; // degrees of color phase shift
+
+function hslToRgb(h, s, l) {
+  h /= 360;
+  let r, g, b;
+  if (s === 0) { r = g = b = l; }
+  else {
+    const hue2rgb = (p, q, t) => {
+      if (t < 0) t += 1;
+      if (t > 1) t -= 1;
+      if (t < 1/6) return p + (q - p) * 6 * t;
+      if (t < 1/2) return q;
+      if (t < 2/3) return p + (q - p) * (2/3 - t) * 6;
+      return p;
+    };
+    const q = l < 0.5 ? l * (1 + s) : l + s - l * s;
+    const p = 2 * l - q;
+    r = hue2rgb(p, q, h + 1/3);
+    g = hue2rgb(p, q, h);
+    b = hue2rgb(p, q, h - 1/3);
+  }
+  return [Math.round(r * 255), Math.round(g * 255), Math.round(b * 255)];
+}
+
+let startTime = null;
+
+function draw(timestamp) {
+  if (!startTime) startTime = timestamp;
+  const elapsed = (timestamp - startTime) / 1000 % TOTAL_DURATION;
+  const t = elapsed / TOTAL_DURATION; // 0..1
+
+  // === BACKGROUND LAYER ===
+  ctx.fillStyle = '#000000';
+  ctx.fillRect(0, 0, W, H);
+
+  // === COLOR DRIFT (slow phase shift) ===
+  const colorPhase = Math.sin(t * Math.PI * 2) * COLOR_DRIFT;
+
+  // === HIGHLIGHT ANGLE (wandering in bottom-right quadrant) ===
+  const highlightAngle = HIGHLIGHT_CENTER_ANGLE +
+    Math.sin(t * Math.PI * 2.7) * HIGHLIGHT_WANDER * 0.7 +
+    Math.cos(t * Math.PI * 1.4) * HIGHLIGHT_WANDER * 0.3;
+
+  // === DRAW THE HOLLOW RING ===
+  // Sample at high resolution around the ring
+  const steps = 720;
+  const imageData = ctx.createImageData(W, H);
+
+  for (let i = 0; i < steps; i++) {
+    const angleDeg = (i / steps) * 360;
+    const angleRad = (angleDeg * Math.PI) / 180;
+
+    // Base HSL hue mapped around the ring (full rainbow)
+    const hue = ((angleDeg + colorPhase + 360) % 360);
+
+    // Saturation and lightness vary to simulate glass depth
+    const sat = 0.85;
+    const light = 0.50;
+
+    const [r, g, b] = hslToRgb(hue, sat, light);
+
+    // Direction vector
+    const dx = Math.cos(angleRad);
+    const dy = Math.sin(angleRad);
+
+    // Draw the ring band from innerR to outerR
+    for (let rad = innerR; rad <= outerR; rad++) {
+      const px = Math.round(cx + dx * rad);
+      const py = Math.round(cy + dy * rad);
+
+      if (px < 0 || px >= W || py < 0 || py >= H) continue;
+
+      // Fresnel: darker at inner and outer edges
+      const normalizedR = (rad - innerR) / ringWidth; // 0 at inner, 1 at outer
+      const fresnel = Math.sin(normalizedR * Math.PI); // 0 at edges, 1 at middle
+      const fresnelInner = Math.pow(normalizedR, 1.8); // smooth ramp from inner
+      const fresnelOuter = Math.pow(1 - normalizedR, 1.8); // smooth falloff to outer
+      const fresnelFactor = Math.min(fresnelInner, fresnelOuter) * 1.4 + fresnel * 0.6;
+      const clampedFresnel = Math.min(1, fresnelFactor);
+
+      // Distance from highlight center (for specular)
+      const angleDiff = Math.abs(angleDeg - highlightAngle);
+      const wrappedDiff = Math.min(angleDiff, 360 - angleDiff);
+      const highlightDist = wrappedDiff / 30; // soft falloff over ~30°
+
+      // Specular highlight: bright pale blue-white at highlight center
+      let specular = 0;
+      if (wrappedDiff < 25) {
+        specular = Math.exp(-highlightDist * highlightDist) * 0.8 *
+                   Math.pow(Math.sin(normalizedR * Math.PI), 1.5);
+      }
+
+      let finalR = r * clampedFresnel + specular * 188;
+      let finalG = g * clampedFresnel + specular * 204;
+      let finalB = b * clampedFresnel + specular * 221;
+
+      finalR = Math.min(255, Math.max(0, finalR));
+      finalG = Math.min(255, Math.max(0, finalG));
+      finalB = Math.min(255, Math.max(0, finalB));
+
+      const idx = (py * W + px) * 4;
+      // Blend with existing (additive for glow feel)
+      const existingA = imageData.data[idx + 3] / 255;
+      if (existingA < 1) {
+        imageData.data[idx]     = Math.min(255, imageData.data[idx] + finalR);
+        imageData.data[idx + 1] = Math.min(255, imageData.data[idx + 1] + finalG);
+        imageData.data[idx + 2] = Math.min(255, imageData.data[idx + 2] + finalB);
+        imageData.data[idx + 3] = 255;
+      }
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+
+  requestAnimationFrame(draw);
+}
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>

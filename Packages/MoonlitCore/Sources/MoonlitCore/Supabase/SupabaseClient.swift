@@ -44,6 +44,42 @@ public actor SupabaseClient {
         self.accessToken = token
     }
 
+    /// Invoked when a request comes back 401 (access token expired mid-session).
+    /// Should refresh the Supabase session and return the new access token, or
+    /// nil if refresh failed. Registered by ProfileManager.
+    private var authRefreshHandler: (@Sendable () async -> String?)?
+    private var refreshTask: Task<String?, Never>?
+
+    public func setAuthRefreshHandler(_ handler: @escaping @Sendable () async -> String?) {
+        self.authRefreshHandler = handler
+    }
+
+    /// Single-flight token refresh: concurrent 401s await the same refresh so
+    /// the rotated refresh token is never used twice (Supabase revokes the
+    /// whole session family on refresh-token reuse).
+    private func refreshedToken() async -> String? {
+        if let task = refreshTask { return await task.value }
+        guard let handler = authRefreshHandler else { return nil }
+        let task = Task { await handler() }
+        refreshTask = task
+        let token = await task.value
+        refreshTask = nil
+        if let token { accessToken = token }
+        return token
+    }
+
+    /// All PostgREST traffic goes through here. Tokens expire ~1h in; without
+    /// this, every sync write after expiry fails 401 and marked-watched /
+    /// progress data is silently lost until the next app launch.
+    private func perform(_ request: URLRequest) async throws -> (Data, URLResponse) {
+        let (data, response) = try await session.data(for: request)
+        guard (response as? HTTPURLResponse)?.statusCode == 401 else { return (data, response) }
+        guard let newToken = await refreshedToken() else { return (data, response) }
+        var retried = request
+        retried.setValue("Bearer \(newToken)", forHTTPHeaderField: "Authorization")
+        return try await session.data(for: retried)
+    }
+
     private func makeRequest(
         path: String,
         method: String = "GET",
@@ -125,7 +161,7 @@ public actor SupabaseClient {
         range: (lower: Int, upper: Int)?
     ) async throws -> [T] {
         let request = makeRequest(path: path, prefer: "return=representation", range: range)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await perform(request)
 
         guard let httpResponse = response as? HTTPURLResponse,
               (200...299).contains(httpResponse.statusCode) else {
@@ -142,7 +178,7 @@ public actor SupabaseClient {
     ) async throws -> R {
         let body = try encoder.encode(value)
         let request = makeRequest(path: "/\(table)", method: "POST", body: body)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await perform(request)
 
         let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...299).contains(statusCode) else {
@@ -159,7 +195,7 @@ public actor SupabaseClient {
     ) async throws -> [R] {
         let body = try encoder.encode(value)
         let request = makeRequest(path: "/\(table)", method: "POST", body: body)
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await perform(request)
 
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...299).contains(code) else {
@@ -180,7 +216,7 @@ public actor SupabaseClient {
 
         let body = try encoder.encode(value)
         let request = makeRequest(path: path, method: "PATCH", body: body)
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await perform(request)
 
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...299).contains(code) else {
@@ -198,7 +234,7 @@ public actor SupabaseClient {
         var request = makeRequest(path: path, method: "POST", body: body)
         request.setValue("resolution=merge-duplicates", forHTTPHeaderField: "Prefer")
 
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await perform(request)
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...299).contains(code) else {
             throw SupabaseError.requestFailed(code)
@@ -213,7 +249,7 @@ public actor SupabaseClient {
         path += query.map { "\($0.key)=eq.\($0.value)" }.joined(separator: "&")
 
         let request = makeRequest(path: path, method: "DELETE")
-        let (_, response) = try await session.data(for: request)
+        let (_, response) = try await perform(request)
 
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...299).contains(code) else {
@@ -238,7 +274,7 @@ public actor SupabaseClient {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
 
-        let (data, response) = try await session.data(for: request)
+        let (data, response) = try await perform(request)
 
         let code = (response as? HTTPURLResponse)?.statusCode ?? 0
         guard (200...299).contains(code) else {
