@@ -7,17 +7,17 @@ function spring(response: number, dampingFraction: number): Transition {
 }
 
 export const SPRING = {
-  cardHover: spring(0.28, 0.78),
-  nav: spring(0.25, 0.75),
-  panel: spring(0.35, 0.85),
+  tileHover: spring(0.30, 0.78),
+  nav: spring(0.30, 0.75),
+  heroStep: spring(0.42, 0.82),
+  continueWatching: spring(0.28, 0.78),
+  panel: spring(0.40, 0.85),
 } as const;
 
 export const EASE = {
-  heroCrossfade: { duration: 0.5, ease: 'easeInOut' },
-  ambientColor: { duration: 1.2, ease: 'easeInOut' },
-  pillHighlight: { duration: 0.15, ease: 'easeInOut' },
-  panelSlide: { duration: 0.2, ease: 'easeOut' },
-  controlsFade: { duration: 0.18, ease: 'easeInOut' },
+  heroCrossfade: { duration: 0.40, ease: 'easeInOut' },
+  ambientColor: { duration: 0.9, ease: 'easeInOut' },
+  panelSlide: { duration: 0.22, ease: 'easeOut' },
 } as const;
 
-export const TILE_HOVER_SCALE = 1.12;
+export const TILE_HOVER_SCALE = 1.04;

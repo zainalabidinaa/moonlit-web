@@ -12,37 +12,33 @@
   font-display: swap;
 }
 
-/* ── Netflix-style CSS custom property animations ────────────────────────── */
-@property --fusion-color-a-r { syntax: '<number>'; initial-value: 0; inherits: false; }
-@property --fusion-color-a-g { syntax: '<number>'; initial-value: 0; inherits: false; }
-@property --fusion-color-a-b { syntax: '<number>'; initial-value: 0; inherits: false; }
-@property --fusion-color-b-r { syntax: '<number>'; initial-value: 0; inherits: false; }
-@property --fusion-color-b-g { syntax: '<number>'; initial-value: 0; inherits: false; }
-@property --fusion-color-b-b { syntax: '<number>'; initial-value: 0; inherits: false; }
-@property --fusion-drift-1 { syntax: '<percentage>'; initial-value: 25%; inherits: false; }
-@property --fusion-drift-2 { syntax: '<percentage>'; initial-value: 75%; inherits: false; }
+@property --wash-a-r { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --wash-a-g { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --wash-a-b { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --wash-b-r { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --wash-b-g { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --wash-b-b { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --drift-x { syntax: '<percentage>'; initial-value: 40%; inherits: false; }
+@property --drift-y { syntax: '<percentage>'; initial-value: 55%; inherits: false; }
 
 :root {
-  --bg: #141414;
-  --surface: #1f1f1f;
-  --elevated: #2a2a2a;
-  --border: rgba(255, 255, 255, 0.10);
-  --accent: #e50914;
-  --accent-dim: rgba(229, 9, 20, 0.70);
-  --accent-glow: rgba(229, 9, 20, 0.12);
+  --bg: #0D0D0D;
+  --surface: #1A1A1A;
+  --elevated: #242424;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #FFFFFF;
+  --accent-dim: rgba(255, 255, 255, 0.70);
   --gold: #D4AF37;
   --text: #FFFFFF;
-  --text-secondary: #b3b3b3;
-  --text-tertiary: #808080;
-  --muted: #808080;
-
-  /* Fusion charcoal base stops */
-  --fusion-charcoal-top: #3B3B3B;
-  --fusion-charcoal-bottom: #161616;
+  --text-secondary: rgba(255, 255, 255, 0.70);
+  --text-tertiary: rgba(255, 255, 255, 0.50);
+  --muted: rgba(255, 255, 255, 0.50);
+  --fusion-top: #3D3D3D;
+  --fusion-bot: #161616;
 }
 
 body {
-  background-color: var(--bg);
+  background: var(--bg);
   color: var(--text);
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
@@ -50,229 +46,111 @@ body {
 }
 
 /* ── Fusion ambient background ──────────────────────────────────────────── */
-.fusion-bg-base {
-  background: linear-gradient(
-    to bottom,
-    var(--fusion-charcoal-top) 0%,
-    var(--fusion-charcoal-bottom) 100%
-  );
+.fusion-base {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background: linear-gradient(to bottom, var(--fusion-top) 0%, var(--fusion-bot) 100%);
 }
-
-.fusion-bg-wash {
+.fusion-wash {
+  position: absolute; inset: 0;
   background:
-    radial-gradient(ellipse 80% 60% at var(--fusion-drift-1) 30%,
-      rgb(
-        calc(var(--fusion-color-a-r)),
-        calc(var(--fusion-color-a-g)),
-        calc(var(--fusion-color-a-b))
-      ) 0%,
-      transparent 70%
-    ),
-    radial-gradient(ellipse 60% 50% at var(--fusion-drift-2) 50%,
-      rgb(
-        calc(var(--fusion-color-b-r)),
-        calc(var(--fusion-color-b-g)),
-        calc(var(--fusion-color-b-b))
-      ) 0%,
-      transparent 70%
-    );
-  filter: blur(30px);
-  -webkit-mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 18%,
-    black 72%,
-    transparent 100%
-  );
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 18%,
-    black 72%,
-    transparent 100%
-  );
+    radial-gradient(ellipse 70% 55% at var(--drift-x) var(--drift-y),
+      rgb(var(--wash-a-r), var(--wash-a-g), var(--wash-a-b)) 0%, transparent 60%),
+    radial-gradient(ellipse 50% 45% at calc(100% - var(--drift-x)) calc(100% - var(--drift-y)),
+      rgb(var(--wash-b-r), var(--wash-b-g), var(--wash-b-b)) 0%, transparent 60%);
+  filter: blur(40px);
+  mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 80%, transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 15%, black 80%, transparent 100%);
 }
-
-.fusion-bg-backdrop {
-  filter: blur(30px) saturate(0.28) brightness(0.14);
-  object-fit: cover;
-  object-position: center 20%;
-}
-
 @keyframes fusion-drift {
-  0%, 100% { --fusion-drift-1: 22%; --fusion-drift-2: 78%; }
-  33% { --fusion-drift-1: 28%; --fusion-drift-2: 72%; }
-  66% { --fusion-drift-1: 18%; --fusion-drift-2: 82%; }
+  0%, 100% { --drift-x: 38%; --drift-y: 52%; }
+  33%     { --drift-x: 44%; --drift-y: 58%; }
+  66%     { --drift-x: 34%; --drift-y: 48%; }
 }
-
-.fusion-bg-animate {
-  animation: fusion-drift 20s ease-in-out infinite;
+.fusion-wash-animate {
+  animation: fusion-drift 24s ease-in-out infinite;
   transition:
-    --fusion-color-a-r 1.2s ease-in-out,
-    --fusion-color-a-g 1.2s ease-in-out,
-    --fusion-color-a-b 1.2s ease-in-out,
-    --fusion-color-b-r 1.2s ease-in-out,
-    --fusion-color-b-g 1.2s ease-in-out,
-    --fusion-color-b-b 1.2s ease-in-out;
+    --wash-a-r 1.5s ease-in-out, --wash-a-g 1.5s ease-in-out, --wash-a-b 1.5s ease-in-out,
+    --wash-b-r 1.5s ease-in-out, --wash-b-g 1.5s ease-in-out, --wash-b-b 1.5s ease-in-out;
 }
 
 @layer components {
-  /* ── Surface cards ──────────────────────────────────────────────────── */
-  .surface-card {
-    @apply bg-[#1f1f1f] border border-white/10 rounded;
+  /* ── Glass capsule (Mac PillNavBar) ─────────────────────────────────── */
+  .glass-capsule {
+    backdrop-filter: blur(30px) saturate(1.8);
+    -webkit-backdrop-filter: blur(30px) saturate(1.8);
+    background: rgba(0, 0, 0, 0.28);
+    border: 0.5px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.30);
   }
 
   /* ── Brand wordmark ──────────────────────────────────────────────────── */
   .brand-wordmark {
-    @apply font-brand font-extrabold tracking-[2px];
+    @apply font-brand font-extrabold tracking-[3px] text-white select-none;
   }
 
-  /* ── Buttons ─────────────────────────────────────────────────────────── */
+  /* ── Section title (Mac 21px bold) ───────────────────────────────────── */
+  .section-title {
+    @apply text-[21px] font-bold text-white;
+  }
+
+  /* ── Buttons (Mac: white primary, glass secondary) ───────────────────── */
   .btn-primary {
-    @apply px-6 py-2 bg-[#e50914] hover:bg-[#f40612] text-white font-bold rounded
-           transition-all duration-200 cursor-pointer active:scale-95;
+    @apply inline-flex items-center gap-2 px-7 py-3 bg-white hover:bg-white/90 text-black
+           font-bold rounded-full transition-all duration-200 active:scale-95 text-[15px];
   }
   .btn-secondary {
-    @apply px-6 py-2 bg-white/[0.15] hover:bg-white/[0.2] text-white font-semibold rounded
-           transition-all duration-200 cursor-pointer;
+    @apply inline-flex items-center gap-2 px-6 py-3 rounded-full font-semibold
+           text-white bg-white/10 border border-white/10 hover:bg-white/20
+           transition-all duration-200 active:scale-95 text-[15px];
   }
 
   /* ── Rating badge ────────────────────────────────────────────────────── */
   .rating-badge {
-    @apply inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold;
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold;
     background: rgba(0, 0, 0, 0.45);
     border: 1px solid rgba(212, 175, 55, 0.28);
     color: var(--gold);
   }
 
-  /* ── Shimmer skeleton ────────────────────────────────────────────────── */
-  .shimmer {
-    @apply bg-white/10 animate-shimmer;
-    background-image: linear-gradient(
-      100deg,
-      rgba(255, 255, 255, 0) 40%,
-      rgba(255, 255, 255, 0.18) 50%,
-      rgba(255, 255, 255, 0) 60%
-    );
-    background-size: 200% 100%;
+  /* ── Pill nav tab ────────────────────────────────────────────────────── */
+  .pill-tab {
+    @apply relative flex items-center px-[13px] py-1.5 rounded-full text-[12.5px]
+           font-medium text-white/65 hover:text-white transition-colors duration-200 cursor-pointer select-none;
+  }
+  .pill-tab.active {
+    @apply text-white font-semibold;
   }
 
-  /* ── Media card (Netflix-style) ──────────────────────────────────────── */
+  /* ── Media card (Mac: 1.04x hover lift) ──────────────────────────────── */
   .media-card {
-    @apply relative flex-shrink-0 cursor-pointer rounded overflow-hidden;
-    transition: transform 0.25s ease;
+    @apply relative flex-shrink-0 cursor-pointer rounded-ml-card overflow-hidden
+           bg-moonlit-elevated border border-white/5 hover:border-white/[0.14]
+           transition-all duration-300;
   }
   .media-card:hover {
-    transform: scale(1.12);
-    z-index: 2;
+    transform: scale(1.04);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.50);
   }
 
-  /* ── Header nav link ─────────────────────────────────────────────────── */
-  .header-nav-link {
-    @apply text-[#b3b3b3] hover:text-[#ccc] px-3 py-2 text-[12.5px] font-medium
-           transition-colors cursor-pointer select-none;
-  }
-  .header-nav-link.active {
-    @apply text-white font-bold;
-  }
-
-  /* ── Category pills ──────────────────────────────────────────────────── */
-  .category-pill {
-    @apply rounded px-[15px] py-2 text-[13.5px] font-semibold transition-colors duration-[180ms] cursor-pointer;
-  }
-  .category-pill-idle {
-    @apply bg-white/[0.08] text-white/90 hover:bg-white/[0.12];
-  }
-  .category-pill-active {
-    background: var(--accent);
-    color: #fff;
-  }
-
-  /* ── Row edge fade mask ──────────────────────────────────────────────── */
-  .fade-mask-r {
-    -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
-    mask-image: linear-gradient(to right, black 90%, transparent 100%);
+  /* ── Shimmer ──────────────────────────────────────────────────────────── */
+  .shimmer {
+    @apply bg-white/10 animate-shimmer;
+    background-image: linear-gradient(100deg, transparent 40%, rgba(255,255,255,0.18) 50%, transparent 60%);
+    background-size: 200% 100%;
   }
 }
 
-/* Scrollbar */
-::-webkit-scrollbar {
-  width: 4px;
-  height: 4px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
-  border-radius: 2px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
-}
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28); }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-hide::-webkit-scrollbar { display: none; }
 
-.scrollbar-hide {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-.scrollbar-hide::-webkit-scrollbar {
-  display: none;
-}
-
-/* ─── Moonlit Player — Custom Vidstack Layout ─── */
-
-.moonlit-controls {
-  opacity: 0;
-  transition: opacity 0.2s ease;
-}
-.moonlit-controls[data-visible] {
-  opacity: 1;
-}
-
-.player-btn {
-  @apply w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95;
-}
-
-.moonlit-slider {
-  @apply relative w-full flex items-center h-5 cursor-pointer;
-  --slider-fill: 0%;
-}
-
-.moonlit-slider-preview {
-  @apply absolute bottom-full left-0 -translate-x-1/2 mb-2 pointer-events-none;
-}
-
-.moonlit-captions {
-  @apply absolute bottom-24 left-0 right-0 z-10;
-  --cue-bg: rgba(0, 0, 0, 0.8);
-  --cue-color: #fff;
-  --cue-font-size: 16px;
-  --cue-padding: 0.2em 0.6em;
-  --cue-border-radius: 4px;
-}
-
-.moonlit-captions-custom {
-  bottom: var(--moonlit-subtitle-bottom, 112px);
-}
-
-.moonlit-captions-custom * {
-  color: var(--moonlit-subtitle-color, #fff) !important;
-  font-size: var(--moonlit-subtitle-font-size, 24px) !important;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 1), 0 0 2px rgba(0, 0, 0, 1) !important;
-}
-
-.moonlit-captions-custom [data-media-cue] {
-  background: var(--moonlit-subtitle-bg, rgba(0, 0, 0, 0.7)) !important;
-  border-radius: 4px !important;
-  padding: 0.08em 0.35em !important;
-}
-
-.moonlit-player media-player {
-  display: contents;
-}
-
-.media-paused\:block[data-paused], [data-paused] .media-paused\:block { display: block !important; }
-.media-paused\:hidden[data-paused], [data-paused] .media-paused\:hidden { display: none !important; }
-.media-fullscreen\:hidden[data-fullscreen], [data-fullscreen] .media-fullscreen\:hidden { display: none !important; }
-.media-fullscreen\:block[data-fullscreen], [data-fullscreen] .media-fullscreen\:block { display: block !important; }
-.media-captions-on\:opacity-100[data-captions], [data-captions] .media-captions-on\:opacity-100 { opacity: 1 !important; }
+.moonlit-controls { opacity: 0; transition: opacity 0.2s ease; }
+.moonlit-controls[data-visible] { opacity: 1; }
+.player-btn { @apply w-11 h-11 flex items-center justify-center rounded-full hover:bg-white/10 transition-colors active:scale-95; }
+.moonlit-captions { @apply absolute bottom-24 left-0 right-0 z-10; }
+.moonlit-captions-custom { bottom: var(--moonlit-subtitle-bottom, 112px); }
+.moonlit-captions-custom * { color: var(--moonlit-subtitle-color, #fff) !important; font-size: var(--moonlit-subtitle-font-size, 24px) !important; text-shadow: 0 2px 6px rgba(0,0,0,1), 0 0 2px rgba(0,0,0,1) !important; }
+.moonlit-captions-custom [data-media-cue] { background: var(--moonlit-subtitle-bg, rgba(0,0,0,0.7)) !important; border-radius: 4px !important; padding: 0.08em 0.35em !important; }

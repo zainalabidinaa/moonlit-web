@@ -10,89 +10,56 @@ function hexToRgb(hex: string): [number, number, number] | null {
 
 interface FusionBackgroundProps {
   backdropUrl?: string | null;
-  /** Height of the hero above the color band (px). Used for scroll tracking. */
   heroHeight?: number;
-  /** When true, the base is pure #141414 instead of the charcoal gradient */
-  noCharcoal?: boolean;
 }
 
-export function FusionBackground({ backdropUrl, heroHeight = 0, noCharcoal = false }: FusionBackgroundProps) {
-  const containerRef = useRef<HTMLDivElement>(null);
+export function FusionBackground({ backdropUrl, heroHeight = 0 }: FusionBackgroundProps) {
   const ambient = useAmbientColors(backdropUrl ?? undefined);
   const [colorA, colorB] = ambient ?? [null, null];
   const [bandOffset, setBandOffset] = useState(0);
-  const prefersReducedMotion = typeof window !== 'undefined'
-    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   useEffect(() => {
-    if (prefersReducedMotion || !heroHeight) return;
-
+    if (!heroHeight) return;
     let ticking = false;
-    const handleScroll = () => {
+    const onScroll = () => {
       if (!ticking) {
         requestAnimationFrame(() => {
-          const offset = Math.max(0, heroHeight - window.scrollY);
-          setBandOffset(offset);
+          setBandOffset(Math.max(0, heroHeight - window.scrollY));
           ticking = false;
         });
         ticking = true;
       }
     };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, [heroHeight, prefersReducedMotion]);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, [heroHeight]);
 
   const rgbA = colorA ? hexToRgb(colorA) : null;
   const rgbB = colorB ? hexToRgb(colorB) : null;
 
   return (
-    <div ref={containerRef} className="fixed inset-0 pointer-events-none -z-[1]">
+    <div className="pointer-events-none fixed inset-0 z-0">
       {/* Layer 1: Charcoal gradient base */}
-      <div
-        className={`absolute inset-0 ${noCharcoal ? '' : 'fusion-bg-base'}`}
-        style={noCharcoal ? { background: '#141414' } : undefined}
-      />
+      <div className="fusion-bg" style={{ zIndex: -2 }} />
 
-      {/* Layer 2: Blurred hero backdrop (atmospheric depth) */}
+      {/* Layer 2: Blurred hero backdrop for depth */}
       {backdropUrl && (
-        <div
-          className="absolute inset-0"
-          style={{
-            opacity: bandOffset > 0 ? 0.55 : 0,
-            transition: `opacity ${EASE.ambientColor.duration}s ${EASE.ambientColor.ease}`,
-          }}
-        >
-          <img
-            src={backdropUrl}
-            alt=""
-            className="absolute inset-0 w-full fusion-bg-backdrop"
-            style={{ height: `${heroHeight || 60}vh` }}
-          />
-          <div
-            className="absolute inset-0"
-            style={{
-              background: `linear-gradient(to bottom, transparent 0%, transparent 45%, ${noCharcoal ? '#141414' : 'var(--fusion-charcoal-bottom)'} 78%)`,
-            }}
-          />
+        <div className="absolute inset-0" style={{ opacity: bandOffset > 0 ? 0.45 : 0, transition: `opacity ${EASE.ambientColor.duration}s ${EASE.ambientColor.ease}` }}>
+          <img src={backdropUrl} alt="" className="absolute inset-0 w-full object-cover" style={{ height: `${heroHeight || 60}vh`, filter: 'blur(30px) saturate(0.28) brightness(0.12)' }} />
+          <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, transparent 0%, transparent 40%, var(--fusion-bot) 78%)` }} />
         </div>
       )}
 
       {/* Layer 3: Animated ambient color wash */}
-      {(rgbA || rgbB) && (
+      {rgbA && (
         <div
-          className="absolute inset-x-0 fusion-bg-wash fusion-bg-animate"
+          className="fusion-bg-wash fusion-wash-animate"
           style={{
-            height: '62vh',
             top: `${bandOffset}px`,
-            opacity: colorA || colorB ? 1 : 0,
-            // Set CSS custom properties for the animated gradient
-            '--fusion-color-a-r': rgbA?.[0] ?? 0,
-            '--fusion-color-a-g': rgbA?.[1] ?? 0,
-            '--fusion-color-a-b': rgbA?.[2] ?? 0,
-            '--fusion-color-b-r': rgbB?.[0] ?? rgbA?.[0] ?? 0,
-            '--fusion-color-b-g': rgbB?.[1] ?? rgbA?.[1] ?? 0,
-            '--fusion-color-b-b': rgbB?.[2] ?? rgbA?.[2] ?? 0,
-            transition: `opacity ${EASE.ambientColor.duration}s ${EASE.ambientColor.ease}`,
+            height: '62vh',
+            opacity: 1,
+            '--wash-a-r': rgbA[0], '--wash-a-g': rgbA[1], '--wash-a-b': rgbA[2],
+            '--wash-b-r': rgbB?.[0] ?? rgbA[0], '--wash-b-g': rgbB?.[1] ?? rgbA[1], '--wash-b-b': rgbB?.[2] ?? rgbA[2],
           } as React.CSSProperties}
         />
       )}

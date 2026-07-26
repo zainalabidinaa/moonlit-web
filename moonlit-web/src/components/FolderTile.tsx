@@ -36,7 +36,7 @@ export function FolderTile({ folder }: FolderTileProps) {
   return (
     <motion.div
       whileHover={{ scale: TILE_HOVER_SCALE }}
-      transition={SPRING.cardHover}
+      transition={SPRING.tileHover}
       className="flex-shrink-0 cursor-pointer"
       style={{ width: `${width}px` }}
     >

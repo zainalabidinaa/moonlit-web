@@ -170,7 +170,7 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="px-6 md:px-14 py-8 max-w-4xl mx-auto">
+    <div className="px-6 md:px-14 pt-24 pb-8 max-w-4xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">Admin Panel</h1>
       <div className="inline-flex items-center gap-1 p-1.5 bg-[#1e1e1e]/90 border border-white/10 rounded-full mb-6">
             {(['collections', 'codes', 'stats'] as Section[]).map(s => (

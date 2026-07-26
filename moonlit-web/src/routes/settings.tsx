@@ -161,7 +161,7 @@ export default function SettingsPage() {
     serverUrl ? 'Not tested' : 'Off';
 
   return (
-    <div className="px-6 md:px-14 py-8 max-w-2xl mx-auto">
+    <div className="px-6 md:px-14 pt-24 pb-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
 
       {/* Profile card */}
