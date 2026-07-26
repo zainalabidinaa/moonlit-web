@@ -9,22 +9,19 @@ export default {
       },
       colors: {
         moonlit: {
-          // Mac palette (MoonlitTheme)
-          bg: '#0D0D0D',
-          surface: '#1A1A1A',
-          elevated: '#242424',
-          border: 'rgba(255,255,255,0.08)',
-          // White accent system — orange retired. Kept keys for compat:
-          accent: '#FFFFFF',
-          'accent-dim': 'rgba(255,255,255,0.70)',
-          'accent-glow': 'rgba(255,255,255,0.12)',
-          // HarborGold — ratings, badges, selected category pills ONLY
+          bg: '#141414',
+          surface: '#1f1f1f',
+          elevated: '#2a2a2a',
+          border: 'rgba(255,255,255,0.10)',
+          accent: '#e50914',
+          'accent-dim': 'rgba(229,9,20,0.70)',
+          'accent-glow': 'rgba(229,9,20,0.12)',
           gold: '#D4AF37',
           secondary: '#D4AF37',
           text: '#FFFFFF',
-          'text-secondary': 'rgba(255,255,255,0.70)',
-          'text-tertiary': 'rgba(255,255,255,0.50)',
-          muted: 'rgba(255,255,255,0.50)',
+          'text-secondary': '#b3b3b3',
+          'text-tertiary': '#808080',
+          muted: '#808080',
         },
         player: {
           canvas: '#111213',
@@ -37,10 +34,10 @@ export default {
         },
       },
       borderRadius: {
-        'ml-sm': '6px',
-        'ml-ctl': '10px',
-        'ml-card': '14px',
-        'ml-lg': '18px',
+        'ml-sm': '4px',
+        'ml-ctl': '6px',
+        'ml-card': '4px',
+        'ml-lg': '8px',
       },
       boxShadow: {
         'ml-lift': '0 10px 16px rgba(0,0,0,0.40)',
@@ -48,17 +45,8 @@ export default {
         'ml-glass': '0 4px 12px rgba(0,0,0,0.30)',
         'ml-hero-text': '0 3px 8px rgba(0,0,0,0.55)',
       },
-      backdropBlur: { xs: '2px' },
       keyframes: {
         'fade-in': { from: { opacity: '0' }, to: { opacity: '1' } },
-        'breathing-pulse': {
-          '0%, 100%': { transform: 'scale(1)', opacity: '1' },
-          '50%': { transform: 'scale(1.04)', opacity: '0.85' },
-        },
-        'breathing-wordmark': {
-          '0%, 100%': { transform: 'scale(0.96)', opacity: '0.35' },
-          '50%': { transform: 'scale(1)', opacity: '1' },
-        },
         'slide-up': { from: { transform: 'translateY(100%)' }, to: { transform: 'translateY(0)' } },
         'slide-down': { from: { transform: 'translateY(0)' }, to: { transform: 'translateY(100%)' } },
         'scale-in': { from: { opacity: '0', transform: 'scale(0.95)' }, to: { opacity: '1', transform: 'scale(1)' } },
@@ -70,8 +58,6 @@ export default {
       },
       animation: {
         'fade-in': 'fade-in 0.4s ease-in-out',
-        'breathing-pulse': 'breathing-pulse 2s ease-in-out infinite',
-        'breathing-wordmark': 'breathing-wordmark 3.2s ease-in-out infinite',
         'slide-up': 'slide-up 0.3s ease-out',
         'slide-down': 'slide-down 0.2s ease-in',
         'scale-in': 'scale-in 0.3s ease-out',

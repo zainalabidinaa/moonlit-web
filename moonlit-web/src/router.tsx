@@ -9,7 +9,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/app/AuthProvider';
 import { PlayerProvider } from '@/app/PlayerProvider';
 import { PlayerOverlay } from '@/components/PlayerOverlay';
-import { WindowControls } from '@/components/WindowControls';
+import { AppShell } from '@/components/AppShell';
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -39,18 +39,6 @@ function lazily(importFn: () => Promise<{ default: React.ComponentType }>) {
   };
 }
 
-// Auth guard layout — wraps all protected routes
-function AuthGuard() {
-  const { user, guestMode, currentProfile, isLoading } = useAuth();
-
-  if (isLoading) return <Spinner />;
-  if (guestMode) return <Outlet />;
-  if (!user) { window.location.replace('/auth'); return null; }
-  if (!currentProfile) { window.location.replace('/profiles'); return null; }
-
-  return <Outlet />;
-}
-
 // ── Route tree ──────────────────────────────────────────────────────────────
 
 const rootRoute = createRootRoute({
@@ -58,7 +46,6 @@ const rootRoute = createRootRoute({
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <PlayerProvider>
-          <WindowControls />
           <Outlet />
           <PlayerOverlay />
         </PlayerProvider>
@@ -95,11 +82,32 @@ const profilesRoute = createRoute({
   component: lazily(() => import('@/routes/profiles')),
 });
 
-// Protected layout (pathless route — wraps children with auth guard)
+// Protected layout — runs auth guard, then wraps children in AppShell
+function ProtectedLayout() {
+  const { user, guestMode, currentProfile, isLoading } = useAuth();
+
+  if (isLoading) return <Spinner />;
+  if (guestMode) {
+    return (
+      <AppShell>
+        <Outlet />
+      </AppShell>
+    );
+  }
+  if (!user) { window.location.replace('/auth'); return null; }
+  if (!currentProfile) { window.location.replace('/profiles'); return null; }
+
+  return (
+    <AppShell>
+      <Outlet />
+    </AppShell>
+  );
+}
+
 const protectedLayout = createRoute({
   getParentRoute: () => rootRoute,
   id: 'protected',
-  component: AuthGuard,
+  component: ProtectedLayout,
 });
 
 const homeRoute = createRoute({

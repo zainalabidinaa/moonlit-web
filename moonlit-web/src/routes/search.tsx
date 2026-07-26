@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/AuthProvider';
 import { useQuery } from '@tanstack/react-query';
-import { Sidebar } from '@/components/Sidebar';
 import { MetaPreview } from '@/lib/types';
 import { searchCatalogs, fetchManifest, fetchCatalog } from '@/lib/stremio';
 import { getSystemAddon } from '@/lib/services/api';
@@ -36,7 +35,6 @@ export default function SearchPage() {
   const [submitted, setSubmitted] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
-  // Trending via TanStack Query
   const { data: trending = [] } = useQuery({
     queryKey: ['trending'],
     queryFn: async () => {
@@ -53,7 +51,6 @@ export default function SearchPage() {
     staleTime: 10 * 60 * 1000,
   });
 
-  // Debounced suggestions
   useEffect(() => {
     clearTimeout(debounceRef.current);
     if (!query.trim() || submitted) { setSuggestions([]); return; }
@@ -101,13 +98,12 @@ export default function SearchPage() {
   const isEmpty = !query && !submitted;
 
   return (
-    <Sidebar>
-      <div className="-mt-14 relative pt-14 pb-10 bg-gradient-to-b from-moonlit-elevated via-moonlit-elevated/60 to-transparent">
-        <div className="absolute inset-0 bg-gradient-to-b from-moonlit-elevated to-transparent" />
-        <div className="relative z-10 px-6 pt-10 max-w-2xl mx-auto">
+    <div>
+      <div className="pt-8 pb-8 bg-[#1f1f1f]/30">
+        <div className="relative z-10 px-6 pt-4 max-w-2xl mx-auto">
           <h1 className="text-2xl font-bold text-white mb-6 text-center">Search</h1>
           <div className="relative">
-            <div className={`flex items-center gap-3 bg-[#1c1c1e] border rounded-2xl px-4 py-3.5 transition-all shadow-lg ${query ? 'border-white/25' : 'border-white/10'}`}>
+            <div className={`flex items-center gap-3 bg-[#1f1f1f] border rounded px-4 py-3 transition-all ${query ? 'border-white/25' : 'border-white/10'}`}>
               <svg className="w-4 h-4 text-white/40 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" strokeLinecap="round"/></svg>
               <form onSubmit={handleSearch} className="flex-1 flex items-center gap-2">
                 <input ref={inputRef} type="text" value={query} onChange={e => handleQueryChange(e.target.value)}
@@ -123,12 +119,12 @@ export default function SearchPage() {
               </form>
             </div>
             {showSuggestions && query && !submitted && suggestions.length > 0 && (
-              <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#141414] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-50">
+              <div className="absolute top-full left-0 right-0 mt-1.5 bg-[#141414] border border-white/10 rounded overflow-hidden shadow-2xl z-50">
                 <div className="py-1">
                   {suggestions.map(item => (
                     <button key={item.id} onMouseDown={() => handleSuggestionClick(item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 text-left transition-colors">
-                      {item.poster ? <img src={item.poster} alt="" className="w-8 h-12 object-cover rounded-md shrink-0" /> : <div className="w-8 h-12 bg-white/5 rounded-md shrink-0" />}
+                      {item.poster ? <img src={item.poster} alt="" className="w-8 h-12 object-cover rounded shrink-0" /> : <div className="w-8 h-12 bg-white/5 rounded shrink-0" />}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white/90 truncate">{item.name}</p>
                         <p className="text-xs text-white/40 mt-0.5">
@@ -152,15 +148,15 @@ export default function SearchPage() {
         </div>
       </div>
 
-      <div className="px-6 pb-12 max-w-5xl mx-auto">
+      <div className="px-6 md:px-14 pb-16 max-w-5xl mx-auto">
         {isEmpty && (
           <>
             {recent.length > 0 && (
-              <section className="mb-8">
+              <section className="mb-8 mt-6">
                 <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Recent</p>
                 <div className="flex gap-2 flex-wrap">
                   {recent.map(r => (
-                    <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-moonlit-surface border border-moonlit-border rounded-full cursor-pointer group">
+                    <div key={r} className="flex items-center gap-2 px-3 py-1.5 bg-[#1f1f1f] border border-white/10 rounded cursor-pointer group">
                       <svg className="w-3 h-3 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                       <span className="text-xs text-white/60" onClick={() => handleRecentClick(r)}>{r}</span>
                       <button onClick={() => { removeRecent(r); setRecent(getRecent()); }} className="opacity-0 group-hover:opacity-100 transition-opacity">
@@ -172,21 +168,20 @@ export default function SearchPage() {
               </section>
             )}
             {trending.length > 0 && (
-              <section>
+              <section className="mt-8">
                 <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4">Trending Now</p>
                 <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }}>
                   {trending.map(item => (
                     <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }} className="group cursor-pointer">
-                      <div className="relative aspect-[2/3] rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2">
-                        {item.poster ? <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs text-center px-2">{item.name}</div>}
+                      <div className="relative aspect-[2/3] rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]">
+                        {item.poster ? <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center text-white/15 text-xs text-center px-2">{item.name}</div>}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
                             <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4 ml-0.5"><polygon points="6,4 20,12 6,20"/></svg>
                           </div>
                         </div>
-                        <span className="absolute bottom-1.5 left-2 text-[10px] text-white/50 font-medium">{item.type === 'series' ? 'Series' : 'Movie'}</span>
                       </div>
-                      <p className="text-xs font-medium text-white/80 truncate">{item.name}</p>
+                      <p className="text-xs font-medium text-[#b3b3b3] truncate">{item.name}</p>
                       {item.releaseInfo && <p className="text-[10px] text-white/35 mt-0.5">{item.releaseInfo}</p>}
                     </Link>
                   ))}
@@ -204,10 +199,10 @@ export default function SearchPage() {
 
         {!loading && submitted && (
           <>
-            <div className="flex items-center gap-2 mb-6">
+            <div className="flex items-center gap-2 mb-6 mt-6">
               {(['all', 'movie', 'series'] as Filter[]).map(f => (
                 <button key={f} onClick={() => setFilter(f)}
-                  className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${filter === f ? 'bg-white text-black' : 'bg-moonlit-surface border border-moonlit-border text-white/50 hover:text-white/80'}`}>
+                  className={`px-4 py-1.5 rounded text-xs font-semibold transition-all ${filter === f ? 'bg-white text-black' : 'bg-[#1f1f1f] border border-white/10 text-white/50 hover:text-white/80'}`}>
                   {f === 'all' ? 'All' : f === 'movie' ? 'Movies' : 'Shows'}
                 </button>
               ))}
@@ -217,10 +212,10 @@ export default function SearchPage() {
               <div className="flex flex-col gap-1.5 max-w-2xl">
                 {filtered.map(item => (
                   <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }}
-                    className="group flex items-center gap-3 p-2 rounded-xl hover:bg-white/5 transition-colors">
+                    className="group flex items-center gap-3 p-2 rounded hover:bg-white/5 transition-colors">
                     {item.poster
-                      ? <img src={item.poster} alt={item.name} loading="lazy" className="w-[52px] h-[78px] object-cover rounded-lg shrink-0 bg-moonlit-elevated" />
-                      : <div className="w-[52px] h-[78px] rounded-lg bg-moonlit-elevated shrink-0 flex items-center justify-center text-white/20 text-[10px] text-center px-1">{item.name}</div>}
+                      ? <img src={item.poster} alt={item.name} loading="lazy" className="w-[52px] h-[78px] object-cover rounded shrink-0 bg-[#2a2a2a]" />
+                      : <div className="w-[52px] h-[78px] rounded bg-[#2a2a2a] shrink-0 flex items-center justify-center text-white/15 text-[10px] text-center px-1">{item.name}</div>}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{item.name}</p>
                       <div className="flex items-center gap-2 mt-1 text-[11px] text-white/45">
@@ -243,6 +238,6 @@ export default function SearchPage() {
           </>
         )}
       </div>
-    </Sidebar>
+    </div>
   );
 }

@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/app/AuthProvider';
 import { usePlayer } from '@/app/PlayerProvider';
-import { Sidebar } from '@/components/Sidebar';
 import { HomeHero } from '@/components/HomeHero';
-import { CinematicBackground } from '@/components/CinematicBackground';
+import { FusionBackground } from '@/components/FusionBackground';
 import { MediaRow } from '@/components/MediaRow';
 import { CollectionRow } from '@/components/CollectionRow';
 import { FeaturedHomeItem, MetaDetail, WatchProgressEntry } from '@/lib/types';
@@ -12,11 +11,9 @@ import { getWatchProgress, getSystemAddon } from '@/lib/services/api';
 import { fetchManifest, fetchMeta } from '@/lib/stremio';
 import { TMDB_API_KEY } from '@/lib/supabase';
 import { formatContinueWatchingTitle } from '@/lib/player-utils';
-import { loadCollections, refreshCollections, fetchLiveOrganizer, CatalogRow } from '@/lib/collections/repository';
+import { loadCollections, refreshCollections, fetchLiveOrganizer } from '@/lib/collections/repository';
 import { useQueryClient } from '@tanstack/react-query';
 import { pickFeaturedItems } from './home-data';
-import { motion } from 'framer-motion';
-import { SPRING, TILE_HOVER_SCALE } from '@/lib/design/motion';
 
 function formatTimeRemaining(positionSec: number, durationSec: number): string {
   if (durationSec > 0) {
@@ -40,6 +37,15 @@ export default function HomePage() {
   const { open: openPlayer } = usePlayer();
   const queryClient = useQueryClient();
 
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [heroHeight, setHeroHeight] = useState(0);
+
+  useEffect(() => {
+    if (heroRef.current) {
+      setHeroHeight(heroRef.current.getBoundingClientRect().height);
+    }
+  }, []);
+
   // ── Progressive rows state ────────────────────────────────────────────────
   const [featuredItems, setFeaturedItems] = useState<FeaturedHomeItem[]>([]);
   const [featuredMetas, setFeaturedMetas] = useState<Record<string, MetaDetail | null>>({});
@@ -48,7 +54,6 @@ export default function HomePage() {
   const heroTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heroPausedRef = useRef(false);
 
-  // Hero rotation
   useEffect(() => {
     if (featuredItems.length <= 1) return;
     heroTimerRef.current = setInterval(() => {
@@ -71,7 +76,6 @@ export default function HomePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── Manifest ──────────────────────────────────────────────────────────────
   const { data: manifest } = useQuery({
     queryKey: ['manifest', initialData?.systemAddon?.manifest_url],
     queryFn: () => fetchManifest(initialData!.systemAddon!.manifest_url),
@@ -79,7 +83,6 @@ export default function HomePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── Collection engine: load all rows from collections + addons ──────────
   const { data: collectionRows = [], isLoading: collectionsLoading } = useQuery({
     queryKey: ['home-collections', currentProfile?.id, addons.map(a => a.id).join(',')],
     queryFn: async () => {
@@ -90,9 +93,6 @@ export default function HomePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // ── Background live refresh from edge function ────────────────────────────
-  // Fires once after the initial collections load so the app always reflects
-  // the latest state from Supabase without requiring a redeploy.
   const collectionsQueryKey = ['home-collections', currentProfile?.id, addons.map(a => a.id).join(',')];
   useEffect(() => {
     if (collectionsLoading || addons.length === 0) return;
@@ -108,10 +108,6 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [collectionsLoading, addons.length]);
 
-  // ── Featured items: derive from the content rows (group-tile rows excluded).
-  // Depend on the stable `collectionRows` reference (from react-query), NOT a
-  // freshly-filtered array — otherwise this effect re-runs every render and
-  // setFeaturedItems triggers an infinite render/refetch loop. ──
   useEffect(() => {
     const homeCatalogRows = collectionRows
       .filter(r => !r.isGroupTile)
@@ -133,7 +129,6 @@ export default function HomePage() {
     }
   }, [collectionRows]);
 
-  // ── Featured TMDB backdrop prefetch — fast path before addon meta arrives ──
   useEffect(() => {
     if (featuredItems.length === 0) return;
     let cancelled = false;
@@ -161,7 +156,6 @@ export default function HomePage() {
     return () => { cancelled = true; };
   }, [featuredItems]);
 
-  // ── Featured meta prefetch ────────────────────────────────────────────────
   useEffect(() => {
     if (!manifest?.transportUrl || featuredItems.length === 0) return;
     const canFetchMeta = manifest.resources?.some(r => (typeof r === 'string' ? r : r.name) === 'meta');
@@ -184,12 +178,10 @@ export default function HomePage() {
     return () => controller.abort();
   }, [featuredItems, manifest?.transportUrl]);
 
-  // ── CW: base list — normalize encoded IDs, deduplicate by base show ID ──
   const continueWatching = (() => {
     const seenBase = new Set<string>();
     return (initialData?.progress ?? [])
       .filter(e => !e.completed && e.position_seconds > 0)
-      // Normalize URL-encoded colons (%3A) so splitting always works
       .map(e => ({ ...e, media_id: decodeURIComponent(e.media_id) }))
       .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
       .filter(e => {
@@ -201,7 +193,6 @@ export default function HomePage() {
       .slice(0, 10);
   })();
 
-  // ── CW: fetch name + episode stills for all series; poster/name for movies missing it ──
   const cwNeedsMeta = continueWatching.filter(e =>
     (e.media_type === 'series' && e.media_id.includes(':')) || (!e.poster && !e.name)
   );
@@ -217,7 +208,6 @@ export default function HomePage() {
           const episode = parts[2] ? parseInt(parts[2], 10) : undefined;
           try {
             if (entry.media_type === 'series' && season !== undefined && episode !== undefined) {
-              // Look up TMDB ID via IMDb ID, then fetch episode still
               if (season > 0) {
                 const findRes = await fetch(
                   `https://api.themoviedb.org/3/find/${baseId}?api_key=${TMDB_API_KEY}&external_source=imdb_id`
@@ -242,7 +232,6 @@ export default function HomePage() {
                   }
                 }
               }
-              // Fallback to stremio meta + video thumbnail
               if (manifest?.transportUrl) {
                 const meta = await fetchMeta(manifest.transportUrl, entry.media_type, baseId);
                 if (meta) {
@@ -266,17 +255,14 @@ export default function HomePage() {
     staleTime: 60 * 60 * 1000,
   });
 
-  // ── CW: click → open player overlay immediately ──
   function handleCwPlay(item: WatchProgressEntry) {
     const fallback = cwMetas?.[item.media_id];
     const baseId = item.media_id.split(':')[0];
     const displayName = item.name ?? fallback?.name ?? baseId;
     const watchTitle = formatContinueWatchingTitle({ mediaId: item.media_id, mediaType: item.media_type, name: displayName });
-    // Series: prefer episode still (landscape) as poster; movies use portrait poster
     const poster = (item.media_type === 'series' && item.media_id.includes(':'))
       ? (fallback?.poster ?? item.poster ?? undefined)
       : (item.poster ?? fallback?.poster ?? undefined);
-    // Logo + background: available when item is also in the featured carousel
     const featuredMeta = featuredMetas[baseId];
     const logo = featuredMeta?.logo ?? undefined;
     const background = featuredMeta?.background ?? featuredBackdrops[baseId] ?? undefined;
@@ -299,30 +285,32 @@ export default function HomePage() {
 
   if (initialLoading) {
     return (
-      <Sidebar>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="animate-spin rounded-full h-6 w-6 border-2 border-moonlit-accent border-t-transparent" />
-        </div>
-      </Sidebar>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-6 w-6 border-2 border-[#e50914] border-t-transparent" />
+      </div>
     );
   }
 
+  const currentBackdrop =
+    featuredItems.length > 0
+      ? (() => {
+          const f = featuredItems[featuredIndex] ?? featuredItems[0];
+          const m = featuredMetas[f.item.id] ?? null;
+          return m?.background || featuredBackdrops[f.item.id] || f.item.banner || null;
+        })()
+      : null;
+
   return (
-    <Sidebar>
-      <CinematicBackground
-        backdropUrl={
-          (() => {
-            if (featuredItems.length === 0) return null;
-            const f = featuredItems[featuredIndex] ?? featuredItems[0];
-            const m = featuredMetas[f.item.id] ?? null;
-            return m?.background || featuredBackdrops[f.item.id] || f.item.banner || null;
-          })()
-        }
-      />
+    <>
+      <FusionBackground backdropUrl={currentBackdrop} heroHeight={heroHeight} />
+
       {featuredItems.length > 0 && (
-        <div className="-mt-16"
+        <div
+          ref={heroRef}
+          className="relative"
           onMouseEnter={() => { heroPausedRef.current = true; }}
-          onMouseLeave={() => { heroPausedRef.current = false; }}>
+          onMouseLeave={() => { heroPausedRef.current = false; }}
+        >
           <HomeHero
             featuredItems={featuredItems}
             activeIndex={featuredIndex}
@@ -333,13 +321,11 @@ export default function HomePage() {
         </div>
       )}
 
-      <div className="px-6 pb-12">
+      <div className="px-8 md:px-14 pb-16">
         {/* Continue Watching */}
         {continueWatching.length > 0 && (
           <section className="mb-10">
-            <div className="flex items-baseline justify-between mb-4 pr-1">
-              <h2 className="text-[21px] font-bold text-white">Continue Watching</h2>
-            </div>
+            <h2 className="text-[19px] font-bold text-white mb-4">Continue Watching</h2>
             <div className="flex gap-3 overflow-x-auto py-3 -my-3 scrollbar-hide">
               {continueWatching.map(item => {
                 const fallback = cwMetas?.[item.media_id];
@@ -352,30 +338,25 @@ export default function HomePage() {
                   ? Math.min(100, (item.position_seconds / item.duration_seconds) * 100)
                   : 0;
                 return (
-                  <motion.button
+                  <button
                     key={item.id}
-                    whileHover={{ scale: TILE_HOVER_SCALE }}
-                    transition={SPRING.continueWatching}
                     onClick={() => handleCwPlay(item)}
-                    className="flex-shrink-0 w-80 cursor-pointer text-left"
+                    className="media-card w-[320px] text-left"
                   >
-                    <div className="relative h-44 bg-moonlit-elevated rounded-ml-lg overflow-hidden mb-2 border border-white/5 hover:border-white/[0.14] hover:shadow-ml-lift transition-all duration-300">
+                    <div className="relative h-[180px] bg-[#2a2a2a] rounded overflow-hidden mb-2 border border-white/[0.06]">
                       {poster ? (
                         <img src={poster} alt={name || item.media_id}
                           className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-white/15" viewBox="0 0 24 24" fill="currentColor">
+                          <svg className="w-6 h-6 text-white/10" viewBox="0 0 24 24" fill="currentColor">
                             <path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z"/>
                           </svg>
                         </div>
                       )}
-                      {/* Frosted scrim + metadata overlay (matches iOS ContinueWatchingCard) */}
-                      <div className="absolute inset-x-0 bottom-0 h-12 backdrop-blur-[3px] [mask-image:linear-gradient(to_top,black_35%,transparent)]" />
-                      <div className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/75 via-black/15 to-transparent" />
-                      {/* White progress bar */}
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
                       <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20">
-                        <div className="h-full bg-white transition-all duration-500" style={{ width: `${progressPct}%` }} />
+                        <div className="h-full bg-[#e50914] transition-all duration-500" style={{ width: `${progressPct}%` }} />
                       </div>
                       <div className="absolute inset-x-0 bottom-[5px] flex items-end justify-between gap-2 px-3 pb-2.5">
                         <span className="text-[11px] font-bold text-white drop-shadow-md">
@@ -386,8 +367,8 @@ export default function HomePage() {
                         </span>
                       </div>
                     </div>
-                    <p className="text-[13px] text-white font-medium truncate">{name || item.media_id}</p>
-                  </motion.button>
+                    <p className="text-[13px] text-[#b3b3b3] font-medium truncate group-hover:text-white transition-colors">{name || item.media_id}</p>
+                  </button>
                 );
               })}
             </div>
@@ -401,9 +382,6 @@ export default function HomePage() {
           </div>
         ) : null}
 
-        {/* Render every collection row in its original (iOS) order — group-tile
-            rows as CollectionRow, content rows as MediaRow. Empty content rows
-            (e.g. unfetched supplementary addon catalogs) are dropped. */}
         {collectionRows
           .filter(row => row.isGroupTile || row.items.length > 0)
           .map(row => row.isGroupTile ? (
@@ -433,6 +411,6 @@ export default function HomePage() {
             <MediaRow key={row.id} title={row.title} titleLogo={row.titleLogo} items={row.items} />
           ))}
       </div>
-    </Sidebar>
+    </>
   );
 }

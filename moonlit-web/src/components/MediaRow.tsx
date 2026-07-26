@@ -1,24 +1,18 @@
 import { MetaPreview } from '@/lib/types';
 import { Link } from '@tanstack/react-router';
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { SPRING, TILE_HOVER_SCALE } from '@/lib/design/motion';
 
 function MediaCard({ item }: { item: MetaPreview }) {
   const [imgError, setImgError] = useState(false);
 
   return (
-    <motion.div
-      whileHover={{ scale: TILE_HOVER_SCALE }}
-      transition={SPRING.tileHover}
-      className="flex-shrink-0 cursor-pointer"
-    >
+    <div className="media-card" style={{ width: 160 }}>
       <Link
         to="/browse/$type/$id"
         params={{ type: item.type, id: item.id }}
         className="block"
       >
-        <div className="relative w-[172px] md:w-[196px] lg:w-[216px] aspect-[2/3] overflow-hidden rounded-ml-card bg-moonlit-elevated mb-2 border border-white/5 hover:border-white/[0.14] hover:shadow-ml-lift transition-shadow duration-300">
+        <div className="relative w-full aspect-[2/3] overflow-hidden rounded bg-[#2a2a2a] mb-2 border border-white/[0.06]">
           {item.poster && !imgError ? (
             <img
               src={item.poster}
@@ -28,8 +22,8 @@ function MediaCard({ item }: { item: MetaPreview }) {
               onError={() => setImgError(true)}
             />
           ) : (
-            <div className="w-full h-full flex items-center justify-center bg-moonlit-elevated">
-              <span className="text-xs text-white/20 text-center px-3 line-clamp-3">{item.name}</span>
+            <div className="w-full h-full flex items-center justify-center bg-[#2a2a2a]">
+              <span className="text-xs text-white/15 text-center px-3 line-clamp-3">{item.name}</span>
             </div>
           )}
 
@@ -40,14 +34,14 @@ function MediaCard({ item }: { item: MetaPreview }) {
           )}
         </div>
 
-        <p className="text-[13px] font-medium text-white/80 truncate hover:text-white transition-colors leading-tight">
+        <p className="text-[13px] font-medium text-[#b3b3b3] truncate group-hover:text-white transition-colors leading-tight">
           {item.name}
         </p>
         {item.releaseInfo && (
           <p className="text-[11px] text-white/30 mt-0.5 leading-tight">{item.releaseInfo}</p>
         )}
       </Link>
-    </motion.div>
+    </div>
   );
 }
 
@@ -61,32 +55,29 @@ interface MediaRowProps {
 export function MediaRow({ title, items, viewAllHref, titleLogo }: MediaRowProps) {
   return (
     <section className="mb-10">
-      <div className="flex items-center justify-between mb-4 pr-1">
+      <div className="flex items-center justify-between mb-4">
         {titleLogo ? (
           <img src={titleLogo} alt={title} className="h-6 object-contain object-left" />
         ) : (
-          <h2 className="text-[21px] font-bold text-white">{title}</h2>
+          <h2 className="text-[17px] font-bold text-white">{title}</h2>
         )}
         {viewAllHref && (
           <Link
             to={viewAllHref as any}
-            className="flex items-center justify-center w-8 h-8 rounded-full bg-white/10 text-white/60 hover:text-white/90 transition-colors flex-shrink-0"
-            aria-label={`View all ${title}`}
+            className="text-[13px] text-[#b3b3b3] hover:text-white font-medium transition-colors"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
-            </svg>
+            Explore All
           </Link>
         )}
       </div>
       {items && items.length > 0 ? (
-        <div className="flex gap-3 overflow-x-auto py-3 -my-3 scrollbar-hide -mx-1 px-1">
+        <div className="flex gap-2.5 overflow-x-auto py-2 -my-2 scrollbar-hide">
           {items.map(item => (
             <MediaCard key={`${item.type}-${item.id}`} item={item} />
           ))}
         </div>
       ) : (
-        <p className="text-[13px] text-white/25 italic px-1">Loading...</p>
+        <p className="text-[13px] text-white/25 italic">Loading...</p>
       )}
     </section>
   );

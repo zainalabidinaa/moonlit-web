@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/app/AuthProvider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Sidebar } from '@/components/Sidebar';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { getInstalledAddons, saveInstalledAddons } from '@/lib/services/api';
 import { fetchManifest } from '@/lib/stremio';
@@ -10,8 +9,6 @@ import { AddonManifest } from '@/lib/types';
 import { useNavigate } from '@tanstack/react-router';
 import { getStreamingServerUrl, setStreamingServerUrl } from '@/lib/config';
 import { pingServer } from '@/lib/streaming-server';
-
-// ── Addon capability helpers ──────────────────────────────────────────────
 
 function getAddonCapabilities(manifest: AddonManifest): string[] {
   if (!manifest.resources) return [];
@@ -31,13 +28,11 @@ const CAPABILITY_LABELS: Record<string, { label: string; color: string }> = {
 function CapabilityBadge({ cap }: { cap: string }) {
   const cfg = CAPABILITY_LABELS[cap] ?? { label: cap, color: 'text-white/50 bg-white/5 border-white/10' };
   return (
-    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${cfg.color}`}>
+    <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${cfg.color}`}>
       {cfg.label}
     </span>
   );
 }
-
-// ── Section label (matches iOS "GENERAL", "PLAYBACK" etc.) ───────────────
 
 function SectionLabel({ children }: { children: React.ReactNode }) {
   return (
@@ -46,8 +41,6 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
     </p>
   );
 }
-
-// ── iOS-style settings row ────────────────────────────────────────────────
 
 interface SettingsRowProps {
   iconBg: string;
@@ -66,7 +59,7 @@ function SettingsRow({ iconBg, icon, title, subtitle, value, chevron = true, onC
       className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.03] transition-colors text-left"
     >
       <div
-        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+        className="w-7 h-7 rounded flex items-center justify-center shrink-0"
         style={{ background: iconBg }}
       >
         {icon}
@@ -88,8 +81,6 @@ function SettingsRow({ iconBg, icon, title, subtitle, value, chevron = true, onC
 function RowDivider() {
   return <div className="h-px bg-white/[0.06] ml-14" />;
 }
-
-// ── Page ─────────────────────────────────────────────────────────────────
 
 export default function SettingsPage() {
   const { currentProfile, signOut, refreshAddons } = useAuth();
@@ -170,258 +161,243 @@ export default function SettingsPage() {
     serverUrl ? 'Not tested' : 'Off';
 
   return (
-    <Sidebar>
-      <div className="-mt-14 pt-14 pb-8 bg-gradient-to-b from-moonlit-elevated to-transparent">
-        <div className="px-6 pt-8 max-w-2xl mx-auto">
-          <h1 className="text-2xl font-bold text-white">Settings</h1>
+    <div className="px-6 md:px-14 py-8 max-w-2xl mx-auto">
+      <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
+
+      {/* Profile card */}
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <div className="px-4 py-3.5 flex items-center gap-3">
+          {currentProfile && <ProfileAvatar profile={currentProfile} size={44} className="shrink-0" />}
+          <div className="flex-1 min-w-0">
+            <p className="font-semibold text-white text-sm">{currentProfile?.name}</p>
+            <p className="text-xs text-moonlit-muted mt-0.5">{currentProfile?.role === 'admin' ? 'Administrator' : 'Member'}</p>
+          </div>
+          <button onClick={() => navigate({ to: '/profiles' })}
+            className="text-xs text-white/80 font-semibold px-3 py-1.5 rounded bg-white/8 border border-white/[0.12] hover:bg-white/15 transition-colors shrink-0">
+            Switch
+          </button>
         </div>
       </div>
 
-      <div className="px-6 pb-16 max-w-2xl mx-auto">
+      <SectionLabel>General</SectionLabel>
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <SettingsRow
+          iconBg="#2C7DE8"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M3 3h18v2H3zm0 4h18v2H3zm0 4h12v2H3zm0 4h12v2H3zm0 4h18v2H3z"/></svg>}
+          title="Metadata"
+          subtitle="TMDB · TVDB sources"
+          chevron={false}
+          value="TMDB"
+        />
+      </div>
 
-        {/* ── Profile card ── */}
-        <div className="mt-2 rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
-          <div className="px-4 py-3.5 flex items-center gap-3">
-            {currentProfile && <ProfileAvatar profile={currentProfile} size={44} className="shrink-0" />}
-            <div className="flex-1 min-w-0">
-              <p className="font-semibold text-white text-sm">{currentProfile?.name}</p>
-              <p className="text-xs text-moonlit-muted mt-0.5">{currentProfile?.role === 'admin' ? 'Administrator' : 'Member'}</p>
-            </div>
-            <button onClick={() => navigate({ to: '/profiles' })}
-              className="text-xs text-white/80 font-semibold px-3 py-1.5 rounded-lg bg-white/8 border border-white/[0.12] hover:bg-white/15 transition-colors shrink-0">
-              Switch
-            </button>
+      {currentProfile?.role === 'admin' && (
+        <>
+          <SectionLabel>Admin</SectionLabel>
+          <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+            <SettingsRow
+              iconBg="#636366"
+              icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4zm0 6a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm-4 9a4 4 0 018 0H8z"/></svg>}
+              title="Admin Dashboard"
+              subtitle="Collections, invite codes & stats"
+              onClick={() => navigate({ to: '/admin' })}
+            />
           </div>
-        </div>
+        </>
+      )}
 
-        {/* ── GENERAL ── */}
-        <SectionLabel>General</SectionLabel>
-        <div className="rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
-          <SettingsRow
-            iconBg="#2C7DE8"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M3 3h18v2H3zm0 4h18v2H3zm0 4h12v2H3zm0 4h12v2H3zm0 4h18v2H3z"/></svg>}
-            title="Metadata"
-            subtitle="TMDB · TVDB sources"
-            chevron={false}
-            value="TMDB"
-          />
-        </div>
+      <SectionLabel>Content Management</SectionLabel>
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <SettingsRow
+          iconBg="#5956D6"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>}
+          title="Addons"
+          subtitle={isLoading ? 'Loading…' : `${addonUrls.length} installed`}
+          onClick={() => setShowAddons(v => !v)}
+        />
 
-        {/* ── ADMIN (admin only) ── */}
         {currentProfile?.role === 'admin' && (
           <>
-            <SectionLabel>Admin</SectionLabel>
-            <div className="rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
-              <SettingsRow
-                iconBg="#636366"
-                icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4zm0 6a2.5 2.5 0 100 5 2.5 2.5 0 000-5zm-4 9a4 4 0 018 0H8z"/></svg>}
-                title="Admin Dashboard"
-                subtitle="Collections, invite codes & stats"
-                onClick={() => navigate({ to: '/admin' })}
-              />
-            </div>
+            <RowDivider />
+            <SettingsRow
+              iconBg="#30A46C"
+              icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm12-1a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/></svg>}
+              title="Catalog Management"
+              subtitle="Manage content catalogs"
+              onClick={() => navigate({ to: '/admin' })}
+            />
+            <RowDivider />
+            <SettingsRow
+              iconBg="#E54D2E"
+              icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M2 6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm14.5 5.5a.5.5 0 01.5.5v4a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-4a.5.5 0 01.5-.5h3z"/></svg>}
+              title="Hero Management"
+              subtitle="Configure featured content"
+              onClick={() => navigate({ to: '/admin' })}
+            />
           </>
         )}
 
-        {/* ── CONTENT MANAGEMENT ── */}
-        <SectionLabel>Content Management</SectionLabel>
-        <div className="rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
-          <SettingsRow
-            iconBg="#5956D6"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>}
-            title="Addons"
-            subtitle={isLoading ? 'Loading…' : `${addonUrls.length} installed`}
-            onClick={() => setShowAddons(v => !v)}
-          />
-
-          {currentProfile?.role === 'admin' && (
-            <>
-              <RowDivider />
-              <SettingsRow
-                iconBg="#30A46C"
-                icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zm0 8a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6zm12-1a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/></svg>}
-                title="Catalog Management"
-                subtitle="Manage content catalogs"
-                onClick={() => navigate({ to: '/admin' })}
-              />
-              <RowDivider />
-              <SettingsRow
-                iconBg="#E54D2E"
-                icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M2 6a2 2 0 012-2h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6zm14.5 5.5a.5.5 0 01.5.5v4a.5.5 0 01-.5.5h-3a.5.5 0 01-.5-.5v-4a.5.5 0 01.5-.5h3z"/></svg>}
-                title="Hero Management"
-                subtitle="Configure featured content"
-                onClick={() => navigate({ to: '/admin' })}
-              />
-            </>
-          )}
-
-          {showAddons && (
-            <div className="border-t border-moonlit-border">
-              {isLoading ? (
-                <div className="p-5 flex justify-center">
-                  <div className="w-5 h-5 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
-                </div>
-              ) : (
-                <div className="divide-y divide-moonlit-border">
-                  {addonUrls.map(url => {
-                    const manifest = manifestCache[url];
-                    const caps = manifest ? getAddonCapabilities(manifest) : [];
-                    const isDefault = DEFAULT_ADDONS.includes(url);
-                    return (
-                      <div key={url} className="px-4 py-3.5 flex items-start justify-between gap-3">
-                        <div className="flex items-start gap-3 min-w-0 flex-1">
-                          {manifest?.logo && (
-                            <img src={manifest.logo} alt="" width={32} height={32} loading="eager"
-                              className="w-8 h-8 rounded-lg object-contain bg-white/5 shrink-0 mt-0.5" />
-                          )}
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-semibold text-white truncate">
-                                {manifest?.name || url.split('/')[2] || url}
-                              </p>
-                              {isDefault && (
-                                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/8 text-white/40 border border-white/10">
-                                  Built-in
-                                </span>
-                              )}
-                            </div>
-                            {caps.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1.5">
-                                {caps.map(cap => <CapabilityBadge key={cap} cap={cap} />)}
-                              </div>
-                            )}
-                            <p className="text-[10px] text-white/20 mt-1 truncate">{url}</p>
-                          </div>
-                        </div>
-                        {!isDefault && (
-                          <button onClick={() => handleRemove(url)}
-                            className="text-xs text-red-400/70 hover:text-red-400 border border-red-400/20 hover:border-red-400/40 px-2.5 py-1 rounded-lg transition-all shrink-0 mt-0.5">
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-
-              {/* Install input */}
-              <div className="p-4 border-t border-moonlit-border space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    value={newUrl}
-                    onChange={e => { setNewUrl(e.target.value); setInstallError(''); }}
-                    onKeyDown={e => e.key === 'Enter' && !installing && handleInstall()}
-                    placeholder="https://.../manifest.json"
-                    className="flex-1 px-4 py-2.5 bg-moonlit-elevated rounded-xl text-white placeholder-moonlit-muted focus:outline-none focus:ring-1 focus:ring-moonlit-accent text-sm border border-moonlit-border"
-                  />
-                  <button
-                    onClick={handleInstall}
-                    disabled={!newUrl.trim() || installing}
-                     className="px-4 py-2.5 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[80px] flex items-center justify-center"
-                  >
-                    {installing
-                      ? <div className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black animate-spin-arc" />
-                      : 'Install'}
-                  </button>
-                </div>
-                {installError && <p className="text-xs text-red-400">{installError}</p>}
-                <p className="text-[11px] text-moonlit-muted">
-                  Paste a Stremio addon manifest URL. Streaming addons will appear immediately in Sources.
-                </p>
+        {showAddons && (
+          <div className="border-t border-white/10">
+            {isLoading ? (
+              <div className="p-5 flex justify-center">
+                <div className="w-5 h-5 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
               </div>
-            </div>
-          )}
-        </div>
+            ) : (
+              <div className="divide-y divide-white/10">
+                {addonUrls.map(url => {
+                  const manifest = manifestCache[url];
+                  const caps = manifest ? getAddonCapabilities(manifest) : [];
+                  const isDefault = DEFAULT_ADDONS.includes(url);
+                  return (
+                    <div key={url} className="px-4 py-3.5 flex items-start justify-between gap-3">
+                      <div className="flex items-start gap-3 min-w-0 flex-1">
+                        {manifest?.logo && (
+                          <img src={manifest.logo} alt="" width={32} height={32} loading="eager"
+                            className="w-8 h-8 rounded object-contain bg-white/5 shrink-0 mt-0.5" />
+                        )}
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="text-sm font-semibold text-white truncate">
+                              {manifest?.name || url.split('/')[2] || url}
+                            </p>
+                            {isDefault && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-white/8 text-white/40 border border-white/10">
+                                Built-in
+                              </span>
+                            )}
+                          </div>
+                          {caps.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {caps.map(cap => <CapabilityBadge key={cap} cap={cap} />)}
+                            </div>
+                          )}
+                          <p className="text-[10px] text-white/20 mt-1 truncate">{url}</p>
+                        </div>
+                      </div>
+                      {!isDefault && (
+                        <button onClick={() => handleRemove(url)}
+                          className="text-xs text-red-400/70 hover:text-red-400 border border-red-400/20 hover:border-red-400/40 px-2.5 py-1 rounded transition-all shrink-0 mt-0.5">
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
-        {/* ── PLAYBACK ── */}
-        <SectionLabel>Playback</SectionLabel>
-        <div className="rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
-          <SettingsRow
-            iconBg="#FF3B30"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm6 7.5l5 2.5-5 2.5v-5z"/></svg>}
-            title="Video Player"
-            subtitle="Playback quality & behavior"
-            chevron={false}
-            value="Default"
-          />
-          <RowDivider />
-          <SettingsRow
-            iconBg="#636366"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h14v2H3z"/></svg>}
-            title="Subtitles"
-            subtitle="Language & styling"
-            chevron={false}
-            value="Off"
-          />
-          <RowDivider />
-          <SettingsRow
-            iconBg="#5856D6"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M8 5v14l11-7z"/></svg>}
-            title="Stream Auto-Play"
-            subtitle="Automatically select best stream"
-            chevron={false}
-            value="On"
-          />
-          <RowDivider />
-          <SettingsRow
-            iconBg="#1A5FAB"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M19.59 12.41L8.59 1.41A2 2 0 005.76 3l-.01 18a2 2 0 002.83 1.59l11-11a2 2 0 000-2.83 2 2 0 00-.99-.35z"/></svg>}
-            title="Streaming Server"
-            subtitle={serverUrl || 'Not configured'}
-            value={serverStatusLabel}
-            onClick={() => setShowServer(v => !v)}
-          />
-
-          {showServer && (
-            <div className="p-4 border-t border-moonlit-border space-y-2">
+            <div className="p-4 border-t border-white/10 space-y-2">
               <div className="flex gap-2">
                 <input
-                  value={serverUrl}
-                  onChange={e => { setServerUrlState(e.target.value); setServerStatus('idle'); }}
-                  onKeyDown={e => e.key === 'Enter' && !testing && handleSaveServer()}
-                  placeholder="https://moonlit-stremio-server.up.railway.app"
-                  className="flex-1 px-4 py-2.5 bg-moonlit-elevated rounded-xl text-white placeholder-moonlit-muted focus:outline-none focus:ring-1 focus:ring-moonlit-accent text-sm border border-moonlit-border"
+                  value={newUrl}
+                  onChange={e => { setNewUrl(e.target.value); setInstallError(''); }}
+                  onKeyDown={e => e.key === 'Enter' && !installing && handleInstall()}
+                  placeholder="https://.../manifest.json"
+                  className="flex-1 px-4 py-2.5 bg-[#2a2a2a] rounded text-white placeholder-moonlit-muted focus:outline-none focus:ring-1 focus:ring-white/30 text-sm border border-white/10"
                 />
                 <button
-                  onClick={handleSaveServer}
-                  disabled={testing}
-                  className="px-4 py-2.5 bg-white text-black rounded-full text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[110px] flex items-center justify-center"
+                  onClick={handleInstall}
+                  disabled={!newUrl.trim() || installing}
+                   className="px-4 py-2.5 bg-white text-black rounded text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[80px] flex items-center justify-center"
                 >
-                  {testing
+                  {installing
                     ? <div className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black animate-spin-arc" />
-                    : 'Save & Test'}
+                    : 'Install'}
                 </button>
               </div>
-              <p className="text-[11px] text-moonlit-muted leading-relaxed">
-                Plays streams the browser can't (MKV, etc.) by remuxing them. Deploy from
-                <span className="text-white/50"> deploy/stremio-server/</span> on Railway or Render.
-                Leave blank to use direct play only.
+              {installError && <p className="text-xs text-red-400">{installError}</p>}
+              <p className="text-[11px] text-moonlit-muted">
+                Paste a Stremio addon manifest URL.
               </p>
             </div>
-          )}
-        </div>
-
-        {/* ── APP ── */}
-        <SectionLabel>App</SectionLabel>
-        <div className="rounded-2xl bg-moonlit-surface border border-moonlit-border overflow-hidden">
-          <SettingsRow
-            iconBg="#3A3A3C"
-            icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>}
-            title="Moonlit v1.0.0"
-            subtitle="Powered by Stremio addon ecosystem"
-            chevron={false}
-          />
-        </div>
-
-        {/* ── Sign Out ── */}
-        <button
-          onClick={signOut}
-          className="mt-6 w-full py-3.5 rounded-2xl bg-moonlit-surface border border-moonlit-border text-red-400 text-sm font-semibold hover:bg-red-500/5 transition-colors"
-        >
-          Sign Out
-        </button>
+          </div>
+        )}
       </div>
-    </Sidebar>
+
+      <SectionLabel>Playback</SectionLabel>
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <SettingsRow
+          iconBg="#FF3B30"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm6 7.5l5 2.5-5 2.5v-5z"/></svg>}
+          title="Video Player"
+          subtitle="Playback quality & behavior"
+          chevron={false}
+          value="Default"
+        />
+        <RowDivider />
+        <SettingsRow
+          iconBg="#636366"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h14v2H3z"/></svg>}
+          title="Subtitles"
+          subtitle="Language & styling"
+          chevron={false}
+          value="Off"
+        />
+        <RowDivider />
+        <SettingsRow
+          iconBg="#5856D6"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M8 5v14l11-7z"/></svg>}
+          title="Stream Auto-Play"
+          subtitle="Automatically select best stream"
+          chevron={false}
+          value="On"
+        />
+        <RowDivider />
+        <SettingsRow
+          iconBg="#1A5FAB"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M19.59 12.41L8.59 1.41A2 2 0 005.76 3l-.01 18a2 2 0 002.83 1.59l11-11a2 2 0 000-2.83 2 2 0 00-.99-.35z"/></svg>}
+          title="Streaming Server"
+          subtitle={serverUrl || 'Not configured'}
+          value={serverStatusLabel}
+          onClick={() => setShowServer(v => !v)}
+        />
+
+        {showServer && (
+          <div className="p-4 border-t border-white/10 space-y-2">
+            <div className="flex gap-2">
+              <input
+                value={serverUrl}
+                onChange={e => { setServerUrlState(e.target.value); setServerStatus('idle'); }}
+                onKeyDown={e => e.key === 'Enter' && !testing && handleSaveServer()}
+                placeholder="https://moonlit-stremio-server.up.railway.app"
+                className="flex-1 px-4 py-2.5 bg-[#2a2a2a] rounded text-white placeholder-moonlit-muted focus:outline-none focus:ring-1 focus:ring-white/30 text-sm border border-white/10"
+              />
+              <button
+                onClick={handleSaveServer}
+                disabled={testing}
+                className="px-4 py-2.5 bg-white text-black rounded text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[110px] flex items-center justify-center"
+              >
+                {testing
+                  ? <div className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black animate-spin-arc" />
+                  : 'Save & Test'}
+              </button>
+            </div>
+            <p className="text-[11px] text-moonlit-muted leading-relaxed">
+              Plays streams the browser can't (MKV, etc.) by remuxing them. Deploy from
+              <span className="text-white/50"> deploy/stremio-server/</span> on Railway or Render.
+            </p>
+          </div>
+        )}
+      </div>
+
+      <SectionLabel>App</SectionLabel>
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <SettingsRow
+          iconBg="#3A3A3C"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>}
+          title="Moonlit v1.0.0"
+          subtitle="Powered by Stremio addon ecosystem"
+          chevron={false}
+        />
+      </div>
+
+      <button
+        onClick={signOut}
+        className="mt-6 w-full py-3.5 rounded bg-[#1f1f1f] border border-white/10 text-red-400 text-sm font-semibold hover:bg-red-500/5 transition-colors"
+      >
+        Sign Out
+      </button>
+    </div>
   );
 }

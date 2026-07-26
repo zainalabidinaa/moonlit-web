@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useAuth } from '@/app/AuthProvider';
 import { useNavigate } from '@tanstack/react-router';
-import { Sidebar } from '@/components/Sidebar';
 import {
   getInviteCodes, generateInviteCode, revokeInviteCode, updateInviteCodeExpiration,
   getCollections, createCollection, deleteCollection,
@@ -164,31 +163,23 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <Sidebar>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
-        </div>
-      </Sidebar>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
+      </div>
     );
   }
 
   return (
-    <Sidebar>
-      <div className="-mt-14 pt-14 pb-8 bg-gradient-to-b from-moonlit-elevated to-transparent">
-        <div className="px-6 pt-8 max-w-4xl">
-          <h1 className="text-2xl font-bold text-white mb-6">Admin Panel</h1>
-          <div className="inline-flex items-center gap-1 p-1.5 bg-[#1e1e1e]/90 border border-white/10 rounded-full">
+    <div className="px-6 md:px-14 py-8 max-w-4xl mx-auto">
+      <h1 className="text-2xl font-bold text-white mb-6">Admin Panel</h1>
+      <div className="inline-flex items-center gap-1 p-1.5 bg-[#1e1e1e]/90 border border-white/10 rounded-full mb-6">
             {(['collections', 'codes', 'stats'] as Section[]).map(s => (
               <button key={s} onClick={() => setSection(s)}
                 className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-all ${section === s ? 'bg-white/12 text-white' : 'text-white/45 hover:text-white/70'}`}>
                 {s === 'codes' ? 'Invite Codes' : s.charAt(0).toUpperCase() + s.slice(1)}
               </button>
             ))}
-          </div>
-        </div>
       </div>
-
-      <div className="px-6 pb-12 max-w-4xl">
         {section === 'collections' && (
           <div>
             <div className="bg-moonlit-surface rounded-2xl p-4 mb-8">
@@ -303,7 +294,6 @@ export default function AdminPage() {
             ))}
           </div>
         )}
-      </div>
 
       {folderModal.open && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
@@ -349,6 +339,6 @@ export default function AdminPage() {
           </div>
         </div>
       )}
-    </Sidebar>
+    </div>
   );
 }

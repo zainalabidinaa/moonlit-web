@@ -3,7 +3,7 @@ import { useParams, Link, useNavigate } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/AuthProvider';
 import { usePlayer } from '@/app/PlayerProvider';
-import { Sidebar } from '@/components/Sidebar';
+import { FusionBackground } from '@/components/FusionBackground';
 import { MetaDetail, StreamItem, Season } from '@/lib/types';
 import { fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
 import { isInLibrary, toggleLibrary, getWatchProgress } from '@/lib/services/api';
@@ -33,11 +33,16 @@ export default function DetailPage() {
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const prefetchedRef = useRef<string | null>(null);
+  const heroRef = useRef<HTMLDivElement>(null);
+  const [heroHeight, setHeroHeight] = useState(0);
+
+  useEffect(() => {
+    if (heroRef.current) setHeroHeight(heroRef.current.getBoundingClientRect().height);
+  }, []);
 
   const { data, isLoading } = useQuery({
     queryKey: ['browse', type, id, currentProfile?.id],
     queryFn: async () => {
-      // Find meta from first addon that has it
       const metaAddons = addons.filter(a => a.resources?.some(r => (typeof r === 'string' ? r : r.name) === 'meta'));
       let detail: MetaDetail | null = null;
       for (const addon of metaAddons) {
@@ -61,16 +66,13 @@ export default function DetailPage() {
           getWatchProgress(currentProfile.id),
         ]);
         inLib = lib;
-        // Decode URL-encoded IDs before comparing (DB may store %3A instead of :)
         const decoded = progress.map(p => ({ ...p, media_id: decodeURIComponent(p.media_id) }));
         const entry = decoded.find(p => p.media_id === id || p.media_id.startsWith(id + ':'));
         if (entry && entry.position_seconds > 0) savedPosition = entry.position_seconds;
-        // Most recently watched episode for series resume
         const recentEpEntry = decoded
           .filter(p => p.media_id.startsWith(id + ':') && p.position_seconds > 0 && !p.completed)
           .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())[0] ?? null;
         if (recentEpEntry) recentEp = { mediaId: recentEpEntry.media_id, positionSec: recentEpEntry.position_seconds };
-        // Map of mediaId → progress fraction for episode thumbnails
         for (const p of decoded) {
           if (p.media_id.startsWith(id + ':') && p.duration_seconds > 0) {
             epProgress[p.media_id] = Math.min(1, p.position_seconds / p.duration_seconds);
@@ -95,17 +97,13 @@ export default function DetailPage() {
       trailers = [
         ...trailers,
         ...(enrichedMeta.trailers || [])
-          // Cinemeta uses `source` as the YouTube ID; others may use `youtubeId`
           .map((t: any) => ({ id: t.id || t.source, title: t.title || 'Trailer', youtubeId: t.youtubeId || t.source || '' }))
           .filter((t: any) => t.youtubeId),
       ];
 
-      // Deduplicate trailers by youtubeId
       const seenIds = new Set<string>();
       trailers = trailers.filter(t => { if (seenIds.has(t.youtubeId)) return false; seenIds.add(t.youtubeId); return true; });
 
-      // TMDB enrichment: fetch cast with profile photos.
-      // Try tmdbId from the addon first, otherwise look it up via IMDb ID.
       try {
         let tmdbId = enrichedMeta.tmdbId;
         if (!tmdbId && id.startsWith('tt')) {
@@ -114,9 +112,7 @@ export default function DetailPage() {
           );
           if (findRes.ok) {
             const findData = await findRes.json();
-            const hit = type === 'series'
-              ? findData.tv_results?.[0]
-              : findData.movie_results?.[0];
+            const hit = type === 'series' ? findData.tv_results?.[0] : findData.movie_results?.[0];
             if (hit?.id) tmdbId = String(hit.id);
           }
         }
@@ -163,7 +159,6 @@ export default function DetailPage() {
   const recentEp = data?.recentEp ?? null;
   const epProgress = data?.epProgress ?? {};
 
-  // Set initial season once data loads
   if (data?.initialSeason && !selectedSeason) {
     setSelectedSeason(data.initialSeason);
   }
@@ -174,8 +169,6 @@ export default function DetailPage() {
     queryClient.invalidateQueries({ queryKey: ['browse', type, id, currentProfile.id] });
   }
 
-  // Background prefetch: start fetching streams as soon as the page loads so
-  // clicking Play is instant. Re-runs when addons change (e.g. newly installed).
   useEffect(() => {
     if (!addons.length) return;
     const sid = selectedEpisodeId || id;
@@ -211,44 +204,29 @@ export default function DetailPage() {
       type, id: mediaId,
       streamUrl,
       streams,
-      metadata: {
-        mediaId, mediaType: type,
-        title: watchTitle,
-        logo: detail?.logo ?? undefined,
-        poster: detail?.poster ?? undefined,
-        background: detail?.background ?? undefined,
-      },
+      metadata: { mediaId, mediaType: type, title: watchTitle, logo: detail?.logo ?? undefined, poster: detail?.poster ?? undefined, background: detail?.background ?? undefined },
       startPosition: savedPositionSeconds > 0 ? savedPositionSeconds : undefined,
     });
   }
 
   function handleAutoPlay(streamId?: string) {
     const sid = streamId || id;
-    const cacheKey = `${type}:${sid}`;
     const ep = streamId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === streamId) : null;
     const watchTitle = ep
       ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}`
       : (detail?.name || '');
     openPlayer({
       type, id: sid,
-      metadata: {
-        mediaId: sid, mediaType: type,
-        title: watchTitle,
-        logo: detail?.logo ?? undefined,
-        poster: detail?.poster ?? undefined,
-        background: detail?.background ?? undefined,
-      },
+      metadata: { mediaId: sid, mediaType: type, title: watchTitle, logo: detail?.logo ?? undefined, poster: detail?.poster ?? undefined, background: detail?.background ?? undefined },
       startPosition: savedPositionSeconds > 0 ? savedPositionSeconds : undefined,
     });
   }
 
   if (isLoading) {
     return (
-      <Sidebar>
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
-        </div>
-      </Sidebar>
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
+      </div>
     );
   }
 
@@ -259,12 +237,12 @@ export default function DetailPage() {
 
   const trailersSection = trailers.length > 0 ? (
     <section className="mb-8">
-      <h3 className="text-sm font-bold text-white mb-4 px-6">Trailers &amp; Clips</h3>
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide -mx-0 px-6">
+      <h3 className="text-sm font-bold text-white mb-4">Trailers &amp; Clips</h3>
+      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
         {trailers.map(trailer => (
           <a key={trailer.id} href={`https://www.youtube.com/watch?v=${trailer.youtubeId}`}
             target="_blank" rel="noopener noreferrer" className="flex-shrink-0 w-52 group cursor-pointer">
-            <div className="relative w-52 h-[117px] rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2">
+            <div className="relative w-52 h-[117px] rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]">
               <img src={`https://img.youtube.com/vi/${trailer.youtubeId}/mqdefault.jpg`} alt={trailer.title}
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" />
               <div className="absolute bottom-2 right-2 bg-red-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">YouTube</div>
@@ -277,31 +255,32 @@ export default function DetailPage() {
   ) : null;
 
   return (
-    <Sidebar>
-      <div className="-mt-14 relative min-h-[85vh] flex items-end">
+    <>
+      <FusionBackground backdropUrl={backdropSrc} heroHeight={heroHeight} />
+
+      <div ref={heroRef} className="relative min-h-[70vh] flex items-end">
         {backdropSrc && (
           <div className="absolute inset-0 overflow-hidden">
             <img src={backdropSrc} alt="" className="w-full h-full object-cover object-[center_20%]" aria-hidden="true" />
           </div>
         )}
         {ambient && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ opacity: 0.55, transition: 'opacity 0.9s ease-in-out' }}>
-            <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${ambient[0]}66, transparent 60%)`, transition: 'background 0.9s ease-in-out' }} />
-            <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 70% 0%, ${ambient[1]}52, transparent 50%)`, transition: 'background 0.9s ease-in-out' }} />
+          <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ opacity: 0.5, transition: 'opacity 1.2s ease-in-out' }}>
+            <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${ambient[0]}66, transparent 60%)`, transition: 'background 1.2s ease-in-out' }} />
+            <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 70% 0%, ${ambient[1]}52, transparent 50%)`, transition: 'background 1.2s ease-in-out' }} />
           </div>
         )}
-        <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-b from-[#080808] to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-t from-moonlit-bg via-moonlit-bg/30 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-moonlit-bg/60 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/80 via-transparent to-transparent" />
 
-        <div className="relative z-10 w-full px-6 pt-28 pb-10 max-w-5xl">
+        <div className="relative z-10 w-full px-8 md:px-14 pt-28 pb-14 max-w-4xl">
           <div className="max-w-xl">
             {detail?.logo ? (
               <img src={detail.logo} alt={title} className="h-14 sm:h-20 object-contain object-left mb-3" />
             ) : (
               <h1 className="text-3xl sm:text-5xl font-bold tracking-tight mb-3 text-white">{title}</h1>
             )}
-            <div className="flex items-center gap-3 text-sm text-white/60 mb-4 flex-wrap">
+            <div className="flex items-center gap-3 text-sm text-white/50 mb-4 flex-wrap">
               {(detail as any)?.year && <span>{(detail as any).year}</span>}
               {detail?.runtime && <span>{detail.runtime}</span>}
               {detail?.imdbRating && (
@@ -316,63 +295,54 @@ export default function DetailPage() {
             {detail?.genres && detail.genres.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-4">
                 {detail.genres.slice(0, 5).map(g => (
-                  <span key={g} className="px-3 py-1 rounded-full bg-white/8 border border-white/10 text-xs text-white/70 font-medium">{g}</span>
+                  <span key={g} className="px-3 py-1 rounded bg-white/8 border border-white/10 text-xs text-white/60 font-medium">{g}</span>
                 ))}
               </div>
             )}
             {detail?.description && (
               <p className="text-sm text-white/50 leading-relaxed mb-6 line-clamp-3">{detail.description}</p>
             )}
-            {/* Primary Play (full-width) + circular glass actions, matches iOS DetailScreen */}
-            <div className="flex items-center gap-3 max-w-xl">
+            <div className="flex items-center gap-3">
               {!isSeries ? (
-                <button onClick={() => handleAutoPlay()}
-                  className="flex-1 flex items-center justify-center gap-2 px-8 py-3 bg-white hover:bg-white/90 text-black font-bold rounded-full transition-all active:scale-[0.98]">
-                  <PlayIcon />
-                  Play
+                <button onClick={() => handleAutoPlay()} className="btn-primary flex items-center gap-2">
+                  <PlayIcon /> Play
                 </button>
               ) : recentEp ? (
                 (() => {
                   const parts = recentEp.mediaId.split(':');
                   const s = parts[1], e = parts[2];
                   return (
-                    <button onClick={() => handleAutoPlay(recentEp.mediaId)}
-                      className="flex-1 flex items-center justify-center gap-2 px-8 py-3 bg-white hover:bg-white/90 text-black font-bold rounded-full transition-all active:scale-[0.98]">
-                      <PlayIcon />
-                      {s && e ? `Continue · S${s}E${e}` : 'Continue'}
+                    <button onClick={() => handleAutoPlay(recentEp.mediaId)} className="btn-primary flex items-center gap-2">
+                      <PlayIcon /> {s && e ? `Continue · S${s}E${e}` : 'Continue'}
                     </button>
                   );
                 })()
               ) : detail?.seasons?.[0]?.episodes?.[0] ? (
-                <button onClick={() => handleAutoPlay(detail.seasons![0].episodes![0].id)}
-                  className="flex-1 flex items-center justify-center gap-2 px-8 py-3 bg-white hover:bg-white/90 text-black font-bold rounded-full transition-all active:scale-[0.98]">
-                  <PlayIcon />
-                  Play First Episode
+                <button onClick={() => handleAutoPlay(detail.seasons![0].episodes![0].id)} className="btn-primary flex items-center gap-2">
+                  <PlayIcon /> Play First Episode
                 </button>
-              ) : <div className="flex-1" />}
+              ) : <div />}
 
-              {/* Watchlist (circular glass) */}
               <button onClick={handleToggleLibrary}
-                aria-label={inLibrary ? 'Remove from watchlist' : 'Add to watchlist'} title={inLibrary ? 'Saved' : 'Watchlist'}
-                className={`w-12 h-12 shrink-0 flex items-center justify-center rounded-full border backdrop-blur-sm transition-all active:scale-95 ${inLibrary ? 'bg-moonlit-accent/20 border-moonlit-accent/40 text-moonlit-accent' : 'bg-white/10 border-white/15 text-white hover:bg-white/18'}`}>
+                aria-label={inLibrary ? 'Remove from watchlist' : 'Add to watchlist'}
+                title={inLibrary ? 'Saved' : 'Watchlist'}
+                className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-full border transition-all active:scale-95 ${inLibrary ? 'bg-[#e50914]/20 border-[#e50914]/40 text-[#e50914]' : 'bg-white/8 border-white/10 text-white hover:bg-white/12'}`}>
                 <svg viewBox="0 0 24 24" fill={inLibrary ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
                 </svg>
               </button>
 
-              {/* Sources (movie only, circular glass) */}
               {!isSeries && (
                 <button onClick={() => loadStreams()} aria-label="Sources" title="Sources"
-                  className="w-12 h-12 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/15 text-white backdrop-blur-sm hover:bg-white/18 transition-all active:scale-95">
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/8 border border-white/10 text-white hover:bg-white/12 transition-all active:scale-95">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
                 </button>
               )}
 
-              {/* Trailer (circular glass) */}
               {trailers.length > 0 && trailers[0].youtubeId && (
                 <a href={`https://www.youtube.com/watch?v=${trailers[0].youtubeId}`} target="_blank" rel="noopener noreferrer"
                   aria-label="Trailer" title="Trailer"
-                  className="w-12 h-12 shrink-0 flex items-center justify-center rounded-full bg-white/10 border border-white/15 text-white backdrop-blur-sm hover:bg-white/18 transition-all active:scale-95">
+                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/8 border border-white/10 text-white hover:bg-white/12 transition-all active:scale-95">
                   <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 ml-0.5"><polygon points="5,3 19,12 5,21"/></svg>
                 </a>
               )}
@@ -381,13 +351,13 @@ export default function DetailPage() {
         </div>
       </div>
 
-      <div className="px-6 pb-12 max-w-5xl space-y-10">
+      <div className="px-8 md:px-14 pb-16 max-w-4xl space-y-10">
         {!isSeries && trailersSection}
 
         {detail?.cast && detail.cast.length > 0 && (
           <section>
             <h3 className="text-sm font-bold text-white mb-4">Cast &amp; Creators</h3>
-            <div className="flex gap-5 overflow-x-auto pb-3 scrollbar-hide -mx-6 px-6">
+            <div className="flex gap-5 overflow-x-auto pb-3 scrollbar-hide">
               {detail.cast.slice(0, 25).map(p => (
                 <div key={p.name} className="flex-shrink-0 text-center w-20">
                   <div className="w-20 h-20 rounded-full bg-white/5 mx-auto mb-2 overflow-hidden ring-1 ring-white/10">
@@ -405,7 +375,6 @@ export default function DetailPage() {
         )}
 
         {(() => {
-          // TMDB similar IDs are numeric; only IMDb-style (tt…) IDs can be browsed
           const similar = (detail?.moreLikeThis ?? []).filter(item => item.id.startsWith('tt'));
           if (similar.length === 0) return null;
           return (
@@ -414,14 +383,14 @@ export default function DetailPage() {
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
                 {similar.slice(0, 15).map(item => (
                   <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }} className="group cursor-pointer">
-                    <div className="relative aspect-[2/3] rounded-ml-card overflow-hidden bg-moonlit-elevated mb-2">
+                    <div className="relative aspect-[2/3] rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]">
                       {item.poster ? (
                         <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs font-semibold text-center px-2">{item.name}</div>
                       )}
                     </div>
-                    <p className="text-xs font-medium text-white/80 truncate">{item.name}</p>
+                    <p className="text-xs font-medium text-[#b3b3b3] truncate">{item.name}</p>
                     {item.releaseInfo && <p className="text-[10px] text-white/40 mt-0.5">{item.releaseInfo}</p>}
                   </Link>
                 ))}
@@ -440,7 +409,7 @@ export default function DetailPage() {
                 <div>
                   <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Network</h4>
                   <div className="flex gap-2 flex-wrap">
-                    {networks.map(l => <span key={l.url} className="px-3 py-1.5 rounded-ml-sm bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
+                    {networks.map(l => <span key={l.url} className="px-3 py-1.5 rounded bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
                   </div>
                 </div>
               )}
@@ -448,7 +417,7 @@ export default function DetailPage() {
                 <div>
                   <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Production</h4>
                   <div className="flex gap-2 flex-wrap">
-                    {studios.map(l => <span key={l.url} className="px-3 py-1.5 rounded-ml-sm bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
+                    {studios.map(l => <span key={l.url} className="px-3 py-1.5 rounded bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
                   </div>
                 </div>
               )}
@@ -472,12 +441,12 @@ export default function DetailPage() {
               <div className="space-y-1">
                 {streams.slice(0, 30).map((s, i) => (
                   <button key={s.url ? `${s.url}-${i}` : `stream-${i}`} onClick={() => handlePlay(s)}
-                    className="w-full text-left p-3 hover:bg-white/5 rounded-ml-sm transition-all flex items-center justify-between group">
+                    className="w-full text-left p-3 hover:bg-white/5 rounded transition-all flex items-center justify-between group">
                     <div className="min-w-0">
                       <p className="text-sm text-white truncate">{s.title || s.name || s.description || 'Unknown'}</p>
                       <p className="text-xs text-white/30 mt-0.5">{s.addonName}</p>
                     </div>
-                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/10 group-hover:bg-moonlit-accent/20 flex items-center justify-center ml-3 transition-colors opacity-0 group-hover:opacity-100">
+                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/10 group-hover:bg-[#e50914]/20 flex items-center justify-center ml-3 transition-colors opacity-0 group-hover:opacity-100">
                       <PlayIcon />
                     </div>
                   </button>
@@ -489,22 +458,22 @@ export default function DetailPage() {
       </div>
 
       {isSeries && detail?.seasons && detail.seasons.length > 0 && (
-        <section className="mb-10 px-6">
+        <section className="mb-10 px-8 md:px-14">
           <h3 className="text-sm font-semibold text-white mb-4">Episodes</h3>
           <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
             {detail.seasons.map(s => (
               <button key={s.id} onClick={() => { setSelectedSeason(s); setShowStreams(false); setSelectedEpisodeId(null); }}
-                className={`flex-shrink-0 px-4 py-2 rounded-full text-sm transition-all ${selectedSeason?.id === s.id ? 'bg-white text-black font-bold' : 'bg-white/5 text-white/60 font-medium hover:bg-white/10 hover:text-white'}`}>
+                className={`flex-shrink-0 px-4 py-2 rounded text-sm transition-all ${selectedSeason?.id === s.id ? 'bg-white text-black font-bold' : 'bg-white/5 text-white/60 font-medium hover:bg-white/10 hover:text-white'}`}>
                 Season {s.number}
               </button>
             ))}
           </div>
           {selectedSeason?.episodes && (
-            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide -mx-6 px-6">
+            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
               {selectedSeason.episodes.map(ep => (
                 <button key={ep.id} onClick={() => { setSelectedEpisodeId(ep.id); handleAutoPlay(ep.id); }}
-                  className={`flex-shrink-0 w-52 text-left group rounded-ml-card overflow-hidden transition-all ${selectedEpisodeId === ep.id ? 'ring-2 ring-white/60' : ''}`}>
-                  <div className="relative w-full aspect-video bg-moonlit-elevated rounded-ml-card overflow-hidden mb-2">
+                  className={`flex-shrink-0 w-52 text-left group rounded overflow-hidden transition-all ${selectedEpisodeId === ep.id ? 'ring-2 ring-white/60' : ''}`}>
+                  <div className="relative w-full aspect-video bg-[#2a2a2a] rounded overflow-hidden mb-2 border border-white/[0.06]">
                     {ep.thumbnail ? (
                       <img src={ep.thumbnail} alt={ep.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" />
                     ) : (
@@ -512,7 +481,7 @@ export default function DetailPage() {
                     )}
                     {epProgress[ep.id] !== undefined && epProgress[ep.id] > 0 && (
                       <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20">
-                        <div className="h-full bg-moonlit-accent" style={{ width: `${Math.round(epProgress[ep.id] * 100)}%` }} />
+                        <div className="h-full bg-[#e50914]" style={{ width: `${Math.round(epProgress[ep.id] * 100)}%` }} />
                       </div>
                     )}
                   </div>
@@ -527,8 +496,7 @@ export default function DetailPage() {
         </section>
       )}
 
-      {isSeries && <div className="px-6 pb-8 max-w-5xl">{trailersSection}</div>}
-
-    </Sidebar>
+      {isSeries && <div className="px-8 md:px-14 pb-8 max-w-4xl">{trailersSection}</div>}
+    </>
   );
 }

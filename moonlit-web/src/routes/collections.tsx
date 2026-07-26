@@ -3,7 +3,6 @@ import { useParams, Link } from '@tanstack/react-router';
 import { useAuth } from '@/app/AuthProvider';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AnyRouteParams = any;
-import { Sidebar } from '@/components/Sidebar';
 import { MetaPreview } from '@/lib/types';
 import { getFolder, getSystemAddon } from '@/lib/services/api';
 import { fetchCatalog } from '@/lib/stremio';
@@ -122,26 +121,22 @@ export default function FolderDetailPage() {
 
   if (isLoading) {
     return (
-      <Sidebar>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="flex gap-2">
-            {[1, 2, 3].map(i => (
-              <div key={i} className="w-2.5 h-2.5 rounded-full bg-white/20 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
-            ))}
-          </div>
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="flex gap-2">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="w-2.5 h-2.5 rounded-full bg-white/20 animate-pulse" style={{ animationDelay: `${i * 150}ms` }} />
+          ))}
         </div>
-      </Sidebar>
+      </div>
     );
   }
 
   if (isError || !data) {
     return (
-      <Sidebar>
-        <div className="flex flex-col items-center justify-center min-h-screen text-moonlit-muted px-4">
-          <p className="text-sm font-medium">This folder is no longer available</p>
-          <p className="text-xs mt-1 opacity-60">The collection configuration may have changed.</p>
-        </div>
-      </Sidebar>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-moonlit-muted px-4">
+        <p className="text-sm font-medium">This folder is no longer available</p>
+        <p className="text-xs mt-1 opacity-60">The collection configuration may have changed.</p>
+      </div>
     );
   }
 
@@ -153,9 +148,9 @@ export default function FolderDetailPage() {
     : false;
 
   return (
-    <Sidebar>
+    <div>
       {heroImage && (
-        <div className="-mt-14 relative overflow-hidden" style={{ height: '220px' }}>
+        <div className="relative overflow-hidden" style={{ height: '220px' }}>
           <img
             src={heroImage}
             alt=""
@@ -242,7 +237,7 @@ export default function FolderDetailPage() {
           </div>
         )}
       </div>
-    </Sidebar>
+    </div>
   );
 }
 

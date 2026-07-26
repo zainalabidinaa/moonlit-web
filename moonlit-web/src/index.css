@@ -4,7 +4,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Montserrat ExtraBold — same file the Mac app bundles (wordmark/branding) */
 @font-face {
   font-family: 'Montserrat';
   src: url('/fonts/Montserrat-ExtraBold.ttf') format('truetype');
@@ -13,40 +12,33 @@
   font-display: swap;
 }
 
+/* ── Netflix-style CSS custom property animations ────────────────────────── */
+@property --fusion-color-a-r { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --fusion-color-a-g { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --fusion-color-a-b { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --fusion-color-b-r { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --fusion-color-b-g { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --fusion-color-b-b { syntax: '<number>'; initial-value: 0; inherits: false; }
+@property --fusion-drift-1 { syntax: '<percentage>'; initial-value: 25%; inherits: false; }
+@property --fusion-drift-2 { syntax: '<percentage>'; initial-value: 75%; inherits: false; }
+
 :root {
-  /* Mac palette (MoonlitTheme) */
-  --bg: #0D0D0D;
-  --surface: #1A1A1A;
-  --elevated: #242424;
-  --border: rgba(255, 255, 255, 0.08);
-  /* White accent system; gold reserved for ratings/badges/selected pills */
-  --accent: #FFFFFF;
-  --accent-dim: rgba(255, 255, 255, 0.70);
-  --accent-glow: rgba(255, 255, 255, 0.12);
+  --bg: #141414;
+  --surface: #1f1f1f;
+  --elevated: #2a2a2a;
+  --border: rgba(255, 255, 255, 0.10);
+  --accent: #e50914;
+  --accent-dim: rgba(229, 9, 20, 0.70);
+  --accent-glow: rgba(229, 9, 20, 0.12);
   --gold: #D4AF37;
   --text: #FFFFFF;
-  --text-secondary: rgba(255, 255, 255, 0.70);
-  --text-tertiary: rgba(255, 255, 255, 0.50);
-  --muted: rgba(255, 255, 255, 0.50);
+  --text-secondary: #b3b3b3;
+  --text-tertiary: #808080;
+  --muted: #808080;
 
-  /* Oklch genre gradients (OklchPalette) — from/to pairs */
-  --genre-action-from: oklch(0.40 0.18 25);      --genre-action-to: oklch(0.18 0.10 20);
-  --genre-adventure-from: oklch(0.42 0.14 90);   --genre-adventure-to: oklch(0.20 0.08 85);
-  --genre-thriller-from: oklch(0.34 0.12 275);   --genre-thriller-to: oklch(0.16 0.06 270);
-  --genre-crime-from: oklch(0.36 0.10 250);      --genre-crime-to: oklch(0.16 0.05 245);
-  --genre-drama-from: oklch(0.40 0.12 55);       --genre-drama-to: oklch(0.18 0.07 50);
-  --genre-romance-from: oklch(0.44 0.16 350);    --genre-romance-to: oklch(0.20 0.09 345);
-  --genre-mystery-from: oklch(0.32 0.10 300);    --genre-mystery-to: oklch(0.14 0.05 295);
-  --genre-scifi-from: oklch(0.38 0.16 285);      --genre-scifi-to: oklch(0.18 0.10 280);
-  --genre-fantasy-from: oklch(0.40 0.15 310);    --genre-fantasy-to: oklch(0.18 0.09 305);
-  --genre-horror-from: oklch(0.30 0.10 15);      --genre-horror-to: oklch(0.10 0.04 20);
-  --genre-comedy-from: oklch(0.48 0.15 85);      --genre-comedy-to: oklch(0.22 0.09 80);
-  --genre-family-from: oklch(0.46 0.13 145);     --genre-family-to: oklch(0.20 0.08 140);
-  --genre-animation-from: oklch(0.46 0.15 200);  --genre-animation-to: oklch(0.20 0.09 195);
-  --genre-western-from: oklch(0.42 0.11 70);     --genre-western-to: oklch(0.18 0.07 65);
-  --genre-war-from: oklch(0.36 0.09 110);        --genre-war-to: oklch(0.16 0.05 105);
-  --genre-documentary-from: oklch(0.40 0.10 220);--genre-documentary-to: oklch(0.18 0.06 215);
-  --genre-default-from: oklch(0.36 0.06 260);    --genre-default-to: oklch(0.16 0.03 255);
+  /* Fusion charcoal base stops */
+  --fusion-charcoal-top: #3B3B3B;
+  --fusion-charcoal-bottom: #161616;
 }
 
 body {
@@ -57,63 +49,103 @@ body {
   overflow-x: hidden;
 }
 
+/* ── Fusion ambient background ──────────────────────────────────────────── */
+.fusion-bg-base {
+  background: linear-gradient(
+    to bottom,
+    var(--fusion-charcoal-top) 0%,
+    var(--fusion-charcoal-bottom) 100%
+  );
+}
+
+.fusion-bg-wash {
+  background:
+    radial-gradient(ellipse 80% 60% at var(--fusion-drift-1) 30%,
+      rgb(
+        calc(var(--fusion-color-a-r)),
+        calc(var(--fusion-color-a-g)),
+        calc(var(--fusion-color-a-b))
+      ) 0%,
+      transparent 70%
+    ),
+    radial-gradient(ellipse 60% 50% at var(--fusion-drift-2) 50%,
+      rgb(
+        calc(var(--fusion-color-b-r)),
+        calc(var(--fusion-color-b-g)),
+        calc(var(--fusion-color-b-b))
+      ) 0%,
+      transparent 70%
+    );
+  filter: blur(30px);
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 18%,
+    black 72%,
+    transparent 100%
+  );
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 18%,
+    black 72%,
+    transparent 100%
+  );
+}
+
+.fusion-bg-backdrop {
+  filter: blur(30px) saturate(0.28) brightness(0.14);
+  object-fit: cover;
+  object-position: center 20%;
+}
+
+@keyframes fusion-drift {
+  0%, 100% { --fusion-drift-1: 22%; --fusion-drift-2: 78%; }
+  33% { --fusion-drift-1: 28%; --fusion-drift-2: 72%; }
+  66% { --fusion-drift-1: 18%; --fusion-drift-2: 82%; }
+}
+
+.fusion-bg-animate {
+  animation: fusion-drift 20s ease-in-out infinite;
+  transition:
+    --fusion-color-a-r 1.2s ease-in-out,
+    --fusion-color-a-g 1.2s ease-in-out,
+    --fusion-color-a-b 1.2s ease-in-out,
+    --fusion-color-b-r 1.2s ease-in-out,
+    --fusion-color-b-g 1.2s ease-in-out,
+    --fusion-color-b-b 1.2s ease-in-out;
+}
+
 @layer components {
-  /* ── Glass vocabulary (MacGlass parity) ─────────────────────────────── */
-  .glass-card {
-    @apply backdrop-blur-xl bg-white/5 border border-white/10 rounded-ml-lg;
-  }
-  .glass-dark-card {
-    @apply backdrop-blur-xl bg-black/40 rounded-ml-lg;
-    border: 0.8px solid rgba(255, 255, 255, 0.16);
-  }
-  .glass-capsule {
-    @apply backdrop-blur-xl bg-white/10 rounded-full;
-    border: 0.8px solid rgba(255, 255, 255, 0.16);
-  }
-  .glass-dark-capsule {
-    @apply backdrop-blur-xl bg-black/40 rounded-full;
-    border: 0.8px solid rgba(255, 255, 255, 0.16);
-  }
-  .glass-liquid-capsule {
-    @apply rounded-full shadow-ml-glass;
-    background: rgba(0, 0, 0, 0.28);
-    backdrop-filter: blur(30px) saturate(1.8);
-    -webkit-backdrop-filter: blur(30px) saturate(1.8);
-    border: 0.5px solid rgba(255, 255, 255, 0.12);
-  }
-  .glass-circle {
-    @apply backdrop-blur-xl bg-white/10 rounded-full border border-white/10;
-  }
-  .glass-icon-btn {
-    @apply glass-dark-capsule w-[46px] h-[46px] flex items-center justify-center text-white/85 hover:text-white transition-colors;
-  }
-
-  /* Migration aliases */
-  .glass { @apply glass-card rounded-none; border-radius: inherit; }
-  .glass-dark { @apply backdrop-blur-xl bg-black/60 border border-white/10; }
-
-  /* ── Buttons (Mac: white primary, glass secondary) ──────────────────── */
-  .btn-primary {
-    @apply px-6 py-2.5 bg-white hover:bg-white/90 text-black font-bold rounded-full transition-all duration-200 cursor-pointer active:scale-95;
-  }
-  .btn-secondary {
-    @apply px-6 py-2.5 glass-dark-capsule text-white font-semibold transition-all duration-200 cursor-pointer hover:bg-white/15;
+  /* ── Surface cards ──────────────────────────────────────────────────── */
+  .surface-card {
+    @apply bg-[#1f1f1f] border border-white/10 rounded;
   }
 
   /* ── Brand wordmark ──────────────────────────────────────────────────── */
   .brand-wordmark {
-    @apply font-brand font-extrabold tracking-[2px] text-white;
+    @apply font-brand font-extrabold tracking-[2px];
   }
 
-  /* ── Rating badge (HarborGold) ──────────────────────────────────────── */
+  /* ── Buttons ─────────────────────────────────────────────────────────── */
+  .btn-primary {
+    @apply px-6 py-2 bg-[#e50914] hover:bg-[#f40612] text-white font-bold rounded
+           transition-all duration-200 cursor-pointer active:scale-95;
+  }
+  .btn-secondary {
+    @apply px-6 py-2 bg-white/[0.15] hover:bg-white/[0.2] text-white font-semibold rounded
+           transition-all duration-200 cursor-pointer;
+  }
+
+  /* ── Rating badge ────────────────────────────────────────────────────── */
   .rating-badge {
-    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold;
+    @apply inline-flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-bold;
     background: rgba(0, 0, 0, 0.45);
     border: 1px solid rgba(212, 175, 55, 0.28);
     color: var(--gold);
   }
 
-  /* ── Shimmer skeleton (ShimmerCard parity: 1.5s sweep) ──────────────── */
+  /* ── Shimmer skeleton ────────────────────────────────────────────────── */
   .shimmer {
     @apply bg-white/10 animate-shimmer;
     background-image: linear-gradient(
@@ -125,29 +157,38 @@ body {
     background-size: 200% 100%;
   }
 
+  /* ── Media card (Netflix-style) ──────────────────────────────────────── */
   .media-card {
-    @apply relative flex-shrink-0 cursor-pointer;
+    @apply relative flex-shrink-0 cursor-pointer rounded overflow-hidden;
+    transition: transform 0.25s ease;
   }
-  .media-card-inner {
-    @apply relative rounded-ml-card overflow-hidden bg-moonlit-elevated;
-  }
-  .media-card-overlay {
-    @apply absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent opacity-0 transition-opacity duration-300;
+  .media-card:hover {
+    transform: scale(1.12);
+    z-index: 2;
   }
 
-  /* ── Category pills (gold selected) ─────────────────────────────────── */
+  /* ── Header nav link ─────────────────────────────────────────────────── */
+  .header-nav-link {
+    @apply text-[#b3b3b3] hover:text-[#ccc] px-3 py-2 text-[12.5px] font-medium
+           transition-colors cursor-pointer select-none;
+  }
+  .header-nav-link.active {
+    @apply text-white font-bold;
+  }
+
+  /* ── Category pills ──────────────────────────────────────────────────── */
   .category-pill {
-    @apply rounded-full px-[15px] py-2 text-[13.5px] font-semibold transition-colors duration-[180ms] cursor-pointer;
+    @apply rounded px-[15px] py-2 text-[13.5px] font-semibold transition-colors duration-[180ms] cursor-pointer;
   }
   .category-pill-idle {
     @apply bg-white/[0.08] text-white/90 hover:bg-white/[0.12];
   }
   .category-pill-active {
-    background: var(--gold);
-    color: #000;
+    background: var(--accent);
+    color: #fff;
   }
 
-  /* ── Row edge fade mask (genre rails) ───────────────────────────────── */
+  /* ── Row edge fade mask ──────────────────────────────────────────────── */
   .fade-mask-r {
     -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
     mask-image: linear-gradient(to right, black 90%, transparent 100%);
