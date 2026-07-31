@@ -143,6 +143,41 @@ describe('ProfilePreferencesRepository', () => {
     await expect(repository.load('profile-a', 'home')).resolves.toMatchObject({ value: { heroCatalogId: 'cloud-hero' } });
   });
 
+  it('keeps a save made during an in-flight cloud read authoritative', async () => {
+    await repository.save('profile-a', 'subtitles', {
+      ...DEFAULT_SUBTITLE_PREFERENCES,
+      fontSize: 24,
+    });
+
+    let resolveCloudRead: ((row: ProfilePreferenceRow | null) => void) | undefined;
+    cloud.reads.mockImplementationOnce(() => new Promise(resolve => {
+      resolveCloudRead = resolve;
+    }));
+
+    const activation = repository.load('profile-a', 'subtitles');
+    await vi.waitFor(() => expect(resolveCloudRead).toBeTypeOf('function'));
+
+    nowMs = Date.parse('2026-07-31T14:00:00.000Z');
+    await repository.save('profile-a', 'subtitles', {
+      ...DEFAULT_SUBTITLE_PREFERENCES,
+      fontSize: 42,
+    });
+
+    resolveCloudRead?.({
+      profile_id: 'profile-a',
+      namespace: 'subtitles',
+      schema_version: PREFERENCE_SCHEMA_VERSIONS.subtitles,
+      value: { ...DEFAULT_SUBTITLE_PREFERENCES, fontSize: 30 },
+      updated_at: '2026-07-31T13:00:00.000Z',
+    });
+
+    await expect(activation).resolves.toMatchObject({
+      source: 'local',
+      value: { fontSize: 42 },
+    });
+    expect(repository.loadCached('profile-a', 'subtitles').value.fontSize).toBe(42);
+  });
+
   it('keeps a newer local row and reconciles it to cloud', async () => {
     await repository.save('profile-a', 'player', { ...DEFAULT_PLAYER_PREFERENCES, autoSkipIntros: true });
     cloud.upserts.mockClear();

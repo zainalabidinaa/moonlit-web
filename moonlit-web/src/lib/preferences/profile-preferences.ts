@@ -376,12 +376,15 @@ export class ProfilePreferencesRepository {
     try {
       cloudRow = await this.cloud.read(profileId, namespace);
     } catch {
-      return local
-        ? { value: local.value, source: 'local', synced: false }
+      const currentLocal = this.readLocal(profileId, namespace);
+      return currentLocal
+        ? { value: currentLocal.value, source: 'local', synced: false }
         : { value: normalize(namespace, {}), source: 'default', synced: false };
     }
 
-    if (cloudRow && (!local || timestamp(cloudRow.updated_at) > timestamp(local.updatedAt))) {
+    const currentLocal = this.readLocal(profileId, namespace);
+
+    if (cloudRow && (!currentLocal || timestamp(cloudRow.updated_at) > timestamp(currentLocal.updatedAt))) {
       const value = normalize(namespace, cloudRow.value);
       this.writeLocal(profileId, namespace, {
         schemaVersion: PREFERENCE_SCHEMA_VERSIONS[namespace],
@@ -391,17 +394,17 @@ export class ProfilePreferencesRepository {
       return { value, source: 'cloud', synced: true };
     }
 
-    if (local) {
+    if (currentLocal) {
       let synced = !!cloudRow;
-      if (!cloudRow || timestamp(local.updatedAt) > timestamp(cloudRow.updated_at)) {
+      if (!cloudRow || timestamp(currentLocal.updatedAt) > timestamp(cloudRow.updated_at)) {
         try {
-          await this.cloud.upsert(this.toCloudRow(profileId, namespace, local));
+          await this.cloud.upsert(this.toCloudRow(profileId, namespace, currentLocal));
           synced = true;
         } catch {
           synced = false;
         }
       }
-      return { value: local.value, source: 'local', synced };
+      return { value: currentLocal.value, source: 'local', synced };
     }
 
     return { value: normalize(namespace, {}), source: 'default', synced: !!cloudRow };
