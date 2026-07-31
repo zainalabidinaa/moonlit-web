@@ -4,6 +4,7 @@ import {
   createRootRoute,
   createRoute,
   Outlet,
+  redirect,
 } from '@tanstack/react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/app/AuthProvider';
@@ -116,6 +117,24 @@ const homeRoute = createRoute({
   component: lazily(() => import('@/routes/home')),
 });
 
+const moviesRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: '/movies',
+  component: lazily(() => import('@/routes/movies')),
+});
+
+const seriesRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: '/series',
+  component: lazily(() => import('@/routes/series')),
+});
+
+const liveRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: '/live',
+  component: lazily(() => import('@/routes/live')),
+});
+
 const browseRoute = createRoute({
   getParentRoute: () => protectedLayout,
   path: '/browse/$type/$id',
@@ -138,6 +157,14 @@ const watchRoute = createRoute({
 const libraryRoute = createRoute({
   getParentRoute: () => protectedLayout,
   path: '/library',
+  beforeLoad: () => {
+    throw redirect({ to: '/watchlist', replace: true });
+  },
+});
+
+const watchlistRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: '/watchlist',
   component: lazily(() => import('@/routes/library')),
 });
 
@@ -172,9 +199,13 @@ const routeTree = rootRoute.addChildren([
   profilesRoute,
   protectedLayout.addChildren([
     homeRoute,
+    moviesRoute,
+    seriesRoute,
+    liveRoute,
     browseRoute,
     watchRoute,
     libraryRoute,
+    watchlistRoute,
     searchRoute,
     settingsRoute,
     collectionsRoute,

@@ -1,19 +1,22 @@
-import type { SubtitlePreferences } from '@/lib/subtitle-preferences';
+import { normalizeSubtitlePreferences, type SubtitlePreferences } from '@/lib/subtitle-preferences';
 
-const SIZE_PT: Record<SubtitlePreferences['size'], number> = { small: 30, medium: 38, large: 46, xlarge: 55 };
-const COLOR_HEX: Record<SubtitlePreferences['color'], string> = { white: '#FFFFFF', yellow: '#FFD54A', cyan: '#4AD8FF', green: '#4AFF6A' };
-const POSITION_PCT: Record<SubtitlePreferences['position'], number> = { low: 98, medium: 80, high: 60 };
+/** Map the shared expanded SubtitlePreferences contract to mpv sub-* properties. */
+export function subtitlePrefsToMpvProps(preferences: SubtitlePreferences): Record<string, string | number> {
+  const value = normalizeSubtitlePreferences(preferences);
+  const alpha = Math.round(value.backgroundOpacity * 255).toString(16).padStart(2, '0').toUpperCase();
+  const verticalPosition = Math.round(100 - value.verticalPosition / 2);
 
-/** Map web SubtitlePreferences to mpv sub-* properties. */
-export function subtitlePrefsToMpvProps(p: SubtitlePreferences): Record<string, string | number> {
-  const alpha = Math.round((p.backgroundOpacity / 100) * 255)
-    .toString(16).padStart(2, '0').toUpperCase();
   return {
-    'sub-font-size': SIZE_PT[p.size],
-    'sub-color': COLOR_HEX[p.color],
-    'sub-back-color': `#000000${alpha}`,
-    'sub-pos': POSITION_PCT[p.position],
-    'sub-border-size': 1.5,
-    'sub-border-color': '#000000',
+    'sub-font-size': Math.round(value.fontSize * value.scale),
+    'sub-color': value.textColorHex,
+    'sub-back-color': `${value.backgroundColorHex}${alpha}`,
+    'sub-pos': verticalPosition,
+    'sub-border-size': Math.max(1, value.textBlur),
+    'sub-border-color': value.outlineColorHex,
+    'sub-bold': value.isBold ? 'yes' : 'no',
+    'sub-italic': value.isItalic ? 'yes' : 'no',
+    'sub-align-x': value.horizontalAlignment,
+    'sub-margin-x': value.horizontalMargin,
+    'sub-scale-with-window': value.scaleWithWindowSize ? 'yes' : 'no',
   };
 }

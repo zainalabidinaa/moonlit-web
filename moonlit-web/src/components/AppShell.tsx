@@ -1,5 +1,6 @@
-import { ReactNode, useEffect, useState } from 'react';
-import { Link, useRouterState, useNavigate } from '@tanstack/react-router';
+import { type ReactNode, useEffect, useState } from 'react';
+import { Link, useNavigate, useRouterState } from '@tanstack/react-router';
+
 import { useAuth } from '@/app/AuthProvider';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 
@@ -7,90 +8,168 @@ interface AppShellProps {
   children: ReactNode;
 }
 
-const navItems = [
-  { href: '/home',    label: 'Home' },
-  { href: '/search',  label: 'Search' },
-  { href: '/library', label: 'Library' },
-];
+const primaryNavItems = [
+  { href: '/home', label: 'Home' },
+  { href: '/movies', label: 'Movies' },
+  { href: '/series', label: 'Series' },
+  { href: '/live', label: 'Live TV' },
+  { href: '/watchlist', label: 'Watchlist' },
+] as const;
+
+function activePrimaryPath(pathname: string): string | null {
+  if (pathname === '/' || pathname === '/home') return '/home';
+  if (pathname === '/library' || pathname.startsWith('/watchlist')) return '/watchlist';
+  if (pathname.startsWith('/movies')) return '/movies';
+  if (pathname.startsWith('/series')) return '/series';
+  if (pathname.startsWith('/live')) return '/live';
+  if (pathname.startsWith('/browse/movie/')) return '/movies';
+  if (pathname.startsWith('/browse/series/')) return '/series';
+  return null;
+}
 
 export function AppShell({ children }: AppShellProps) {
-  const pathname = useRouterState({ select: s => s.location.pathname });
+  const pathname = useRouterState({ select: state => state.location.pathname });
   const { currentProfile, selectProfile } = useAuth();
   const navigate = useNavigate();
-
   const [scrolled, setScrolled] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 48);
+    handleScroll();
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const activePath = pathname === '/' ? '/home' : pathname;
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen]);
+
+  const activePath = activePrimaryPath(pathname);
+  const headerOverArtwork = pathname === '/home' || pathname.startsWith('/browse/');
+
+  const navigationLinks = primaryNavItems.map(({ href, label }) => {
+    const active = activePath === href;
+    return (
+      <Link
+        key={href}
+        to={href}
+        aria-current={active ? 'page' : undefined}
+        onClick={() => setMenuOpen(false)}
+        className={`header-nav-link ${active ? 'active' : ''}`}
+      >
+        {label}
+      </Link>
+    );
+  });
 
   return (
-    <div className="relative min-h-screen bg-[#141414]">
-      {/* Fixed header */}
-      <header
-        className={`fixed top-0 left-0 right-0 z-50 h-[56px] flex items-center px-6 transition-colors duration-300 ${
-          scrolled ? 'bg-[#141414]' : 'bg-transparent'
-        }`}
-      >
-        {/* Left: brand + nav */}
-        <div className="flex items-center gap-8 flex-1">
-          <Link to="/home" className="brand-wordmark text-[18px] text-[#e50914] select-none no-underline">
-            MOONLIT
+    <div className="relative min-h-screen bg-moonlit-bg">
+      <header className={`app-navbar ${scrolled ? 'app-navbar-scrolled' : ''}`}>
+        <div className="flex min-w-0 flex-1 items-center gap-5 xl:gap-8">
+          <Link
+            to="/home"
+            aria-label="Moonlit home"
+            className="flex shrink-0 items-center gap-2.5 no-underline"
+          >
+            <img
+              src="/moonlit-icon.png"
+              alt="Moonlit"
+              className="h-8 w-8 rounded-[8px] object-cover shadow-ml-glass"
+            />
+            <span className="brand-wordmark font-brand text-[16px] text-white sm:text-[18px]">MOONLIT</span>
           </Link>
 
-          <nav className="flex items-center gap-0">
-            {navItems.map(({ href, label }) => {
-              const active = activePath === href;
-              return (
-                <Link
-                  key={href}
-                  to={href}
-                  className={`header-nav-link ${active ? 'active' : ''}`}
-                >
-                  {label}
-                </Link>
-              );
-            })}
+          <nav aria-label="Primary" className="hidden items-center lg:flex">
+            {navigationLinks}
           </nav>
         </div>
 
-        {/* Right: actions + profile */}
-        <div className="flex items-center gap-5">
+        <div className="hidden items-center gap-1 lg:flex">
+          <Link
+            to="/search"
+            aria-current={pathname === '/search' ? 'page' : undefined}
+            className={`header-nav-link ${pathname === '/search' ? 'active' : ''}`}
+          >
+            Search
+          </Link>
           <Link
             to="/settings"
-            className={`header-nav-link ${activePath === '/settings' ? 'active' : ''}`}
+            aria-current={pathname === '/settings' ? 'page' : undefined}
+            className={`header-nav-link ${pathname === '/settings' ? 'active' : ''}`}
           >
             Settings
           </Link>
 
           {currentProfile && (
             <button
-              onClick={() => { selectProfile(null as any); navigate({ to: '/profiles' }); }}
-              className="flex items-center gap-2 pl-1 pr-2 py-1 rounded hover:bg-white/10 transition-colors group"
+              type="button"
+              onClick={() => { selectProfile(null); navigate({ to: '/profiles' }); }}
+              className="ml-2 flex min-h-11 items-center gap-2 rounded-ml-ctl px-2 transition-colors hover:bg-white/10"
               aria-label="Switch profile"
               title={`Signed in as ${currentProfile.name}`}
             >
               <ProfileAvatar
                 profile={currentProfile}
-                size={28}
-                className="rounded-sm ring-1 ring-white/20 group-hover:ring-white/35 transition-all"
+                size={30}
+                className="rounded-ml-sm ring-1 ring-white/20 transition-all hover:ring-white/35"
               />
-              <svg className="w-3 h-3 text-white/60 group-hover:text-white transition-colors" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              <svg aria-hidden="true" className="h-3 w-3 text-white/60" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
                 <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </button>
           )}
         </div>
+
+        <button
+          type="button"
+          aria-label={`${menuOpen ? 'Close' : 'Open'} navigation menu`}
+          aria-expanded={menuOpen}
+          aria-controls="mobile-navigation"
+          onClick={() => setMenuOpen(open => !open)}
+          className="ml-3 flex h-11 w-11 shrink-0 items-center justify-center rounded-ml-ctl text-white transition-colors hover:bg-white/10 lg:hidden"
+        >
+          {menuOpen ? (
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M6 6l12 12M18 6L6 18" />
+            </svg>
+          ) : (
+            <svg aria-hidden="true" viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          )}
+        </button>
       </header>
 
-      {/* Page content — top padding clears the fixed header */}
-      <main className="min-h-screen pt-[56px]">
-        {children}
-      </main>
+      {menuOpen && (
+        <nav
+          id="mobile-navigation"
+          aria-label="Mobile"
+          className="glass-panel fixed inset-x-3 top-[60px] z-40 flex flex-col gap-1 rounded-ml-lg p-2 lg:hidden"
+        >
+          {navigationLinks}
+          <div className="my-1 h-px bg-white/10" />
+          <Link to="/search" onClick={() => setMenuOpen(false)} className={`header-nav-link ${pathname === '/search' ? 'active' : ''}`}>Search</Link>
+          <Link to="/settings" onClick={() => setMenuOpen(false)} className={`header-nav-link ${pathname === '/settings' ? 'active' : ''}`}>Settings</Link>
+          {currentProfile && (
+            <button
+              type="button"
+              onClick={() => { selectProfile(null); navigate({ to: '/profiles' }); }}
+              className="header-nav-link flex min-h-11 items-center gap-3 text-left"
+            >
+              <ProfileAvatar profile={currentProfile} size={28} className="rounded-ml-sm" />
+              Switch profile
+            </button>
+          )}
+        </nav>
+      )}
+
+      <main className={`min-h-screen ${headerOverArtwork ? '' : 'pt-14'}`}>{children}</main>
     </div>
   );
 }

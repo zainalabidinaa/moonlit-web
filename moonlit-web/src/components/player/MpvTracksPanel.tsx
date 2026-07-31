@@ -88,31 +88,31 @@ export function MpvTracksPanel({ state, externalSubtitles, onClose }: {
           <div className="mt-2 border-t border-player-edge pt-2 px-3 space-y-2">
             <div className="text-[11px] font-bold uppercase tracking-wider text-player-ink-muted">Appearance</div>
             <div className="flex gap-1">
-              {(['small', 'medium', 'large', 'xlarge'] as const).map((size) => (
-                <button key={size} type="button" onClick={() => applyPrefs({ ...prefs, size })}
-                  className={`rounded-md px-2 py-1 text-[11px] ${prefs.size === size ? 'bg-white text-black font-bold' : 'bg-white/10 text-white/70'}`}>
-                  {size === 'small' ? 'S' : size === 'medium' ? 'M' : size === 'large' ? 'L' : 'XL'}
+              {([18, 24, 30, 38] as const).map((fontSize) => (
+                <button key={fontSize} type="button" onClick={() => applyPrefs({ ...prefs, fontSize })}
+                  className={`rounded-md px-2 py-1 text-[11px] ${prefs.fontSize === fontSize ? 'bg-white text-black font-bold' : 'bg-white/10 text-white/70'}`}>
+                  {fontSize === 18 ? 'S' : fontSize === 24 ? 'M' : fontSize === 30 ? 'L' : 'XL'}
                 </button>
               ))}
             </div>
             <div className="flex gap-1">
-              {(['white', 'yellow', 'cyan', 'green'] as const).map((color) => (
-                <button key={color} type="button" aria-label={`Subtitle color ${color}`} onClick={() => applyPrefs({ ...prefs, color })}
-                  className={`h-6 w-6 rounded-full border-2 ${prefs.color === color ? 'border-white' : 'border-transparent'}`}
-                  style={{ background: color === 'white' ? '#FFF' : color === 'yellow' ? '#FFD54A' : color === 'cyan' ? '#4AD8FF' : '#4AFF6A' }} />
+              {(['#FFFFFF', '#FFFF00', '#4AD8FF', '#4AFF6A'] as const).map((textColorHex) => (
+                <button key={textColorHex} type="button" aria-label={`Subtitle color ${textColorHex}`} onClick={() => applyPrefs({ ...prefs, textColorHex })}
+                  className={`h-6 w-6 rounded-full border-2 ${prefs.textColorHex === textColorHex ? 'border-white' : 'border-transparent'}`}
+                  style={{ background: textColorHex }} />
               ))}
             </div>
             <div>
-              <div className="flex justify-between text-[11px] text-player-ink-muted"><span>Background</span><span>{prefs.backgroundOpacity}%</span></div>
-              <input type="range" min={0} max={100} value={prefs.backgroundOpacity}
-                onChange={(e) => applyPrefs({ ...prefs, backgroundOpacity: Number(e.target.value) })}
+              <div className="flex justify-between text-[11px] text-player-ink-muted"><span>Background</span><span>{Math.round(prefs.backgroundOpacity * 100)}%</span></div>
+              <input type="range" min={0} max={100} value={prefs.backgroundOpacity * 100}
+                onChange={(e) => applyPrefs({ ...prefs, backgroundOpacity: Number(e.target.value) / 100 })}
                 className="w-full accent-white" aria-label="Subtitle background opacity" />
             </div>
             <div className="flex gap-1">
-              {(['low', 'medium', 'high'] as const).map((position) => (
-                <button key={position} type="button" onClick={() => applyPrefs({ ...prefs, position })}
-                  className={`rounded-md px-2 py-1 text-[11px] capitalize ${prefs.position === position ? 'bg-white text-black font-bold' : 'bg-white/10 text-white/70'}`}>
-                  {position}
+              {([{ value: 100, label: 'Low' }, { value: 150, label: 'Medium' }, { value: 200, label: 'High' }] as const).map((position) => (
+                <button key={position.value} type="button" onClick={() => applyPrefs({ ...prefs, verticalPosition: position.value })}
+                  className={`rounded-md px-2 py-1 text-[11px] capitalize ${prefs.verticalPosition === position.value ? 'bg-white text-black font-bold' : 'bg-white/10 text-white/70'}`}>
+                  {position.label}
                 </button>
               ))}
             </div>

@@ -1,4 +1,5 @@
 import type { Transition } from 'framer-motion';
+import { motionTokens } from './tokens';
 
 function spring(response: number, dampingFraction: number): Transition {
   const stiffness = Math.pow((2 * Math.PI) / response, 2);
@@ -7,17 +8,17 @@ function spring(response: number, dampingFraction: number): Transition {
 }
 
 export const SPRING = {
-  cardHover: spring(0.28, 0.78),
+  cardHover: spring(motionTokens.cardSpring.response, motionTokens.cardSpring.dampingFraction),
   nav: spring(0.25, 0.75),
-  panel: spring(0.35, 0.85),
+  panel: spring(motionTokens.rowSpring.response, motionTokens.rowSpring.dampingFraction),
 } as const;
 
 export const EASE = {
-  heroCrossfade: { duration: 0.5, ease: 'easeInOut' },
-  ambientColor: { duration: 1.2, ease: 'easeInOut' },
-  pillHighlight: { duration: 0.15, ease: 'easeInOut' },
+  heroCrossfade: { duration: motionTokens.heroCrossfade, ease: 'easeInOut' },
+  ambientColor: { duration: motionTokens.ambientColor, ease: 'easeInOut' },
+  pillHighlight: { duration: motionTokens.fast, ease: 'easeInOut' },
   panelSlide: { duration: 0.2, ease: 'easeOut' },
-  controlsFade: { duration: 0.18, ease: 'easeInOut' },
+  controlsFade: { duration: motionTokens.controls, ease: 'easeInOut' },
 } as const;
 
-export const TILE_HOVER_SCALE = 1.12;
+export const TILE_HOVER_SCALE = 1.04;

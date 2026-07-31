@@ -23,18 +23,38 @@
 @property --fusion-drift-2 { syntax: '<percentage>'; initial-value: 75%; inherits: false; }
 
 :root {
-  --bg: #141414;
-  --surface: #1f1f1f;
-  --elevated: #2a2a2a;
-  --border: rgba(255, 255, 255, 0.10);
-  --accent: #e50914;
-  --accent-dim: rgba(229, 9, 20, 0.70);
-  --accent-glow: rgba(229, 9, 20, 0.12);
+  --bg: #0D0D0D;
+  --surface: #1A1A1A;
+  --elevated: #242424;
+  --surface-container: #222222;
+  --border: rgba(255, 255, 255, 0.08);
+  --accent: #FFFFFF;
+  --accent-dim: rgba(255, 255, 255, 0.70);
+  --accent-glow: rgba(255, 255, 255, 0.12);
   --gold: #D4AF37;
   --text: #FFFFFF;
-  --text-secondary: #b3b3b3;
-  --text-tertiary: #808080;
-  --muted: #808080;
+  --text-secondary: rgba(255, 255, 255, 0.70);
+  --text-tertiary: rgba(255, 255, 255, 0.50);
+  --muted: rgba(255, 255, 255, 0.50);
+  --focus-ring: rgba(255, 255, 255, 0.90);
+  --focus-background: rgba(255, 255, 255, 0.12);
+  --radius-small: 6px;
+  --radius-control: 10px;
+  --radius-card: 14px;
+  --radius-large: 18px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-11: 44px;
+  --space-16: 64px;
+  --motion-fast: 150ms;
+  --motion-controls: 180ms;
+  --motion-standard: 250ms;
 
   /* Fusion charcoal base stops */
   --fusion-charcoal-top: #3B3B3B;
@@ -47,6 +67,11 @@ body {
   font-family: 'Inter', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 3px;
 }
 
 /* ── Fusion ambient background ──────────────────────────────────────────── */
@@ -119,7 +144,31 @@ body {
 @layer components {
   /* ── Surface cards ──────────────────────────────────────────────────── */
   .surface-card {
-    @apply bg-[#1f1f1f] border border-white/10 rounded;
+    @apply border border-white/[0.08];
+    background: var(--surface);
+    border-radius: var(--radius-card);
+  }
+
+  .glass-panel {
+    background: rgba(26, 26, 26, 0.72);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.30);
+    backdrop-filter: blur(24px) saturate(1.15);
+    -webkit-backdrop-filter: blur(24px) saturate(1.15);
+  }
+
+  .app-navbar {
+    @apply fixed inset-x-0 top-0 z-50 flex h-14 items-center px-3 transition-colors sm:px-5 md:px-7;
+    background: transparent;
+    border-bottom: 1px solid transparent;
+  }
+
+  .app-navbar-scrolled {
+    background: rgba(13, 13, 13, 0.84);
+    border-bottom-color: rgba(255, 255, 255, 0.08);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.30);
+    backdrop-filter: blur(24px) saturate(1.15);
+    -webkit-backdrop-filter: blur(24px) saturate(1.15);
   }
 
   /* ── Brand wordmark ──────────────────────────────────────────────────── */
@@ -169,12 +218,16 @@ body {
 
   /* ── Header nav link ─────────────────────────────────────────────────── */
   .header-nav-link {
-    @apply text-[#b3b3b3] hover:text-[#ccc] px-3 py-2 text-[12.5px] font-medium
-           transition-colors cursor-pointer select-none;
+    @apply flex min-h-11 items-center rounded-ml-ctl px-3 text-[13px] font-medium
+           text-white/70 transition-colors cursor-pointer select-none hover:bg-white/[0.08] hover:text-white;
   }
   .header-nav-link.active {
-    @apply text-white font-bold;
+    @apply bg-white/[0.12] text-white font-semibold;
   }
+
+  .type-title-lg { @apply text-[28px] font-semibold leading-tight; }
+  .type-title-sm { @apply text-[18px] font-semibold leading-tight; }
+  .type-label { @apply text-[11px] font-semibold uppercase tracking-[0.16em]; }
 
   /* ── Category pills ──────────────────────────────────────────────────── */
   .category-pill {
@@ -192,6 +245,15 @@ body {
   .fade-mask-r {
     -webkit-mask-image: linear-gradient(to right, black 90%, transparent 100%);
     mask-image: linear-gradient(to right, black 90%, transparent 100%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 
@@ -258,13 +320,17 @@ body {
 .moonlit-captions-custom * {
   color: var(--moonlit-subtitle-color, #fff) !important;
   font-size: var(--moonlit-subtitle-font-size, 24px) !important;
-  text-shadow: 0 2px 6px rgba(0, 0, 0, 1), 0 0 2px rgba(0, 0, 0, 1) !important;
+  font-weight: var(--moonlit-subtitle-font-weight, 400) !important;
+  font-style: var(--moonlit-subtitle-font-style, normal) !important;
+  text-align: var(--moonlit-subtitle-align, center) !important;
+  text-shadow: 0 0 var(--moonlit-subtitle-blur, 1px) var(--moonlit-subtitle-outline, #000), 0 2px 6px var(--moonlit-subtitle-outline, #000) !important;
 }
 
 .moonlit-captions-custom [data-media-cue] {
   background: var(--moonlit-subtitle-bg, rgba(0, 0, 0, 0.7)) !important;
   border-radius: 4px !important;
   padding: 0.08em 0.35em !important;
+  margin-inline: var(--moonlit-subtitle-margin, 19px) !important;
 }
 
 .moonlit-player media-player {

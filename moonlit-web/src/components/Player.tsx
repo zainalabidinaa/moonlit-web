@@ -27,10 +27,7 @@ import {
   getSubtitlePreferenceStyle,
   loadSubtitlePreferences,
   saveSubtitlePreferences,
-  type SubtitleColor,
   type SubtitlePreferences,
-  type SubtitlePosition,
-  type SubtitleSize,
 } from '@/lib/subtitle-preferences';
 
 interface PlayerProps {
@@ -328,22 +325,22 @@ function TracksPanel({
   onClose: () => void;
 }) {
   const [tab, setTab] = useState<TracksTab>(initialTab);
-  const subtitleSizes: { value: SubtitleSize; label: string }[] = [
-    { value: 'small', label: 'S' },
-    { value: 'medium', label: 'M' },
-    { value: 'large', label: 'L' },
-    { value: 'xlarge', label: 'XL' },
+  const subtitleSizes = [
+    { value: 18, label: 'S' },
+    { value: 24, label: 'M' },
+    { value: 30, label: 'L' },
+    { value: 38, label: 'XL' },
   ];
-  const subtitleColors: { value: SubtitleColor; className: string; label: string }[] = [
-    { value: 'white', className: 'bg-white', label: 'White' },
-    { value: 'yellow', className: 'bg-yellow-200', label: 'Yellow' },
-    { value: 'cyan', className: 'bg-cyan-200', label: 'Cyan' },
-    { value: 'green', className: 'bg-green-200', label: 'Green' },
+  const subtitleColors = [
+    { value: '#FFFFFF', className: 'bg-white', label: 'White' },
+    { value: '#FFFF00', className: 'bg-yellow-200', label: 'Yellow' },
+    { value: '#4AD8FF', className: 'bg-cyan-200', label: 'Cyan' },
+    { value: '#4AFF6A', className: 'bg-green-200', label: 'Green' },
   ];
-  const subtitlePositions: { value: SubtitlePosition; label: string }[] = [
-    { value: 'low', label: 'Low' },
-    { value: 'medium', label: 'Mid' },
-    { value: 'high', label: 'High' },
+  const subtitlePositions = [
+    { value: 100, label: 'Low' },
+    { value: 150, label: 'Mid' },
+    { value: 200, label: 'High' },
   ];
 
   const updateSubtitlePreferences = (patch: Partial<SubtitlePreferences>) => {
@@ -424,8 +421,8 @@ function TracksPanel({
                       {subtitleSizes.map(size => (
                         <button
                           key={size.value}
-                          onClick={() => updateSubtitlePreferences({ size: size.value })}
-                          className={`min-w-10 rounded-lg px-3 py-1.5 text-sm font-bold transition-colors ${subtitlePreferences.size === size.value ? 'bg-white text-black' : 'text-white/45 hover:text-white'}`}
+                          onClick={() => updateSubtitlePreferences({ fontSize: size.value })}
+                          className={`min-w-10 rounded-lg px-3 py-1.5 text-sm font-bold transition-colors ${subtitlePreferences.fontSize === size.value ? 'bg-white text-black' : 'text-white/45 hover:text-white'}`}
                         >
                           {size.label}
                         </button>
@@ -439,9 +436,9 @@ function TracksPanel({
                       {subtitleColors.map(color => (
                         <button
                           key={color.value}
-                          onClick={() => updateSubtitlePreferences({ color: color.value })}
+                          onClick={() => updateSubtitlePreferences({ textColorHex: color.value })}
                           aria-label={color.label}
-                          className={`h-8 w-8 rounded-full border-2 ${color.className} ${subtitlePreferences.color === color.value ? 'border-white ring-2 ring-white/25' : 'border-white/15'}`}
+                          className={`h-8 w-8 rounded-full border-2 ${color.className} ${subtitlePreferences.textColorHex === color.value ? 'border-white ring-2 ring-white/25' : 'border-white/15'}`}
                         />
                       ))}
                     </div>
@@ -450,15 +447,15 @@ function TracksPanel({
                   <label className="block">
                     <div className="mb-2 flex items-center justify-between gap-4">
                       <span className="text-sm font-medium text-white/55">Background</span>
-                      <span className="text-xs font-bold text-white/35">{subtitlePreferences.backgroundOpacity}%</span>
+                      <span className="text-xs font-bold text-white/35">{Math.round(subtitlePreferences.backgroundOpacity * 100)}%</span>
                     </div>
                     <input
                       type="range"
                       min={0}
                       max={100}
                       step={5}
-                      value={subtitlePreferences.backgroundOpacity}
-                      onChange={event => updateSubtitlePreferences({ backgroundOpacity: Number(event.currentTarget.value) })}
+                      value={subtitlePreferences.backgroundOpacity * 100}
+                      onChange={event => updateSubtitlePreferences({ backgroundOpacity: Number(event.currentTarget.value) / 100 })}
                       className="w-full accent-white"
                     />
                   </label>
@@ -469,8 +466,8 @@ function TracksPanel({
                       {subtitlePositions.map(position => (
                         <button
                           key={position.value}
-                          onClick={() => updateSubtitlePreferences({ position: position.value })}
-                          className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${subtitlePreferences.position === position.value ? 'bg-white text-black' : 'text-white/45 hover:text-white'}`}
+                          onClick={() => updateSubtitlePreferences({ verticalPosition: position.value })}
+                          className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition-colors ${subtitlePreferences.verticalPosition === position.value ? 'bg-white text-black' : 'text-white/45 hover:text-white'}`}
                         >
                           {position.label}
                         </button>

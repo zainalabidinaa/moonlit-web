@@ -18,7 +18,7 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   resetPassword: (email: string) => Promise<void>;
   enterGuestMode: () => void;
-  selectProfile: (profile: MoonlitProfile) => void;
+  selectProfile: (profile: MoonlitProfile | null) => void;
   createProfile: (name: string) => Promise<void>;
   deleteProfile: (profileId: string) => Promise<void>;
   refreshProfiles: () => Promise<void>;
@@ -139,9 +139,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setIsLoading(false);
   }
 
-  function handleSelectProfile(profile: MoonlitProfile) {
+  function handleSelectProfile(profile: MoonlitProfile | null) {
     setCurrentProfile(profile);
-    loadAddons(profile.id);
+    setAddons([]);
+    if (profile) loadAddons(profile.id);
   }
 
   async function handleCreateProfile(name: string) {
