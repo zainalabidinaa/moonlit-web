@@ -14,6 +14,46 @@ final class AudioFingerprintEngineTests: XCTestCase {
         )
     }
 
+    func testReferenceKeyNormalizesRepresentativeLanguageAliases() {
+        let aliases = [
+            ("spa-MX", "es"),
+            ("swe-SE", "sv"),
+            ("fre-FR", "fr"),
+            ("ger-DE", "de"),
+            ("zho-Hant", "zh")
+        ]
+
+        for (alias, expected) in aliases {
+            XCTAssertEqual(
+                IntroFingerprintReferenceKey(
+                    imdbID: "tt0903747",
+                    season: 1,
+                    audioLanguage: alias,
+                    algorithmVersion: 1
+                ).audioLanguage,
+                expected
+            )
+        }
+    }
+
+    func testReferenceKeyDecodingNormalizesLanguageAliases() throws {
+        let data = Data(
+            """
+            {"imdbID":"tt0903747","season":1,"audioLanguage":"spa-MX","algorithmVersion":1}
+            """.utf8
+        )
+
+        let decoded = try JSONDecoder().decode(IntroFingerprintReferenceKey.self, from: data)
+        XCTAssertEqual(decoded.audioLanguage, "es")
+
+        let roundTripped = try JSONDecoder().decode(
+            IntroFingerprintReferenceKey.self,
+            from: JSONEncoder().encode(decoded)
+        )
+        XCTAssertEqual(roundTripped.audioLanguage, "es")
+        XCTAssertEqual(roundTripped, decoded)
+    }
+
     func testStreamFingerprintIdentityDropsSecretsAndQueryValues() {
         let first = StreamFingerprintIdentity.make(
             sourceURL: "https://cdn.example/episode.mkv?token=secret-a",

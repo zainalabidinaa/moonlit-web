@@ -39,6 +39,23 @@ public struct IntroFingerprintReferenceKey: Codable, Hashable, Sendable {
         self.audioLanguage = AudioFingerprintLanguage.normalize(audioLanguage)
         self.algorithmVersion = algorithmVersion
     }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        self.init(
+            imdbID: try container.decode(String.self, forKey: .imdbID),
+            season: try container.decode(Int.self, forKey: .season),
+            audioLanguage: try container.decode(String.self, forKey: .audioLanguage),
+            algorithmVersion: try container.decode(Int.self, forKey: .algorithmVersion)
+        )
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case imdbID
+        case season
+        case audioLanguage
+        case algorithmVersion
+    }
 }
 
 public struct IntroFingerprintReference: Codable, Equatable, Sendable {
@@ -174,7 +191,8 @@ private enum AudioFingerprintLanguage {
         "dut": "nl", "nor": "no", "ori": "or", "pan": "pa", "pol": "pl",
         "por": "pt", "ron": "ro", "rum": "ro", "rus": "ru", "sin": "si",
         "slk": "sk", "slo": "sk", "slv": "sl", "sqi": "sq", "alb": "sq",
-        "srp": "sr", "swa": "sw", "swe": "sv", "tam": "ta", "tel": "te",
+        "spa": "es", "esp": "es", "srp": "sr", "swa": "sw", "swe": "sv",
+        "tam": "ta", "tel": "te",
         "tha": "th", "tur": "tr", "ukr": "uk", "urd": "ur", "uzb": "uz",
         "vie": "vi", "zho": "zh", "chi": "zh"
     ]
