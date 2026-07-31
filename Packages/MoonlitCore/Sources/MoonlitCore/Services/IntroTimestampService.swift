@@ -1,5 +1,18 @@
 import Foundation
 
+public struct IntroTimestamp: Sendable, Equatable {
+    public let introStart: Double
+    public let introEnd: Double
+    public let highlights: [Double]
+
+    init?(segments: PlaybackSegments) {
+        guard let intro = segments.intro else { return nil }
+        introStart = intro.start
+        introEnd = intro.end
+        highlights = []
+    }
+}
+
 public enum PlaybackSegmentKind: String, Codable, Sendable, CaseIterable {
     case recap, intro, outro
 }
@@ -464,6 +477,21 @@ public final class IntroTimestampService {
             streamIdentity: "episode-only"
         )
         return await fetchIntroDBFallback(request: request)
+    }
+
+    public func timestamps(
+        imdbId: String,
+        season: Int,
+        episode: Int
+    ) async -> IntroTimestamp? {
+        guard let segments = await segments(
+            imdbId: imdbId,
+            season: season,
+            episode: episode
+        ) else {
+            return nil
+        }
+        return IntroTimestamp(segments: segments)
     }
 
     public func clearCache() {

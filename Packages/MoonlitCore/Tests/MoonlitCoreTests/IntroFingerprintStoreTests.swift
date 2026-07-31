@@ -194,6 +194,176 @@ final class IntroFingerprintStoreTests: XCTestCase {
         let restored = try await reader.reference(for: reference.key)
         XCTAssertNil(restored)
     }
+
+    func testReplacingReferenceInvalidatesMatchesUsingItsKey() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let original = makeReference(index: 1)
+        let replacement = makeReference(index: 1, referenceStart: 72)
+        let match = makeMatch(index: 1, referenceKey: original.key)
+        let store = IntroFingerprintStore(fileURL: fixture.fileURL)
+        try await store.save(reference: original)
+        try await store.save(match: match)
+
+        try await store.save(reference: replacement)
+
+        let sameActorMatch = try await store.match(for: match.identity)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let reopenedMatch = try await reopened.match(for: match.identity)
+        XCTAssertNil(sameActorMatch)
+        XCTAssertNil(reopenedMatch)
+    }
+
+    func testRemovingReferenceInvalidatesMatchesUsingItsKey() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let reference = makeReference(index: 1)
+        let match = makeMatch(index: 1, referenceKey: reference.key)
+        let store = IntroFingerprintStore(fileURL: fixture.fileURL)
+        try await store.save(reference: reference)
+        try await store.save(match: match)
+
+        try await store.removeReference(for: reference.key)
+
+        let sameActorMatch = try await store.match(for: match.identity)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let reopenedMatch = try await reopened.match(for: match.identity)
+        XCTAssertNil(sameActorMatch)
+        XCTAssertNil(reopenedMatch)
+    }
+
+    func testEvictingReferenceInvalidatesMatchesUsingItsKey() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let evicted = makeReference(index: 1)
+        let retained = makeReference(index: 2)
+        let match = makeMatch(index: 1, referenceKey: evicted.key)
+        let store = IntroFingerprintStore(
+            fileURL: fixture.fileURL,
+            referenceLimit: 1
+        )
+        try await store.save(reference: evicted)
+        try await store.save(match: match)
+
+        try await store.save(reference: retained)
+
+        let sameActorMatch = try await store.match(for: match.identity)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let reopenedMatch = try await reopened.match(for: match.identity)
+        XCTAssertNil(sameActorMatch)
+        XCTAssertNil(reopenedMatch)
+    }
+
+    func testFailedSaveDoesNotPublishUnpersistedState() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let fileIO = FaultInjectingFileIO()
+        let original = makeReference(index: 1)
+        let rejected = makeReference(index: 2)
+        let store = IntroFingerprintStore(fileURL: fixture.fileURL, fileIO: fileIO)
+        try await store.save(reference: original)
+
+        fileIO.failWrites = true
+        do {
+            try await store.save(reference: rejected)
+            XCTFail("Expected the injected persistence failure")
+        } catch {}
+        fileIO.failWrites = false
+
+        let sameActorOriginal = try await store.reference(for: original.key)
+        let sameActorRejected = try await store.reference(for: rejected.key)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let reopenedOriginal = try await reopened.reference(for: original.key)
+        let reopenedRejected = try await reopened.reference(for: rejected.key)
+        XCTAssertEqual(sameActorOriginal, original)
+        XCTAssertNil(sameActorRejected)
+        XCTAssertEqual(reopenedOriginal, original)
+        XCTAssertNil(reopenedRejected)
+    }
+
+    func testFailedRemovalDoesNotPublishUnpersistedState() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let fileIO = FaultInjectingFileIO()
+        let reference = makeReference(index: 1)
+        let store = IntroFingerprintStore(fileURL: fixture.fileURL, fileIO: fileIO)
+        try await store.save(reference: reference)
+
+        fileIO.failWrites = true
+        do {
+            try await store.removeReference(for: reference.key)
+            XCTFail("Expected the injected persistence failure")
+        } catch {}
+        fileIO.failWrites = false
+
+        let sameActor = try await store.reference(for: reference.key)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let persisted = try await reopened.reference(for: reference.key)
+        XCTAssertEqual(sameActor, reference)
+        XCTAssertEqual(persisted, reference)
+    }
+
+    func testFailedReadAccessDoesNotPublishAnLRUUpdate() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let fileIO = FaultInjectingFileIO()
+        let first = makeReference(index: 1)
+        let second = makeReference(index: 2)
+        let third = makeReference(index: 3)
+        let store = IntroFingerprintStore(
+            fileURL: fixture.fileURL,
+            referenceLimit: 2,
+            fileIO: fileIO
+        )
+        try await store.save(reference: first)
+        try await store.save(reference: second)
+
+        fileIO.failWrites = true
+        do {
+            _ = try await store.reference(for: first.key)
+            XCTFail("Expected the injected persistence failure")
+        } catch {}
+        fileIO.failWrites = false
+
+        try await store.save(reference: third)
+
+        let sameActorFirst = try await store.reference(for: first.key)
+        let sameActorSecond = try await store.reference(for: second.key)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let reopenedFirst = try await reopened.reference(for: first.key)
+        let reopenedSecond = try await reopened.reference(for: second.key)
+        XCTAssertNil(sameActorFirst)
+        XCTAssertEqual(sameActorSecond, second)
+        XCTAssertNil(reopenedFirst)
+        XCTAssertEqual(reopenedSecond, second)
+    }
+
+    func testTransientReadFailureRetriesBeforeSaving() async throws {
+        let fixture = try Fixture()
+        defer { fixture.remove() }
+        let original = makeReference(index: 1)
+        let addedAfterRetry = makeReference(index: 2)
+        let writer = IntroFingerprintStore(fileURL: fixture.fileURL)
+        try await writer.save(reference: original)
+        let fileIO = FaultInjectingFileIO()
+        fileIO.readFailuresRemaining = 1
+        let store = IntroFingerprintStore(fileURL: fixture.fileURL, fileIO: fileIO)
+
+        do {
+            _ = try await store.reference(for: original.key)
+            XCTFail("Expected the injected transient read failure")
+        } catch {}
+
+        try await store.save(reference: addedAfterRetry)
+
+        let sameActorOriginal = try await store.reference(for: original.key)
+        let reopened = IntroFingerprintStore(fileURL: fixture.fileURL)
+        let reopenedOriginal = try await reopened.reference(for: original.key)
+        let reopenedAdded = try await reopened.reference(for: addedAfterRetry.key)
+        XCTAssertEqual(sameActorOriginal, original)
+        XCTAssertEqual(reopenedOriginal, original)
+        XCTAssertEqual(reopenedAdded, addedAfterRetry)
+    }
 }
 
 private extension IntroFingerprintStoreTests {
@@ -232,7 +402,8 @@ private extension IntroFingerprintStoreTests {
     func makeReference(
         index: Int,
         language: String = "en",
-        algorithmVersion: Int = AudioFingerprint.algorithmVersion
+        algorithmVersion: Int = AudioFingerprint.algorithmVersion,
+        referenceStart: Double = 61
     ) -> IntroFingerprintReference {
         IntroFingerprintReference(
             key: makeKey(
@@ -246,7 +417,7 @@ private extension IntroFingerprintStoreTests {
                 duration: 30,
                 landmarks: [.init(hash: UInt32(index), frame: index)]
             ),
-            referenceStart: 61,
+            referenceStart: referenceStart,
             introDuration: 30,
             source: .skipDB,
             sourceConfidence: 0.9,
@@ -278,5 +449,86 @@ private extension IntroFingerprintStoreTests {
             uncertainty: 0.4,
             createdAt: Date(timeIntervalSince1970: 3_000)
         )
+    }
+}
+
+private enum InjectedFileIOError: Error {
+    case read
+    case write
+}
+
+private final class FaultInjectingFileIO: IntroFingerprintStoreFileIO, @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedFailWrites = false
+    private var storedReadFailuresRemaining = 0
+
+    var failWrites: Bool {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedFailWrites
+        }
+        set {
+            lock.lock()
+            storedFailWrites = newValue
+            lock.unlock()
+        }
+    }
+
+    var readFailuresRemaining: Int {
+        get {
+            lock.lock()
+            defer { lock.unlock() }
+            return storedReadFailuresRemaining
+        }
+        set {
+            lock.lock()
+            storedReadFailuresRemaining = newValue
+            lock.unlock()
+        }
+    }
+
+    func fileExists(at url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
+
+    func read(from url: URL) throws -> Data {
+        lock.lock()
+        if storedReadFailuresRemaining > 0 {
+            storedReadFailuresRemaining -= 1
+            lock.unlock()
+            throw InjectedFileIOError.read
+        }
+        lock.unlock()
+        return try Data(contentsOf: url)
+    }
+
+    func createDirectory(at url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url,
+            withIntermediateDirectories: true
+        )
+    }
+
+    func write(_ data: Data, to url: URL) throws {
+        if failWrites {
+            throw InjectedFileIOError.write
+        }
+        try data.write(to: url)
+    }
+
+    func replaceItem(at originalURL: URL, with replacementURL: URL) throws {
+        _ = try FileManager.default.replaceItemAt(
+            originalURL,
+            withItemAt: replacementURL
+        )
+    }
+
+    func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
+        try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+    }
+
+    func removeItem(at url: URL) throws {
+        try FileManager.default.removeItem(at: url)
     }
 }

@@ -2,6 +2,25 @@ import XCTest
 @testable import MoonlitCore
 
 final class PlaybackSegmentsTests: XCTestCase {
+    func testLegacyIntroTimestampMapsTheIntroSegment() throws {
+        let segments = PlaybackSegments(
+            recap: PlaybackSegment(
+                kind: .recap, start: 0, end: 42,
+                source: .embedded, match: .exact
+            ),
+            intro: PlaybackSegment(
+                kind: .intro, start: 61, end: 91,
+                source: .skipDB, match: .exact
+            )
+        )
+
+        let timestamp = try XCTUnwrap(IntroTimestamp(segments: segments))
+
+        XCTAssertEqual(timestamp.introStart, 61)
+        XCTAssertEqual(timestamp.introEnd, 91)
+        XCTAssertEqual(timestamp.highlights, [])
+    }
+
     func testOnlyExactTrustedIntroCanSeedReference() {
         XCTAssertTrue(PlaybackSegment(
             kind: .intro, start: 61, end: 91, confidence: 0.9,

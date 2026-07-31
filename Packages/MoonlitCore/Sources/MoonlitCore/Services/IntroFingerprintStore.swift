@@ -1,5 +1,51 @@
 import Foundation
 
+protocol IntroFingerprintStoreFileIO: Sendable {
+    func fileExists(at url: URL) -> Bool
+    func read(from url: URL) throws -> Data
+    func createDirectory(at url: URL) throws
+    func write(_ data: Data, to url: URL) throws
+    func replaceItem(at originalURL: URL, with replacementURL: URL) throws
+    func moveItem(at sourceURL: URL, to destinationURL: URL) throws
+    func removeItem(at url: URL) throws
+}
+
+private struct LocalIntroFingerprintStoreFileIO: IntroFingerprintStoreFileIO {
+    func fileExists(at url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
+
+    func read(from url: URL) throws -> Data {
+        try Data(contentsOf: url)
+    }
+
+    func createDirectory(at url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url,
+            withIntermediateDirectories: true
+        )
+    }
+
+    func write(_ data: Data, to url: URL) throws {
+        try data.write(to: url)
+    }
+
+    func replaceItem(at originalURL: URL, with replacementURL: URL) throws {
+        _ = try FileManager.default.replaceItemAt(
+            originalURL,
+            withItemAt: replacementURL
+        )
+    }
+
+    func moveItem(at sourceURL: URL, to destinationURL: URL) throws {
+        try FileManager.default.moveItem(at: sourceURL, to: destinationURL)
+    }
+
+    func removeItem(at url: URL) throws {
+        try FileManager.default.removeItem(at: url)
+    }
+}
+
 public actor IntroFingerprintStore {
     private static let schemaVersion = 1
 
@@ -20,6 +66,12 @@ public actor IntroFingerprintStore {
         let matches: [MatchRecord]
     }
 
+    private struct State: Sendable {
+        var accessSequence: UInt64 = 0
+        var references: [IntroFingerprintReferenceKey: ReferenceRecord] = [:]
+        var matches: [StreamFingerprintIdentity: MatchRecord] = [:]
+    }
+
     private enum StoreError: Error {
         case unsupportedSchemaVersion(Int)
     }
@@ -27,15 +79,27 @@ public actor IntroFingerprintStore {
     private let fileURL: URL
     private let referenceLimit: Int
     private let matchLimit: Int
+    private let fileIO: any IntroFingerprintStoreFileIO
     private var didLoad = false
-    private var accessSequence: UInt64 = 0
-    private var references: [IntroFingerprintReferenceKey: ReferenceRecord] = [:]
-    private var matches: [StreamFingerprintIdentity: MatchRecord] = [:]
+    private var state = State()
 
     public init(fileURL: URL, referenceLimit: Int = 50, matchLimit: Int = 200) {
         self.fileURL = fileURL
         self.referenceLimit = max(0, referenceLimit)
         self.matchLimit = max(0, matchLimit)
+        fileIO = LocalIntroFingerprintStoreFileIO()
+    }
+
+    init(
+        fileURL: URL,
+        referenceLimit: Int = 50,
+        matchLimit: Int = 200,
+        fileIO: any IntroFingerprintStoreFileIO
+    ) {
+        self.fileURL = fileURL
+        self.referenceLimit = max(0, referenceLimit)
+        self.matchLimit = max(0, matchLimit)
+        self.fileIO = fileIO
     }
 
     public func reference(
@@ -43,13 +107,15 @@ public actor IntroFingerprintStore {
     ) async throws -> IntroFingerprintReference? {
         try loadIfNeeded()
         guard key.algorithmVersion == AudioFingerprint.algorithmVersion,
-              var record = references[key] else {
+              var record = state.references[key] else {
             return nil
         }
 
-        record.lastAccessSequence = nextAccessSequence()
-        references[key] = record
-        try persist()
+        var candidate = state
+        record.lastAccessSequence = nextAccessSequence(in: &candidate)
+        candidate.references[key] = record
+        try persist(candidate)
+        state = candidate
         return record.reference
     }
 
@@ -57,63 +123,83 @@ public actor IntroFingerprintStore {
         for identity: StreamFingerprintIdentity
     ) async throws -> StreamFingerprintMatch? {
         try loadIfNeeded()
-        guard var record = matches[identity] else { return nil }
+        guard var record = state.matches[identity] else { return nil }
         guard record.match.referenceKey.algorithmVersion == AudioFingerprint.algorithmVersion else {
-            matches.removeValue(forKey: identity)
-            try persist()
+            var candidate = state
+            candidate.matches.removeValue(forKey: identity)
+            try persist(candidate)
+            state = candidate
             return nil
         }
 
-        record.lastAccessSequence = nextAccessSequence()
-        matches[identity] = record
-        try persist()
+        var candidate = state
+        record.lastAccessSequence = nextAccessSequence(in: &candidate)
+        candidate.matches[identity] = record
+        try persist(candidate)
+        state = candidate
         return record.match
     }
 
     public func save(reference: IntroFingerprintReference) async throws {
         try loadIfNeeded()
+        var candidate = state
+        candidate.matches = candidate.matches.filter {
+            $0.value.match.referenceKey != reference.key
+        }
         guard reference.key.algorithmVersion == AudioFingerprint.algorithmVersion else {
-            references.removeValue(forKey: reference.key)
-            try persist()
+            candidate.references.removeValue(forKey: reference.key)
+            try persist(candidate)
+            state = candidate
             return
         }
 
-        references[reference.key] = ReferenceRecord(
+        candidate.references[reference.key] = ReferenceRecord(
             reference: reference,
-            lastAccessSequence: nextAccessSequence()
+            lastAccessSequence: nextAccessSequence(in: &candidate)
         )
-        evictReferencesIfNeeded()
-        try persist()
+        evictReferencesIfNeeded(in: &candidate)
+        try persist(candidate)
+        state = candidate
     }
 
     public func save(match: StreamFingerprintMatch) async throws {
         try loadIfNeeded()
+        var candidate = state
         guard match.referenceKey.algorithmVersion == AudioFingerprint.algorithmVersion else {
-            matches.removeValue(forKey: match.identity)
-            try persist()
+            candidate.matches.removeValue(forKey: match.identity)
+            try persist(candidate)
+            state = candidate
             return
         }
 
-        matches[match.identity] = MatchRecord(
+        candidate.matches[match.identity] = MatchRecord(
             match: match,
-            lastAccessSequence: nextAccessSequence()
+            lastAccessSequence: nextAccessSequence(in: &candidate)
         )
-        evictMatchesIfNeeded()
-        try persist()
+        evictMatchesIfNeeded(in: &candidate)
+        try persist(candidate)
+        state = candidate
     }
 
     public func removeReference(for key: IntroFingerprintReferenceKey) async throws {
         try loadIfNeeded()
-        references.removeValue(forKey: key)
-        try persist()
+        var candidate = state
+        candidate.references.removeValue(forKey: key)
+        candidate.matches = candidate.matches.filter {
+            $0.value.match.referenceKey != key
+        }
+        try persist(candidate)
+        state = candidate
     }
 
     private func loadIfNeeded() throws {
         guard !didLoad else { return }
-        didLoad = true
 
-        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
-        let data = try Data(contentsOf: fileURL)
+        guard fileIO.fileExists(at: fileURL) else {
+            didLoad = true
+            return
+        }
+        let data = try fileIO.read(from: fileURL)
 
         let envelope: Envelope
         do {
@@ -122,15 +208,15 @@ public actor IntroFingerprintStore {
                 throw StoreError.unsupportedSchemaVersion(envelope.schemaVersion)
             }
         } catch {
-            references.removeAll()
-            matches.removeAll()
-            accessSequence = 0
             try quarantineCorruptedFile()
+            state = State()
+            didLoad = true
             return
         }
 
-        accessSequence = envelope.accessSequence
-        references = Dictionary(
+        var candidate = State()
+        candidate.accessSequence = envelope.accessSequence
+        candidate.references = Dictionary(
             envelope.references
                 .filter {
                     $0.reference.key.algorithmVersion == AudioFingerprint.algorithmVersion
@@ -140,7 +226,7 @@ public actor IntroFingerprintStore {
                 first.lastAccessSequence >= second.lastAccessSequence ? first : second
             }
         )
-        matches = Dictionary(
+        candidate.matches = Dictionary(
             envelope.matches
                 .filter {
                     $0.match.referenceKey.algorithmVersion == AudioFingerprint.algorithmVersion
@@ -150,50 +236,55 @@ public actor IntroFingerprintStore {
                 first.lastAccessSequence >= second.lastAccessSequence ? first : second
             }
         )
-        accessSequence = max(
-            accessSequence,
-            references.values.map(\.lastAccessSequence).max() ?? 0,
-            matches.values.map(\.lastAccessSequence).max() ?? 0
+        candidate.accessSequence = max(
+            candidate.accessSequence,
+            candidate.references.values.map(\.lastAccessSequence).max() ?? 0,
+            candidate.matches.values.map(\.lastAccessSequence).max() ?? 0
         )
-        evictReferencesIfNeeded()
-        evictMatchesIfNeeded()
-        if references.count != envelope.references.count
-            || matches.count != envelope.matches.count {
-            try persist()
+        evictReferencesIfNeeded(in: &candidate)
+        evictMatchesIfNeeded(in: &candidate)
+        if candidate.references.count != envelope.references.count
+            || candidate.matches.count != envelope.matches.count {
+            try persist(candidate)
         }
+        state = candidate
+        didLoad = true
     }
 
-    private func nextAccessSequence() -> UInt64 {
-        accessSequence &+= 1
-        return accessSequence
+    private func nextAccessSequence(in candidate: inout State) -> UInt64 {
+        candidate.accessSequence &+= 1
+        return candidate.accessSequence
     }
 
-    private func evictReferencesIfNeeded() {
-        while references.count > referenceLimit,
-              let key = references.min(by: {
+    private func evictReferencesIfNeeded(in candidate: inout State) {
+        while candidate.references.count > referenceLimit,
+              let key = candidate.references.min(by: {
                   $0.value.lastAccessSequence < $1.value.lastAccessSequence
               })?.key {
-            references.removeValue(forKey: key)
+            candidate.references.removeValue(forKey: key)
+            candidate.matches = candidate.matches.filter {
+                $0.value.match.referenceKey != key
+            }
         }
     }
 
-    private func evictMatchesIfNeeded() {
-        while matches.count > matchLimit,
-              let identity = matches.min(by: {
+    private func evictMatchesIfNeeded(in candidate: inout State) {
+        while candidate.matches.count > matchLimit,
+              let identity = candidate.matches.min(by: {
                   $0.value.lastAccessSequence < $1.value.lastAccessSequence
               })?.key {
-            matches.removeValue(forKey: identity)
+            candidate.matches.removeValue(forKey: identity)
         }
     }
 
-    private func persist() throws {
+    private func persist(_ candidate: State) throws {
         let envelope = Envelope(
             schemaVersion: Self.schemaVersion,
-            accessSequence: accessSequence,
-            references: references.values.sorted {
+            accessSequence: candidate.accessSequence,
+            references: candidate.references.values.sorted {
                 $0.lastAccessSequence < $1.lastAccessSequence
             },
-            matches: matches.values.sorted {
+            matches: candidate.matches.values.sorted {
                 $0.lastAccessSequence < $1.lastAccessSequence
             }
         )
@@ -201,39 +292,34 @@ public actor IntroFingerprintStore {
         encoder.outputFormatting = [.sortedKeys]
         let data = try encoder.encode(envelope)
 
-        let fileManager = FileManager.default
         let directoryURL = fileURL.deletingLastPathComponent()
-        try fileManager.createDirectory(
-            at: directoryURL,
-            withIntermediateDirectories: true
-        )
+        try fileIO.createDirectory(at: directoryURL)
         let temporaryURL = directoryURL.appendingPathComponent(
             ".\(fileURL.lastPathComponent).\(UUID().uuidString).tmp"
         )
 
         do {
-            try data.write(to: temporaryURL)
-            if fileManager.fileExists(atPath: fileURL.path) {
-                _ = try fileManager.replaceItemAt(
-                    fileURL,
-                    withItemAt: temporaryURL
+            try fileIO.write(data, to: temporaryURL)
+            if fileIO.fileExists(at: fileURL) {
+                try fileIO.replaceItem(
+                    at: fileURL,
+                    with: temporaryURL
                 )
             } else {
-                try fileManager.moveItem(at: temporaryURL, to: fileURL)
+                try fileIO.moveItem(at: temporaryURL, to: fileURL)
             }
         } catch {
-            try? fileManager.removeItem(at: temporaryURL)
+            try? fileIO.removeItem(at: temporaryURL)
             throw error
         }
     }
 
     private func quarantineCorruptedFile() throws {
-        let fileManager = FileManager.default
-        guard fileManager.fileExists(atPath: fileURL.path) else { return }
+        guard fileIO.fileExists(at: fileURL) else { return }
         let quarantineURL = fileURL.appendingPathExtension("corrupt")
-        if fileManager.fileExists(atPath: quarantineURL.path) {
-            try fileManager.removeItem(at: quarantineURL)
+        if fileIO.fileExists(at: quarantineURL) {
+            try fileIO.removeItem(at: quarantineURL)
         }
-        try fileManager.moveItem(at: fileURL, to: quarantineURL)
+        try fileIO.moveItem(at: fileURL, to: quarantineURL)
     }
 }
