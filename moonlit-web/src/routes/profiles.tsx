@@ -74,7 +74,7 @@ export default function ProfilesPage() {
               placeholder="Profile name"
               className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-moonlit-accent/60 transition-all" />
             <button onClick={handleCreate}
-              className="px-4 py-2.5 bg-moonlit-accent hover:bg-moonlit-accent/90 rounded-xl text-sm font-semibold transition-colors cursor-pointer">
+              className="px-4 py-2.5 bg-moonlit-action hover:bg-moonlit-action/90 rounded-xl text-sm font-semibold text-moonlit-action-foreground transition-colors cursor-pointer">
               Create
             </button>
           </div>

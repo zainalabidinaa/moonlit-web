@@ -7,6 +7,10 @@ export const colorTokens = {
   textSecondary: 'rgba(255, 255, 255, 0.70)',
   textTertiary: 'rgba(255, 255, 255, 0.50)',
   outline: 'rgba(255, 255, 255, 0.08)',
+  accent: '#FFFFFF',
+  accentForeground: '#0D0D0D',
+  selection: '#D4AF37',
+  selectionForeground: '#241C05',
   ratingGold: '#D4AF37',
 } as const;
 

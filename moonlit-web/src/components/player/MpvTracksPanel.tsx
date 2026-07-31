@@ -1,8 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { mpv, type MpvState } from '@/lib/platform/mpv';
 import type { SubtitleItem } from '@/lib/stremio';
-import { loadSubtitlePreferences, saveSubtitlePreferences, type SubtitlePreferences } from '@/lib/subtitle-preferences';
+import {
+  loadSubtitlePreferences,
+  saveSubtitlePreferences,
+  subscribeSubtitlePreferences,
+  type SubtitlePreferences,
+} from '@/lib/subtitle-preferences';
 import { subtitlePrefsToMpvProps } from '@/lib/platform/mpv-subtitle-style';
 
 export function MpvTracksPanel({ state, externalSubtitles, onClose }: {
@@ -13,6 +18,8 @@ export function MpvTracksPanel({ state, externalSubtitles, onClose }: {
   const [tab, setTab] = useState<'audio' | 'subtitles'>('subtitles');
   const [prefs, setPrefs] = useState<SubtitlePreferences>(loadSubtitlePreferences);
   const [addedExternal, setAddedExternal] = useState<Set<string>>(new Set());
+
+  useEffect(() => subscribeSubtitlePreferences(setPrefs), []);
 
   const applyPrefs = (next: SubtitlePreferences) => {
     setPrefs(next);

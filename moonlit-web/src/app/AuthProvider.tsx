@@ -4,6 +4,7 @@ import { MoonlitProfile, AddonManifest } from '@/lib/types';
 import { getProfiles, getInstalledAddons } from '@/lib/services/api';
 import { fetchManifest } from '@/lib/stremio';
 import { DEFAULT_ADDONS } from '@/lib/supabase';
+import { activateSubtitlePreferences } from '@/lib/subtitle-preferences';
 
 interface AuthContextType {
   user: any;
@@ -40,6 +41,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   });
 
   useEffect(() => {
+    if (guestMode) void activateSubtitlePreferences(null);
+  }, [guestMode]);
+
+  useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setUser(data.session?.user ?? null);
@@ -67,6 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const p = await getProfiles(userId);
     setProfiles(p);
     if (p.length > 0 && !currentProfile) {
+      void activateSubtitlePreferences(p[0].id);
       setCurrentProfile(p[0]);
       await loadAddons(p[0].id);
     }
@@ -134,12 +140,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   function handleEnterGuestMode() {
+    void activateSubtitlePreferences(null);
     setGuestMode(true);
     try { localStorage.setItem('moonlit.guestMode', 'true'); } catch {}
     setIsLoading(false);
   }
 
   function handleSelectProfile(profile: MoonlitProfile | null) {
+    if (profile) void activateSubtitlePreferences(profile.id);
     setCurrentProfile(profile);
     setAddons([]);
     if (profile) loadAddons(profile.id);

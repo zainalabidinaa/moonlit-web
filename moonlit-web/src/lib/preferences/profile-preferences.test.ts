@@ -205,6 +205,24 @@ describe('ProfilePreferencesRepository', () => {
     await expect(secondRepository.load('profile-b', 'subtitles')).resolves.toMatchObject({ value: DEFAULT_SUBTITLE_PREFERENCES });
   });
 
+  it('retains every legacy source and the import marker when a destination write fails', async () => {
+    storage.setItem('moonlit_subtitle_preferences', JSON.stringify({ size: 'large' }));
+    storage.setItem('moonlit.collectionDisplayPreferences', JSON.stringify({
+      disabledCollectionIds: ['hidden'],
+    }));
+    const originalSetItem = storage.setItem.bind(storage);
+    storage.setItem = (key, value) => {
+      if (key === 'moonlit.preferences.profile-a.home') throw new Error('quota exceeded');
+      originalSetItem(key, value);
+    };
+
+    await repository.load('profile-a', 'subtitles');
+
+    expect(storage.getItem('moonlit_subtitle_preferences')).not.toBeNull();
+    expect(storage.getItem('moonlit.collectionDisplayPreferences')).not.toBeNull();
+    expect(storage.getItem('moonlit.preferences.legacy-imported.v1')).toBeNull();
+  });
+
   it('falls back to normalized defaults when local data is corrupt and cloud is offline', async () => {
     storage.setItem('moonlit.preferences.profile-a.home', '{bad json');
     cloud.reads.mockRejectedValue(new Error('offline'));

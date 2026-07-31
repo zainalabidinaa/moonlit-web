@@ -9,7 +9,7 @@ import { getStreamUrl } from '@/lib/player-utils';
 import { updateWatchProgress } from '@/lib/services/api';
 import { useAuth } from '@/app/AuthProvider';
 import { saveLastStream } from '@/lib/last-stream';
-import { loadSubtitlePreferences } from '@/lib/subtitle-preferences';
+import { loadSubtitlePreferences, subscribeSubtitlePreferences } from '@/lib/subtitle-preferences';
 import { subtitlePrefsToMpvProps } from '@/lib/platform/mpv-subtitle-style';
 import type { StreamItem } from '@/lib/types';
 import type { SubtitleItem } from '@/lib/stremio';
@@ -86,14 +86,18 @@ export function MpvPlayer(props: MpvPlayerProps) {
   // ── Apply subtitle appearance after file loads ────────────────────────────
   useEffect(() => {
     if (!state.loaded) return;
-    const prefs = subtitlePrefsToMpvProps(loadSubtitlePreferences());
-    for (const [k, v] of Object.entries(prefs)) mpv.setProp(k, v).catch(() => {});
+    const applySubtitlePreferences = () => {
+      const prefs = subtitlePrefsToMpvProps(loadSubtitlePreferences());
+      for (const [k, v] of Object.entries(prefs)) mpv.setProp(k, v).catch(() => {});
+    };
+    applySubtitlePreferences();
     saveLastStream(props.mediaId, {
       url: props.streamUrl,
       addonName: props.currentStream.addonName,
       streamTitle: props.currentStream.title,
     });
     if (!readyEmitted.current) { readyEmitted.current = true; props.onReady?.(); }
+    return subscribeSubtitlePreferences(applySubtitlePreferences);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.loaded]);
 

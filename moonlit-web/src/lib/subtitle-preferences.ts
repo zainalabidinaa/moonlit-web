@@ -2,7 +2,9 @@ import type { CSSProperties } from 'react';
 
 import {
   DEFAULT_SUBTITLE_PREFERENCES,
+  createProfilePreferencesRepository,
   normalizeSubtitlePreferences,
+  type ProfilePreferencesRepository,
   type SubtitleAlignment,
   type SubtitlePreferences,
   type SubtitlePreset,
@@ -16,23 +18,48 @@ export {
   type SubtitlePreset,
 };
 
-const STORAGE_KEY = 'moonlit_subtitle_preferences';
+type SubtitlePreferencesListener = (preferences: SubtitlePreferences) => void;
+
+let repository: ProfilePreferencesRepository | undefined;
+let activeProfileId: string | null = null;
+let activationRevision = 0;
+const listeners = new Set<SubtitlePreferencesListener>();
+
+function preferencesRepository(): ProfilePreferencesRepository {
+  repository ??= createProfilePreferencesRepository();
+  return repository;
+}
+
+function publish(preferences: SubtitlePreferences): void {
+  const normalized = normalizeSubtitlePreferences(preferences);
+  listeners.forEach(listener => listener(normalized));
+}
+
+export async function activateSubtitlePreferences(profileId: string | null): Promise<SubtitlePreferences> {
+  activeProfileId = profileId;
+  const revision = ++activationRevision;
+  const targetRepository = preferencesRepository();
+  const cached = targetRepository.loadCached(profileId, 'subtitles').value;
+  publish(cached);
+
+  const reconciled = await targetRepository.load(profileId, 'subtitles');
+  if (revision === activationRevision && profileId === activeProfileId) publish(reconciled.value);
+  return reconciled.value;
+}
+
+export function subscribeSubtitlePreferences(listener: SubtitlePreferencesListener): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
 export function loadSubtitlePreferences(): SubtitlePreferences {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    return raw ? normalizeSubtitlePreferences(JSON.parse(raw)) : normalizeSubtitlePreferences({});
-  } catch {
-    return normalizeSubtitlePreferences({});
-  }
+  return preferencesRepository().loadCached(activeProfileId, 'subtitles').value;
 }
 
 export function saveSubtitlePreferences(preferences: SubtitlePreferences): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizeSubtitlePreferences(preferences)));
-  } catch {
-    // Private browsing can make localStorage unavailable.
-  }
+  const normalized = normalizeSubtitlePreferences(preferences);
+  void preferencesRepository().save(activeProfileId, 'subtitles', normalized);
+  publish(normalized);
 }
 
 function rgba(hex: string, opacity: number): string {

@@ -354,6 +354,14 @@ export class ProfilePreferencesRepository {
     this.now = options.now ?? (() => new Date());
   }
 
+  loadCached<K extends PreferenceNamespace>(profileId: string | null, namespace: K): PreferenceResult<K> {
+    this.importLegacyPreferences(profileId);
+    const local = this.readLocal(profileId, namespace);
+    return local
+      ? { value: local.value, source: profileId ? 'local' : 'guest-local', synced: false }
+      : { value: normalize(namespace, {}), source: 'default', synced: false };
+  }
+
   async load<K extends PreferenceNamespace>(profileId: string | null, namespace: K): Promise<PreferenceResult<K>> {
     this.importLegacyPreferences(profileId);
     const local = this.readLocal(profileId, namespace);
@@ -440,11 +448,13 @@ export class ProfilePreferencesRepository {
     }
   }
 
-  private writeLocal<K extends PreferenceNamespace>(profileId: string | null, namespace: K, envelope: LocalPreferenceEnvelope): void {
+  private writeLocal<K extends PreferenceNamespace>(profileId: string | null, namespace: K, envelope: LocalPreferenceEnvelope): boolean {
     try {
       this.storage.setItem(storageKey(profileId, namespace), JSON.stringify(envelope));
+      return true;
     } catch {
       // Cloud persistence may still succeed when local storage is unavailable.
+      return false;
     }
   }
 
@@ -464,23 +474,24 @@ export class ProfilePreferencesRepository {
       const importedAt = this.now().toISOString();
       const subtitleRaw = this.storage.getItem(LEGACY_SUBTITLE_KEY);
       const collectionRaw = this.storage.getItem(LEGACY_COLLECTION_KEY);
+      let destinationsWritten = true;
 
       if (subtitleRaw && !this.storage.getItem(storageKey(profileId, 'subtitles'))) {
         try {
-          this.writeLocal(profileId, 'subtitles', {
+          destinationsWritten = this.writeLocal(profileId, 'subtitles', {
             schemaVersion: PREFERENCE_SCHEMA_VERSIONS.subtitles,
             value: legacySubtitlePreferences(JSON.parse(subtitleRaw)),
             updatedAt: importedAt,
-          });
+          }) && destinationsWritten;
         } catch {
-          // Invalid legacy data is discarded below.
+          destinationsWritten = false;
         }
       }
 
       if (collectionRaw && !this.storage.getItem(storageKey(profileId, 'home'))) {
         try {
           const legacyCollections = record(JSON.parse(collectionRaw));
-          this.writeLocal(profileId, 'home', {
+          destinationsWritten = this.writeLocal(profileId, 'home', {
             schemaVersion: PREFERENCE_SCHEMA_VERSIONS.home,
             value: normalizeHomePreferences({
               disabledCollectionIds: legacyCollections.disabledCollectionIds,
@@ -488,11 +499,13 @@ export class ProfilePreferencesRepository {
               hiddenFolderIds: legacyCollections.hiddenFolderIds,
             }),
             updatedAt: importedAt,
-          });
+          }) && destinationsWritten;
         } catch {
-          // Invalid legacy data is discarded below.
+          destinationsWritten = false;
         }
       }
+
+      if (!destinationsWritten) return;
 
       this.storage.removeItem(LEGACY_SUBTITLE_KEY);
       this.storage.removeItem(LEGACY_COLLECTION_KEY);

@@ -31,6 +31,10 @@
   --accent: #FFFFFF;
   --accent-dim: rgba(255, 255, 255, 0.70);
   --accent-glow: rgba(255, 255, 255, 0.12);
+  --action-primary-bg: #FFFFFF;
+  --action-primary-fg: #0D0D0D;
+  --selection-bg: #D4AF37;
+  --selection-fg: #241C05;
   --gold: #D4AF37;
   --text: #FFFFFF;
   --text-secondary: rgba(255, 255, 255, 0.70);
@@ -178,7 +182,7 @@ body {
 
   /* ── Buttons ─────────────────────────────────────────────────────────── */
   .btn-primary {
-    @apply px-6 py-2 bg-[#e50914] hover:bg-[#f40612] text-white font-bold rounded
+    @apply px-6 py-2 bg-moonlit-action hover:bg-moonlit-action/90 text-moonlit-action-foreground font-bold rounded
            transition-all duration-200 cursor-pointer active:scale-95;
   }
   .btn-secondary {
@@ -237,8 +241,8 @@ body {
     @apply bg-white/[0.08] text-white/90 hover:bg-white/[0.12];
   }
   .category-pill-active {
-    background: var(--accent);
-    color: #fff;
+    background: var(--selection-bg);
+    color: var(--selection-fg);
   }
 
   /* ── Row edge fade mask ──────────────────────────────────────────────── */

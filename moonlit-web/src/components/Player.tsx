@@ -27,6 +27,7 @@ import {
   getSubtitlePreferenceStyle,
   loadSubtitlePreferences,
   saveSubtitlePreferences,
+  subscribeSubtitlePreferences,
   type SubtitlePreferences,
 } from '@/lib/subtitle-preferences';
 
@@ -582,9 +583,7 @@ function PlayerUI({
 
   useEffect(() => { if (showControlsRef) showControlsRef.current = resetHide; }, [showControlsRef, resetHide]);
 
-  useEffect(() => {
-    saveSubtitlePreferences(subtitlePreferences);
-  }, [subtitlePreferences]);
+  useEffect(() => subscribeSubtitlePreferences(setSubtitlePreferences), []);
 
   useEffect(() => {
     if (!paused && playerRef.current?.muted) {
@@ -841,7 +840,7 @@ function PlayerUI({
           subtitlePreferences={subtitlePreferences}
           onSelectAudio={selectAudioTrack}
           onSelectSubtitle={selectSubtitle}
-          onSubtitlePreferencesChange={setSubtitlePreferences}
+          onSubtitlePreferencesChange={saveSubtitlePreferences}
           onClose={() => setShowTracksTab(null)}
         />
       )}
