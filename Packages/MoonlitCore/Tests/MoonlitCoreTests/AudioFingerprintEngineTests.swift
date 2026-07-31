@@ -115,6 +115,78 @@ final class AudioFingerprintEngineTests: XCTestCase {
         XCTAssertFalse(first.landmarks.isEmpty)
     }
 
+    func testMatcherRejectsNonPolicySampleRate() {
+        let reference = fabricatedFingerprint(sampleRate: 44_100)
+        let candidate = fabricatedFingerprint(sampleRate: 44_100)
+
+        XCTAssertNil(AudioFingerprintEngine.match(
+            reference: reference,
+            candidate: candidate
+        ))
+    }
+
+    func testMatcherRejectsNonPolicyHopSize() {
+        let reference = fabricatedFingerprint(hopSize: 2_048)
+        let candidate = fabricatedFingerprint(hopSize: 2_048)
+
+        XCTAssertNil(AudioFingerprintEngine.match(
+            reference: reference,
+            candidate: candidate
+        ))
+    }
+
+    func testMatcherRejectsInvalidDurations() {
+        let reference = fabricatedFingerprint()
+        let invalidDurations: [Double] = [.nan, .infinity, -1, 900.01]
+
+        for duration in invalidDurations {
+            XCTAssertNil(
+                AudioFingerprintEngine.match(
+                    reference: reference,
+                    candidate: fabricatedFingerprint(duration: duration)
+                ),
+                "Expected duration \(duration) to be rejected"
+            )
+        }
+    }
+
+    func testMatcherRejectsNegativeAndOutOfDurationFrames() {
+        let negativeFrame = fabricatedFingerprint(frame: -1)
+        XCTAssertNil(AudioFingerprintEngine.match(
+            reference: negativeFrame,
+            candidate: negativeFrame
+        ))
+
+        XCTAssertNil(AudioFingerprintEngine.match(
+            reference: fabricatedFingerprint(),
+            candidate: fabricatedFingerprint(frame: 54)
+        ))
+    }
+
+    func testMatcherRejectsFabricatedOffsetBeyondOpeningWindow() {
+        let reference = fabricatedFingerprint()
+        let candidate = fabricatedFingerprint(duration: 900, frame: 10_767)
+
+        XCTAssertNil(AudioFingerprintEngine.match(
+            reference: reference,
+            candidate: candidate
+        ))
+    }
+
+    func testMatcherReturnsNilForExtremeLandmarkFramesWithoutTrapping() {
+        let reference = fabricatedFingerprint()
+
+        for frame in [Int.min, Int.max] {
+            XCTAssertNil(
+                AudioFingerprintEngine.match(
+                    reference: reference,
+                    candidate: fabricatedFingerprint(frame: frame)
+                ),
+                "Expected extreme frame \(frame) to be rejected"
+            )
+        }
+    }
+
     func testReferenceKeyNormalizesLanguageAliases() {
         XCTAssertEqual(
             IntroFingerprintReferenceKey(
@@ -185,6 +257,22 @@ final class AudioFingerprintEngineTests: XCTestCase {
 
         XCTAssertEqual(first, second)
         XCTAssertFalse(first.rawValue.contains("secret"))
+    }
+
+    private func fabricatedFingerprint(
+        sampleRate: Int = AudioFingerprintPolicy.sampleRate,
+        hopSize: Int = 1_024,
+        duration: Double = 5,
+        frame: Int = 0
+    ) -> AudioFingerprint {
+        AudioFingerprint(
+            sampleRate: sampleRate,
+            hopSize: hopSize,
+            duration: duration,
+            landmarks: [
+                AudioFingerprintLandmark(hash: 0x1234_5678, frame: frame)
+            ]
+        )
     }
 }
 

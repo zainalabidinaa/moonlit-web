@@ -68,10 +68,8 @@ public enum AudioFingerprintEngine {
         reference: AudioFingerprint,
         candidate: AudioFingerprint
     ) -> AudioFingerprintMatch? {
-        guard reference.sampleRate == candidate.sampleRate,
-              reference.hopSize == candidate.hopSize,
-              reference.sampleRate > 0,
-              reference.hopSize > 0,
+        guard isValidForMatching(reference),
+              isValidForMatching(candidate),
               !reference.landmarks.isEmpty,
               !candidate.landmarks.isEmpty
         else {
@@ -90,25 +88,43 @@ public enum AudioFingerprintEngine {
                 continue
             }
             for candidateFrame in candidateFrames {
-                let offset = candidateFrame - referenceLandmark.frame
+                let (offset, offsetOverflow) = candidateFrame.subtractingReportingOverflow(
+                    referenceLandmark.frame
+                )
+                guard !offsetOverflow else {
+                    return nil
+                }
                 if offset >= 0 {
-                    voteCounts[offset, default: 0] += 1
+                    let currentVotes = voteCounts[offset] ?? 0
+                    let (nextVotes, voteOverflow) = currentVotes.addingReportingOverflow(1)
+                    guard !voteOverflow else {
+                        return nil
+                    }
+                    voteCounts[offset] = nextVotes
                 }
             }
         }
 
-        let centers = strongestClusterCenters(voteCounts: voteCounts, limit: 3)
+        guard let centers = strongestClusterCenters(voteCounts: voteCounts, limit: 3) else {
+            return nil
+        }
         guard !centers.isEmpty else {
             return nil
         }
 
-        let evaluated = centers.map {
-            evaluateCluster(
-                center: $0,
+        var evaluated = [EvaluatedCluster]()
+        evaluated.reserveCapacity(centers.count)
+        for center in centers {
+            guard let cluster = evaluateCluster(
+                center: center,
                 reference: reference,
                 candidateFramesByHash: candidateFramesByHash
-            )
-        }.sorted {
+            ) else {
+                return nil
+            }
+            evaluated.append(cluster)
+        }
+        evaluated.sort {
             if $0.uniqueReferenceMatches != $1.uniqueReferenceMatches {
                 return $0.uniqueReferenceMatches > $1.uniqueReferenceMatches
             }
@@ -139,9 +155,21 @@ public enum AudioFingerprintEngine {
             return nil
         }
 
+        let (offsetSamples, offsetOverflow) = winner.representativeOffset
+            .multipliedReportingOverflow(by: candidate.hopSize)
+        guard !offsetOverflow else {
+            return nil
+        }
+        let offset = Double(offsetSamples) / Double(candidate.sampleRate)
+        guard offset.isFinite,
+              offset >= 0,
+              offset <= AudioFingerprintPolicy.openingWindow
+        else {
+            return nil
+        }
+
         return AudioFingerprintMatch(
-            offset: Double(winner.representativeOffset * candidate.hopSize)
-                / Double(candidate.sampleRate),
+            offset: offset,
             confidence: confidence,
             coverage: coverage,
             uncertainty: uncertainty
@@ -160,6 +188,28 @@ private extension AudioFingerprintEngine {
         let representativeOffset: Int
         let frameSpread: Double
         let uniqueReferenceMatches: Int
+    }
+
+    static func isValidForMatching(_ fingerprint: AudioFingerprint) -> Bool {
+        guard fingerprint.sampleRate == AudioFingerprintPolicy.sampleRate,
+              fingerprint.hopSize == hopSize,
+              fingerprint.duration.isFinite,
+              fingerprint.duration >= AudioFingerprintPolicy.minimumIntroDuration,
+              fingerprint.duration <= AudioFingerprintPolicy.openingWindow
+        else {
+            return false
+        }
+
+        let durationInFrames = fingerprint.duration
+            * Double(fingerprint.sampleRate)
+            / Double(fingerprint.hopSize)
+        guard durationInFrames.isFinite else {
+            return false
+        }
+
+        return fingerprint.landmarks.allSatisfy {
+            $0.frame >= 0 && Double($0.frame) < durationInFrames
+        }
     }
 
     static func normalizedFiniteSamples<S: Collection>(_ samples: S) -> [Float]
@@ -356,15 +406,29 @@ private extension AudioFingerprintEngine {
     static func strongestClusterCenters(
         voteCounts: [Int: Int],
         limit: Int
-    ) -> [Int] {
-        let ranked = voteCounts.keys.map { center in
-            (
-                center: center,
-                votes: (center - 1...center + 1).reduce(0) {
-                    $0 + (voteCounts[$1] ?? 0)
+    ) -> [Int]? {
+        var ranked = [(center: Int, votes: Int)]()
+        ranked.reserveCapacity(voteCounts.count)
+        for center in voteCounts.keys {
+            let (lowerBound, lowerOverflow) = center.subtractingReportingOverflow(1)
+            let (upperBound, upperOverflow) = center.addingReportingOverflow(1)
+            guard !lowerOverflow, !upperOverflow else {
+                return nil
+            }
+
+            var clusteredVotes = 0
+            for offset in lowerBound...upperBound {
+                let (nextVotes, voteOverflow) = clusteredVotes.addingReportingOverflow(
+                    voteCounts[offset] ?? 0
+                )
+                guard !voteOverflow else {
+                    return nil
                 }
-            )
-        }.sorted {
+                clusteredVotes = nextVotes
+            }
+            ranked.append((center: center, votes: clusteredVotes))
+        }
+        ranked.sort {
             if $0.votes != $1.votes {
                 return $0.votes > $1.votes
             }
@@ -372,7 +436,20 @@ private extension AudioFingerprintEngine {
         }
 
         var selected = [Int]()
-        for entry in ranked where selected.allSatisfy({ abs($0 - entry.center) > 2 }) {
+        for entry in ranked {
+            var overlapsSelectedCluster = false
+            for selectedCenter in selected {
+                guard let distance = nonnegativeDistance(selectedCenter, entry.center) else {
+                    return nil
+                }
+                if distance <= 2 {
+                    overlapsSelectedCluster = true
+                    break
+                }
+            }
+            guard !overlapsSelectedCluster else {
+                continue
+            }
             selected.append(entry.center)
             if selected.count == limit {
                 break
@@ -385,7 +462,7 @@ private extension AudioFingerprintEngine {
         center: Int,
         reference: AudioFingerprint,
         candidateFramesByHash: [UInt32: [Int]]
-    ) -> EvaluatedCluster {
+    ) -> EvaluatedCluster? {
         var matchedOffsets = [Int]()
         matchedOffsets.reserveCapacity(reference.landmarks.count)
 
@@ -396,16 +473,26 @@ private extension AudioFingerprintEngine {
 
             var closestOffset: Int?
             for candidateFrame in candidateFrames {
-                let offset = candidateFrame - referenceLandmark.frame
-                guard abs(offset - center) <= 1 else {
+                let (offset, offsetOverflow) = candidateFrame.subtractingReportingOverflow(
+                    referenceLandmark.frame
+                )
+                guard !offsetOverflow,
+                      let distance = nonnegativeDistance(offset, center)
+                else {
+                    return nil
+                }
+                guard distance <= 1 else {
                     continue
                 }
-                if closestOffset == nil
-                    || abs(offset - center) < abs(closestOffset! - center)
-                    || (
-                        abs(offset - center) == abs(closestOffset! - center)
-                            && offset < closestOffset!
-                    )
+                guard let existingOffset = closestOffset else {
+                    closestOffset = offset
+                    continue
+                }
+                guard let existingDistance = nonnegativeDistance(existingOffset, center) else {
+                    return nil
+                }
+                if distance < existingDistance
+                    || (distance == existingDistance && offset < existingOffset)
                 {
                     closestOffset = offset
                 }
@@ -425,7 +512,9 @@ private extension AudioFingerprintEngine {
         }
 
         matchedOffsets.sort()
-        let meanOffset = Double(matchedOffsets.reduce(0, +))
+        let meanOffset = matchedOffsets.reduce(0.0) {
+            $0 + Double($1)
+        }
             / Double(matchedOffsets.count)
         let variance = matchedOffsets.reduce(into: 0.0) {
             let distance = Double($1) - meanOffset
@@ -437,6 +526,15 @@ private extension AudioFingerprintEngine {
             frameSpread: sqrt(variance),
             uniqueReferenceMatches: matchedOffsets.count
         )
+    }
+
+    static func nonnegativeDistance(_ first: Int, _ second: Int) -> Int? {
+        if first >= second {
+            let (distance, overflow) = first.subtractingReportingOverflow(second)
+            return overflow ? nil : distance
+        }
+        let (distance, overflow) = second.subtractingReportingOverflow(first)
+        return overflow ? nil : distance
     }
 
     static func median(_ values: [Float]) -> Float {
