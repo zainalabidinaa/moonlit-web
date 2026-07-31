@@ -109,6 +109,18 @@ enum StreamAudioSampleError: Error, Equatable, Sendable {
     case timedOut
 }
 
+enum DecoderDrainAction: Equatable {
+    case accepted
+    case receiveThenRetry
+    case alreadyDrained
+}
+
+private enum DecoderReceiveStatus: Equatable {
+    case needsInput
+    case endOfStream
+    case rangeComplete
+}
+
 struct FFmpegStreamAudioSampler: StreamAudioSampling {
     static let outputSampleRate = 11_025
     static let openingWindowDuration: Double = 900
@@ -235,7 +247,7 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
             throw StreamAudioSampleError.streamInfoFailed(streamInfoResult)
         }
 
-        guard let streamIndex = selectedAudioStreamIndex(
+        guard let streamIndex = configureSelectedAudioStream(
             in: formatContext,
             descriptor: request.audio
         ),
@@ -271,10 +283,20 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
             throw StreamAudioSampleError.decoderSetupFailed(codecOpenResult)
         }
 
-        let startTimestamp = timestamp(
+        let timelineOrigin = timelineOriginTimestamp(
+            stream: stream,
+            formatContext: formatContext
+        )
+        let requestedStartOffset = timestamp(
             for: request.range.lowerBound,
             timeBase: stream.pointee.time_base
         )
+        let (startTimestamp, timestampOverflow) = timelineOrigin.addingReportingOverflow(
+            requestedStartOffset
+        )
+        guard !timestampOverflow else {
+            throw StreamAudioSampleError.invalidAudioFormat
+        }
         let seekResult = avformat_seek_file(
             formatContext,
             streamIndex,
@@ -365,13 +387,12 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
 
         var samples: [Float] = []
         samples.reserveCapacity(requestedSampleCount)
-        var reachedInputEnd = false
+        var reachedRangeBoundary = false
 
-        while samples.count < requestedSampleCount, !reachedInputEnd {
+        while !reachedRangeBoundary {
             try throwIfInterrupted(interrupt)
             let readResult = av_read_frame(formatContext, packet)
             if readResult == endOfFileError {
-                reachedInputEnd = true
                 break
             }
             guard readResult >= 0 else {
@@ -384,48 +405,94 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
                 continue
             }
 
-            let sendResult = avcodec_send_packet(codecContext, packet)
-            av_packet_unref(packet)
-            guard sendResult >= 0 else {
-                throw StreamAudioSampleError.decodeFailed(sendResult)
-            }
-
-            if try receiveFrames(
+            let receiveStatus = try sendPacketAndReceiveFrames(
+                packet: packet,
                 codecContext: codecContext,
                 frame: frame,
                 resampler: resampler,
                 streamTimeBase: stream.pointee.time_base,
+                timelineOrigin: timelineOrigin,
                 request: request,
                 requestedSampleCount: requestedSampleCount,
                 samples: &samples
-            ) {
+            )
+            av_packet_unref(packet)
+            if receiveStatus == .rangeComplete {
+                reachedRangeBoundary = true
+                break
+            }
+            if receiveStatus == .endOfStream {
                 break
             }
         }
 
-        if reachedInputEnd, samples.count < requestedSampleCount {
-            let flushResult = avcodec_send_packet(codecContext, nil)
-            if flushResult >= 0 {
-                _ = try receiveFrames(
-                    codecContext: codecContext,
-                    frame: frame,
-                    resampler: resampler,
-                    streamTimeBase: stream.pointee.time_base,
-                    request: request,
-                    requestedSampleCount: requestedSampleCount,
-                    samples: &samples
-                )
-            }
-            try flushResampler(
-                resampler,
-                inputSampleRate: codecContext.pointee.sample_rate,
-                requestedSampleCount: requestedSampleCount,
-                samples: &samples
-            )
-        }
+        try drainDecoder(
+            codecContext: codecContext,
+            frame: frame,
+            resampler: resampler,
+            streamTimeBase: stream.pointee.time_base,
+            timelineOrigin: timelineOrigin,
+            request: request,
+            requestedSampleCount: requestedSampleCount,
+            collectRemainingFrames: !reachedRangeBoundary,
+            samples: &samples
+        )
+        try flushResampler(
+            resampler,
+            inputSampleRate: codecContext.pointee.sample_rate,
+            requestedSampleCount: requestedSampleCount,
+            samples: &samples
+        )
 
         try throwIfInterrupted(interrupt)
         return samples
+    }
+
+    private static func sendPacketAndReceiveFrames(
+        packet: UnsafePointer<AVPacket>,
+        codecContext: UnsafeMutablePointer<AVCodecContext>,
+        frame: UnsafeMutablePointer<AVFrame>,
+        resampler: OpaquePointer,
+        streamTimeBase: AVRational,
+        timelineOrigin: Int64,
+        request: StreamAudioSampleRequest,
+        requestedSampleCount: Int,
+        samples: inout [Float]
+    ) throws -> DecoderReceiveStatus {
+        while true {
+            let sendResult = avcodec_send_packet(codecContext, packet)
+            if sendResult == -EAGAIN {
+                let receiveStatus = try receiveFrames(
+                    codecContext: codecContext,
+                    frame: frame,
+                    resampler: resampler,
+                    streamTimeBase: streamTimeBase,
+                    timelineOrigin: timelineOrigin,
+                    request: request,
+                    requestedSampleCount: requestedSampleCount,
+                    collectingSamples: true,
+                    samples: &samples
+                )
+                if receiveStatus == .needsInput {
+                    continue
+                }
+                return receiveStatus
+            }
+            guard sendResult >= 0 else {
+                throw StreamAudioSampleError.decodeFailed(sendResult)
+            }
+            return try receiveFrames(
+                codecContext: codecContext,
+                frame: frame,
+                resampler: resampler,
+                streamTimeBase: streamTimeBase,
+                timelineOrigin: timelineOrigin,
+                request: request,
+                requestedSampleCount: requestedSampleCount,
+                collectingSamples: true,
+                samples: &samples
+            )
+        }
     }
 
     private static func receiveFrames(
@@ -433,30 +500,40 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
         frame: UnsafeMutablePointer<AVFrame>,
         resampler: OpaquePointer,
         streamTimeBase: AVRational,
+        timelineOrigin: Int64,
         request: StreamAudioSampleRequest,
         requestedSampleCount: Int,
+        collectingSamples: Bool,
         samples: inout [Float]
-    ) throws -> Bool {
-        while samples.count < requestedSampleCount {
+    ) throws -> DecoderReceiveStatus {
+        while true {
             let receiveResult = avcodec_receive_frame(codecContext, frame)
-            if receiveResult == -EAGAIN || receiveResult == endOfFileError {
-                return false
+            if receiveResult == -EAGAIN {
+                return .needsInput
+            }
+            if receiveResult == endOfFileError {
+                return .endOfStream
             }
             guard receiveResult >= 0 else {
                 throw StreamAudioSampleError.decodeFailed(receiveResult)
             }
 
-            let shouldStop: Bool
+            var shouldStop = !collectingSamples
             do {
-                shouldStop = try append(
-                    frame: frame,
-                    resampler: resampler,
-                    inputSampleRate: codecContext.pointee.sample_rate,
-                    streamTimeBase: streamTimeBase,
-                    request: request,
-                    requestedSampleCount: requestedSampleCount,
-                    samples: &samples
-                )
+                if collectingSamples {
+                    shouldStop = try append(
+                        frame: frame,
+                        resampler: resampler,
+                        inputSampleRate: codecContext.pointee.sample_rate,
+                        expectedSampleFormat: codecContext.pointee.sample_fmt,
+                        expectedChannelLayout: &codecContext.pointee.ch_layout,
+                        streamTimeBase: streamTimeBase,
+                        timelineOrigin: timelineOrigin,
+                        request: request,
+                        requestedSampleCount: requestedSampleCount,
+                        samples: &samples
+                    )
+                }
             } catch {
                 av_frame_unref(frame)
                 throw error
@@ -464,17 +541,101 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
             av_frame_unref(frame)
 
             if shouldStop {
-                return true
+                return .rangeComplete
             }
         }
-        return true
+    }
+
+    private static func drainDecoder(
+        codecContext: UnsafeMutablePointer<AVCodecContext>,
+        frame: UnsafeMutablePointer<AVFrame>,
+        resampler: OpaquePointer,
+        streamTimeBase: AVRational,
+        timelineOrigin: Int64,
+        request: StreamAudioSampleRequest,
+        requestedSampleCount: Int,
+        collectRemainingFrames: Bool,
+        samples: inout [Float]
+    ) throws {
+        var shouldCollect = collectRemainingFrames
+
+        sendFlush: while true {
+            switch try decoderDrainAction(
+                forSendResult: avcodec_send_packet(codecContext, nil)
+            ) {
+            case .accepted:
+                break sendFlush
+            case .alreadyDrained:
+                return
+            case .receiveThenRetry:
+                let receiveStatus = try receiveFrames(
+                    codecContext: codecContext,
+                    frame: frame,
+                    resampler: resampler,
+                    streamTimeBase: streamTimeBase,
+                    timelineOrigin: timelineOrigin,
+                    request: request,
+                    requestedSampleCount: requestedSampleCount,
+                    collectingSamples: shouldCollect,
+                    samples: &samples
+                )
+                switch receiveStatus {
+                case .needsInput:
+                    continue sendFlush
+                case .endOfStream:
+                    return
+                case .rangeComplete:
+                    shouldCollect = false
+                }
+            }
+        }
+
+        while true {
+            switch try receiveFrames(
+                codecContext: codecContext,
+                frame: frame,
+                resampler: resampler,
+                streamTimeBase: streamTimeBase,
+                timelineOrigin: timelineOrigin,
+                request: request,
+                requestedSampleCount: requestedSampleCount,
+                collectingSamples: shouldCollect,
+                samples: &samples
+            ) {
+            case .endOfStream:
+                return
+            case .rangeComplete:
+                shouldCollect = false
+            case .needsInput:
+                // After an accepted flush packet, FFmpeg promises EOF, not EAGAIN.
+                throw StreamAudioSampleError.decodeFailed(-EAGAIN)
+            }
+        }
+    }
+
+    static func decoderDrainAction(
+        forSendResult result: Int32
+    ) throws -> DecoderDrainAction {
+        if result >= 0 {
+            return .accepted
+        }
+        if result == -EAGAIN {
+            return .receiveThenRetry
+        }
+        if result == endOfFileError {
+            return .alreadyDrained
+        }
+        throw StreamAudioSampleError.decodeFailed(result)
     }
 
     private static func append(
         frame: UnsafeMutablePointer<AVFrame>,
         resampler: OpaquePointer,
         inputSampleRate: Int32,
+        expectedSampleFormat: AVSampleFormat,
+        expectedChannelLayout: UnsafePointer<AVChannelLayout>,
         streamTimeBase: AVRational,
+        timelineOrigin: Int64,
         request: StreamAudioSampleRequest,
         requestedSampleCount: Int,
         samples: inout [Float]
@@ -488,8 +649,13 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
 
         var frameStart: Double?
         if frame.pointee.best_effort_timestamp != Int64.min {
+            let (openingTimestamp, overflow) = frame.pointee.best_effort_timestamp
+                .subtractingReportingOverflow(timelineOrigin)
+            guard !overflow else {
+                throw StreamAudioSampleError.invalidAudioFormat
+            }
             frameStart = seconds(
-                for: frame.pointee.best_effort_timestamp,
+                for: openingTimestamp,
                 timeBase: streamTimeBase
             )
             if frameStart! >= request.range.upperBound {
@@ -516,14 +682,12 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
             var output: UnsafeMutablePointer<UInt8>? = baseAddress
                 .assumingMemoryBound(to: UInt8.self)
             return try withUnsafePointer(to: &output) { outputPlanes in
-                guard let extendedData = frame.pointee.extended_data else {
-                    throw StreamAudioSampleError.invalidAudioFormat
-                }
-                let channelCount = max(Int(frame.pointee.ch_layout.nb_channels), 1)
-                let inputPlanes: [UnsafePointer<UInt8>?] = (0..<channelCount).map {
-                    extendedData[$0].map { UnsafePointer($0) }
-                }
-                return inputPlanes.withUnsafeBufferPointer {
+                try withValidatedAudioInputPlanes(
+                    frame: frame,
+                    expectedSampleFormat: expectedSampleFormat,
+                    expectedSampleRate: inputSampleRate,
+                    expectedChannelLayout: expectedChannelLayout
+                ) {
                     swr_convert(
                         resampler,
                         outputPlanes,
@@ -552,6 +716,38 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
             samples.append(contentsOf: converted[firstSample..<Int(convertedCount)])
         }
         return samples.count >= requestedSampleCount
+    }
+
+    static func withValidatedAudioInputPlanes<Result>(
+        frame: UnsafeMutablePointer<AVFrame>,
+        expectedSampleFormat: AVSampleFormat,
+        expectedSampleRate: Int32,
+        expectedChannelLayout: UnsafePointer<AVChannelLayout>,
+        _ body: (UnsafeBufferPointer<UnsafePointer<UInt8>?>) throws -> Result
+    ) throws -> Result {
+        guard frame.pointee.format == expectedSampleFormat.rawValue,
+              frame.pointee.sample_rate == expectedSampleRate,
+              av_get_bytes_per_sample(expectedSampleFormat) > 0,
+              av_channel_layout_check(&frame.pointee.ch_layout) == 1,
+              av_channel_layout_compare(
+                &frame.pointee.ch_layout,
+                expectedChannelLayout
+              ) == 0,
+              let extendedData = frame.pointee.extended_data else {
+            throw StreamAudioSampleError.invalidAudioFormat
+        }
+
+        let channelCount = Int(frame.pointee.ch_layout.nb_channels)
+        let planeCount = av_sample_fmt_is_planar(expectedSampleFormat) == 0
+            ? 1
+            : channelCount
+        let inputPlanes: [UnsafePointer<UInt8>?] = (0..<planeCount).map {
+            extendedData[$0].map { UnsafePointer($0) }
+        }
+        guard inputPlanes.allSatisfy({ $0 != nil }) else {
+            throw StreamAudioSampleError.invalidAudioFormat
+        }
+        return try inputPlanes.withUnsafeBufferPointer(body)
     }
 
     private static func flushResampler(
@@ -594,6 +790,24 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
             }
             samples.append(contentsOf: converted[..<Int(convertedCount)])
         }
+    }
+
+    static func configureSelectedAudioStream(
+        in formatContext: UnsafeMutablePointer<AVFormatContext>,
+        descriptor: SelectedAudioDescriptor
+    ) -> Int32? {
+        guard let selectedIndex = selectedAudioStreamIndex(
+            in: formatContext,
+            descriptor: descriptor
+        ) else {
+            return nil
+        }
+
+        for index in 0..<Int(formatContext.pointee.nb_streams) {
+            formatContext.pointee.streams[index]?.pointee.discard =
+                Int32(index) == selectedIndex ? AVDISCARD_DEFAULT : AVDISCARD_ALL
+        }
+        return selectedIndex
     }
 
     private static func selectedAudioStreamIndex(
@@ -682,6 +896,28 @@ struct FFmpegStreamAudioSampler: StreamAudioSampling {
     ) -> Int64 {
         let ticksPerSecond = Double(timeBase.den) / Double(timeBase.num)
         return Int64((seconds * ticksPerSecond).rounded(.towardZero))
+    }
+
+    private static func timelineOriginTimestamp(
+        stream: UnsafeMutablePointer<AVStream>,
+        formatContext: UnsafeMutablePointer<AVFormatContext>
+    ) -> Int64 {
+        if stream.pointee.start_time != Int64.min {
+            return stream.pointee.start_time
+        }
+        guard formatContext.pointee.start_time != Int64.min else {
+            // Raw elementary streams may have no declared timeline origin.
+            return 0
+        }
+
+        var microseconds = AVRational()
+        microseconds.num = 1
+        microseconds.den = 1_000_000
+        return av_rescale_q(
+            formatContext.pointee.start_time,
+            microseconds,
+            stream.pointee.time_base
+        )
     }
 
     private static func seconds(
