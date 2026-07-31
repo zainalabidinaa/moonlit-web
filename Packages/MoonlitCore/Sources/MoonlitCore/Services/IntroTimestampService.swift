@@ -5,11 +5,14 @@ public struct IntroTimestamp: Sendable, Equatable {
     public let introEnd: Double
     public let highlights: [Double]
 
-    init?(segments: PlaybackSegments) {
-        guard let intro = segments.intro else { return nil }
-        introStart = intro.start
-        introEnd = intro.end
-        highlights = []
+    static func decodePublicMetaDB(data: Data) throws -> IntroTimestamp? {
+        let response = try JSONDecoder().decode(PublicMetaDBResponse.self, from: data)
+        guard let intro = response.intro else { return nil }
+        return IntroTimestamp(
+            introStart: intro.start,
+            introEnd: intro.end,
+            highlights: response.highlights ?? []
+        )
     }
 }
 
@@ -424,6 +427,7 @@ public final class IntroTimestampService {
 
     private let client: PlaybackSegmentHTTPClient
     private var cache: [String: CacheEntry] = [:]
+    private var legacyTimestampCache: [String: IntroTimestamp] = [:]
 
     private init() {
         client = PlaybackSegmentHTTPClient()
@@ -484,18 +488,27 @@ public final class IntroTimestampService {
         season: Int,
         episode: Int
     ) async -> IntroTimestamp? {
-        guard let segments = await segments(
+        let key = [
+            imdbId,
+            "s\(String(format: "%02d", season))e\(String(format: "%02d", episode))"
+        ].joined(separator: ":")
+        if let cached = legacyTimestampCache[key] {
+            return cached
+        }
+        guard let timestamp = await fetchFromPublicMetaDB(
             imdbId: imdbId,
             season: season,
             episode: episode
         ) else {
             return nil
         }
-        return IntroTimestamp(segments: segments)
+        legacyTimestampCache[key] = timestamp
+        return timestamp
     }
 
     public func clearCache() {
         cache.removeAll()
+        legacyTimestampCache.removeAll()
     }
 
     private func fetchDurationAwareSegments(
@@ -603,6 +616,19 @@ public final class IntroTimestampService {
         return segments
     }
 
+    private func fetchFromPublicMetaDB(
+        imdbId: String,
+        season: Int,
+        episode: Int
+    ) async -> IntroTimestamp? {
+        let urlString = "https://publicmeta.info/api/v1/intro?imdbId=\(imdbId)&season=\(season)&episode=\(episode)"
+        guard let url = URL(string: urlString),
+              let data = await client.successfulData(from: url) else {
+            return nil
+        }
+        return try? IntroTimestamp.decodePublicMetaDB(data: data)
+    }
+
     private func resolveTMDBId(for imdbId: String) async -> Int? {
         guard let key = MetadataIntegrationStore.shared.effectiveTMDBAPIKey,
               !key.isEmpty else {
@@ -647,6 +673,16 @@ private final class PlaybackSegmentHTTPClient {
             return nil
         }
     }
+}
+
+private struct PublicMetaDBResponse: Decodable {
+    let intro: PublicMetaDBIntroWindow?
+    let highlights: [Double]?
+}
+
+private struct PublicMetaDBIntroWindow: Decodable {
+    let start: Double
+    let end: Double
 }
 
 private struct IntroDBResponse: Decodable {
