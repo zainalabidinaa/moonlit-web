@@ -4,23 +4,35 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { AuthProvider, useAuth } from './AuthProvider';
 import {
+  activateSubtitlePreferences,
   DEFAULT_SUBTITLE_PREFERENCES,
   loadSubtitlePreferences,
   saveSubtitlePreferences,
+  subscribeSubtitlePreferences,
 } from '@/lib/subtitle-preferences';
+import type { ProfilePreferenceRow } from '@/lib/preferences/profile-preferences';
 import type { MoonlitProfile } from '@/lib/types';
 
-const authMocks = vi.hoisted(() => ({
-  session: null as { user: { id: string } } | null,
-  profiles: [] as MoonlitProfile[],
-}));
+const authMocks = vi.hoisted(() => {
+  const cloudRows = new Map<string, ProfilePreferenceRow>();
+  return {
+    session: null as { user: { id: string } } | null,
+    profiles: [] as MoonlitProfile[],
+    cloudRows,
+    preferenceRead: vi.fn(async () => ({ data: null, error: null })),
+    preferenceUpsert: vi.fn(async (row: ProfilePreferenceRow) => {
+      cloudRows.set(`${row.profile_id}:${row.namespace}`, row);
+      return { error: null };
+    }),
+  };
+});
 
 vi.mock('@/lib/supabase', () => {
   const preferenceQuery = {
     select: vi.fn(),
     eq: vi.fn(),
-    maybeSingle: vi.fn(async () => ({ data: null, error: null })),
-    upsert: vi.fn(async () => ({ error: null })),
+    maybeSingle: authMocks.preferenceRead,
+    upsert: authMocks.preferenceUpsert,
   };
   preferenceQuery.select.mockReturnValue(preferenceQuery);
   preferenceQuery.eq.mockReturnValue(preferenceQuery);
@@ -92,6 +104,12 @@ describe('AuthProvider subtitle preference lifecycle', () => {
     localStorage.clear();
     authMocks.session = null;
     authMocks.profiles = [];
+    authMocks.cloudRows.clear();
+    authMocks.preferenceRead.mockReset().mockResolvedValue({ data: null, error: null });
+    authMocks.preferenceUpsert.mockReset().mockImplementation(async (row: ProfilePreferenceRow) => {
+      authMocks.cloudRows.set(`${row.profile_id}:${row.namespace}`, row);
+      return { error: null };
+    });
   });
 
   it('activates the selected profile before synchronous subtitle consumers read and write', async () => {
@@ -125,5 +143,38 @@ describe('AuthProvider subtitle preference lifecycle', () => {
     const saved = JSON.parse(localStorage.getItem('moonlit.preferences.guest.subtitles') ?? '{}');
     expect(saved.value.fontSize).toBe(42);
     expect(localStorage.getItem('moonlit_subtitle_preferences')).toBeNull();
+  });
+
+  it('keeps subscriber and cloud state on a save made during a delayed activation upsert', async () => {
+    const profileId = 'profile-race';
+    storedSubtitles(profileId, 24);
+    const publications: number[] = [];
+    const unsubscribe = subscribeSubtitlePreferences(preferences => {
+      publications.push(preferences.fontSize);
+    });
+    let resolveActivationUpsert: (() => void) | undefined;
+
+    authMocks.preferenceUpsert.mockImplementationOnce((row: ProfilePreferenceRow) => new Promise(resolve => {
+      resolveActivationUpsert = () => {
+        authMocks.cloudRows.set(`${row.profile_id}:${row.namespace}`, row);
+        resolve({ error: null });
+      };
+    }));
+
+    const activation = activateSubtitlePreferences(profileId);
+    await vi.waitFor(() => expect(resolveActivationUpsert).toBeTypeOf('function'));
+
+    saveSubtitlePreferences({ ...loadSubtitlePreferences(), fontSize: 42 });
+    expect(publications.at(-1)).toBe(42);
+
+    resolveActivationUpsert?.();
+    await activation;
+
+    await vi.waitFor(() => {
+      expect(authMocks.cloudRows.get(`${profileId}:subtitles`)?.value).toMatchObject({ fontSize: 42 });
+    });
+    expect(publications.at(-1)).toBe(42);
+    expect(loadSubtitlePreferences().fontSize).toBe(42);
+    unsubscribe();
   });
 });

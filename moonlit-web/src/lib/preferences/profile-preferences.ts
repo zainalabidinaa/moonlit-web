@@ -321,6 +321,11 @@ function timestamp(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+function sameLocalVersion(left: LocalPreferenceEnvelope, right: LocalPreferenceEnvelope): boolean {
+  return left.updatedAt === right.updatedAt
+    && JSON.stringify(left.value) === JSON.stringify(right.value);
+}
+
 function legacySubtitlePreferences(value: unknown): SubtitlePreferences {
   const input = record(value);
   const sizes: Record<string, number> = { small: 18, medium: 24, large: 30, xlarge: 38 };
@@ -347,6 +352,7 @@ export class ProfilePreferencesRepository {
   private readonly storage: StorageLike;
   private readonly cloud?: PreferenceCloudStore;
   private readonly now: () => Date;
+  private readonly pendingCloudWrites = new Map<string, Promise<void>>();
 
   constructor(options: { storage: StorageLike; cloud?: PreferenceCloudStore; now?: () => Date }) {
     this.storage = options.storage;
@@ -398,13 +404,15 @@ export class ProfilePreferencesRepository {
       let synced = !!cloudRow;
       if (!cloudRow || timestamp(currentLocal.updatedAt) > timestamp(cloudRow.updated_at)) {
         try {
-          await this.cloud.upsert(this.toCloudRow(profileId, namespace, currentLocal));
+          await this.enqueueCloudUpsert(this.toCloudRow(profileId, namespace, currentLocal));
           synced = true;
         } catch {
           synced = false;
         }
       }
-      return { value: currentLocal.value, source: 'local', synced };
+      const settledLocal = this.readLocal(profileId, namespace) ?? currentLocal;
+      if (!sameLocalVersion(settledLocal, currentLocal)) synced = false;
+      return { value: settledLocal.value, source: 'local', synced };
     }
 
     return { value: normalize(namespace, {}), source: 'default', synced: !!cloudRow };
@@ -428,7 +436,7 @@ export class ProfilePreferencesRepository {
     }
 
     try {
-      await this.cloud.upsert(this.toCloudRow(profileId, namespace, envelope));
+      await this.enqueueCloudUpsert(this.toCloudRow(profileId, namespace, envelope));
       return { value: normalized, source: 'local', synced: true };
     } catch {
       return { value: normalized, source: 'local', synced: false };
@@ -469,6 +477,26 @@ export class ProfilePreferencesRepository {
       value: normalize(namespace, envelope.value),
       updated_at: envelope.updatedAt,
     };
+  }
+
+  private enqueueCloudUpsert(row: ProfilePreferenceRow): Promise<void> {
+    const cloud = this.cloud;
+    if (!cloud) return Promise.resolve();
+
+    const key = `${row.profile_id}:${row.namespace}`;
+    const previous = this.pendingCloudWrites.get(key) ?? Promise.resolve();
+    const operation = previous.catch(() => undefined).then(() => cloud.upsert(row));
+    const tracked = operation.then(
+      () => {
+        if (this.pendingCloudWrites.get(key) === tracked) this.pendingCloudWrites.delete(key);
+      },
+      error => {
+        if (this.pendingCloudWrites.get(key) === tracked) this.pendingCloudWrites.delete(key);
+        throw error;
+      },
+    );
+    this.pendingCloudWrites.set(key, tracked);
+    return tracked;
   }
 
   private importLegacyPreferences(profileId: string | null): void {
