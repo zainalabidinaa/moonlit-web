@@ -73,6 +73,20 @@ body {
   overflow-x: hidden;
 }
 
+.moonlit-native-subtitles::cue {
+  color: var(--moonlit-subtitle-color, #fff);
+  background-color: var(--moonlit-subtitle-bg, transparent);
+  font-size: var(--moonlit-subtitle-font-size, 32px);
+  font-weight: var(--moonlit-subtitle-font-weight, 400);
+  font-style: var(--moonlit-subtitle-font-style, normal);
+  text-shadow:
+    -1px -1px var(--moonlit-subtitle-outline, #000),
+    1px -1px var(--moonlit-subtitle-outline, #000),
+    -1px 1px var(--moonlit-subtitle-outline, #000),
+    1px 1px var(--moonlit-subtitle-outline, #000),
+    0 0 var(--moonlit-subtitle-blur, 0) var(--moonlit-subtitle-outline, #000);
+}
+
 :focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 3px;

@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { usePlayer } from '@/app/PlayerProvider';
@@ -19,8 +20,8 @@ export function findAdjacent(videos: EpisodeRef[], season: number, episode: numb
   return ordered[idx + dir] ?? null;
 }
 
-export function UpNextPanel({ mediaId, mediaType, onClose }: {
-  mediaId: string; mediaType: string; onClose: () => void;
+export function UpNextPanel({ mediaId, mediaType, onClose, embedded = false }: {
+  mediaId: string; mediaType: string; onClose: () => void; embedded?: boolean;
 }) {
   const { open } = usePlayer();
   const { currentProfile } = useAuth();
@@ -70,11 +71,13 @@ export function UpNextPanel({ mediaId, mediaType, onClose }: {
   };
 
   return (
-    <div className="absolute inset-y-0 right-0 z-30 w-[380px] overflow-y-auto bg-player-elevated border-l border-player-edge shadow-ml-panel p-4">
-      <div className="flex items-center justify-between pb-3">
+    <div className={embedded
+      ? 'min-h-full'
+      : 'absolute inset-y-0 right-0 z-30 w-[440px] overflow-y-auto border-l border-player-edge bg-player-elevated p-4 shadow-ml-panel'}>
+      {!embedded && <div className="flex items-center justify-between pb-3">
         <div className="text-[14px] font-bold text-white">Up Next</div>
         <button type="button" aria-label="Close" onClick={onClose} className="text-white/60 hover:text-white"><X size={16} aria-hidden /></button>
-      </div>
+      </div>}
       {seasons.length > 1 && (
         <div className="flex gap-1 overflow-x-auto pb-3">
           {seasons.map((sn) => (

@@ -3,15 +3,18 @@
  * Needed so web-demuxer can fetch MKV files from cross-origin sources that
  * don't set CORS headers.
  */
+import { parseMediaProxyHeaders } from '../src/lib/player/media-proxy';
+
 export const config = { runtime: 'edge' };
 
 export default async function handler(req: Request) {
-  const url = new URL(req.url).searchParams.get('url');
+  const params = new URL(req.url).searchParams;
+  const url = params.get('url');
   if (!url) return new Response('Missing url param', { status: 400 });
 
-  const headers: HeadersInit = {};
+  const headers = new Headers(parseMediaProxyHeaders(params.get('headers')));
   const range = req.headers.get('range');
-  if (range) headers['Range'] = range;
+  if (range) headers.set('Range', range);
 
   const upstream = await fetch(url, { headers });
 

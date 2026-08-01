@@ -1,29 +1,17 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { StreamItem } from '@/lib/types';
-import { SubtitleItem } from '@/lib/stremio';
+import {
+  normalizePlayerLaunch,
+  type NormalizedPlayerLaunch,
+  type PlayerLaunch,
+} from '@/lib/player/contracts';
 
-export interface PlayerMetadata {
-  mediaId: string;
-  mediaType: string;
-  title: string;
-  logo?: string;
-  poster?: string;
-  background?: string;
-}
-
-export interface PlayerLaunch {
-  type: string;
-  id: string;
-  streamUrl?: string;
-  streams?: StreamItem[];
-  metadata: PlayerMetadata;
-  startPosition?: number;
-  subtitles?: SubtitleItem[];
-}
+export type { PlayerLaunch, PlayerMetadata } from '@/lib/player/contracts';
 
 interface PlayerContextType {
   isOpen: boolean;
-  launch: PlayerLaunch | null;
+  launch: NormalizedPlayerLaunch | null;
   open: (launch: PlayerLaunch) => void;
   close: () => void;
   activeStream: StreamItem | null;
@@ -32,27 +20,31 @@ interface PlayerContextType {
   setAllStreams: (s: StreamItem[]) => void;
   switchStream: (s: StreamItem) => void;
   onStreamSwitch: ((s: StreamItem) => void) | null;
-  registerStreamSwitchHandler: (fn: (s: StreamItem) => void) => void;
+  registerStreamSwitchHandler: (fn: (s: StreamItem) => void) => () => void;
 }
 
 const PlayerContext = createContext<PlayerContextType | null>(null);
 
 export function PlayerProvider({ children }: { children: ReactNode }) {
   const [isOpen, setIsOpen] = useState(false);
-  const [launch, setLaunch] = useState<PlayerLaunch | null>(null);
+  const [launch, setLaunch] = useState<NormalizedPlayerLaunch | null>(null);
   const [activeStream, setActiveStream] = useState<StreamItem | null>(null);
   const [allStreams, setAllStreams] = useState<StreamItem[]>([]);
   const [onStreamSwitch, setOnStreamSwitch] = useState<((s: StreamItem) => void) | null>(null);
 
   const open = useCallback((l: PlayerLaunch) => {
-    setLaunch(l);
-    setActiveStream(l.streamUrl ? { url: l.streamUrl, addonName: 'Direct' } : null);
-    setAllStreams(l.streams ?? []);
+    const normalized = normalizePlayerLaunch(l);
+    const matchingStream = normalized.streamUrl
+      ? normalized.streams?.find(stream => stream.url === normalized.streamUrl || stream.externalUrl === normalized.streamUrl)
+      : undefined;
+    setLaunch(normalized);
+    setActiveStream(matchingStream ?? (normalized.streamUrl ? { url: normalized.streamUrl, addonName: 'Direct' } : null));
+    setAllStreams(normalized.streams ?? []);
     setIsOpen(true);
     // Push history state so browser back dismisses the player
     try {
       window.history.pushState({ playerOpen: true }, '', `#player-${l.type}-${l.id}`);
-    } catch {}
+    } catch { /* History updates are best effort in restricted browser contexts. */ }
   }, []);
 
   const close = useCallback(() => {
@@ -62,12 +54,15 @@ export function PlayerProvider({ children }: { children: ReactNode }) {
     setAllStreams([]);
     // Pop the history state if we pushed one
     if (window.location.hash.startsWith('#player-')) {
-      try { window.history.back(); } catch {}
+      try { window.history.back(); } catch { /* History updates are best effort in restricted browser contexts. */ }
     }
   }, []);
 
   const registerStreamSwitchHandler = useCallback((fn: (s: StreamItem) => void) => {
     setOnStreamSwitch(() => fn);
+    return () => setOnStreamSwitch((current: ((stream: StreamItem) => void) | null) => (
+      current === fn ? null : current
+    ));
   }, []);
 
   const switchStream = useCallback((s: StreamItem) => {

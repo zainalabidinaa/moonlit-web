@@ -1,151 +1,60 @@
-import { useEffect, useState, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+
+import { useAuth } from '@/app/AuthProvider';
 import { usePlayer } from '@/app/PlayerProvider';
 import { PlayerShell } from '@/components/player/PlayerShell';
-import { LoadingCard } from '@/components/player/LoadingCard';
-import { useAuth } from '@/app/AuthProvider';
 
 export function PlayerOverlay() {
   const { isOpen, launch, close } = usePlayer();
   const { currentProfile } = useAuth();
+  const [desktopLaunchKey, setDesktopLaunchKey] = useState<string | null>(null);
+  const launchKey = launch
+    ? `${launch.type}:${launch.id}:${launch.streamUrl ?? ''}`
+    : 'closed';
 
-  const [phase, setPhase] = useState<'enter' | 'visible' | 'exit'>('enter');
-  const [showLoading, setShowLoading] = useState(true);
-  const [timedOut, setTimedOut] = useState(false);
-  const [transparent, setTransparent] = useState(false);
-  const overlayRef = useRef<HTMLDivElement>(null);
-  const loadTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  // Safety timeout — if loading card is still visible after 30s, force dismiss
-  useEffect(() => {
-    if (!showLoading) {
-      if (loadTimerRef.current) clearTimeout(loadTimerRef.current);
-      return;
-    }
-    loadTimerRef.current = setTimeout(() => {
-      setShowLoading(false);
-      setTimedOut(true);
-    }, 30000);
-    return () => { if (loadTimerRef.current) clearTimeout(loadTimerRef.current); };
-  }, [showLoading]);
-
-  // Handle open/close animations
-  useEffect(() => {
-    if (isOpen) {
-      setPhase('enter');
-      setShowLoading(true);
-      setTimedOut(false);
-      requestAnimationFrame(() => {
-        requestAnimationFrame(() => setPhase('visible'));
-      });
-    } else {
-      setPhase('exit');
-    }
-  }, [isOpen]);
-
-  // Keyboard shortcut to close
   useEffect(() => {
     if (!isOpen) return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !document.fullscreenElement) {
-        close();
-      }
+    const handler = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape' || event.defaultPrevented || document.fullscreenElement) return;
+      close();
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [isOpen, close]);
+  }, [close, isOpen]);
 
-  // Set inert on #root when overlay is open
   useEffect(() => {
     const root = document.getElementById('root');
     if (!root) return;
-    if (isOpen) {
-      root.setAttribute('inert', '');
-    } else {
-      root.removeAttribute('inert');
-    }
+    if (isOpen) root.setAttribute('inert', '');
+    else root.removeAttribute('inert');
     return () => root.removeAttribute('inert');
   }, [isOpen]);
 
-  const handleBack = useCallback(() => {
-    close();
-  }, [close]);
+  const handleBack = useCallback(() => close(), [close]);
+  const handleReady = useCallback(() => undefined, []);
+  const handleError = useCallback(() => undefined, []);
+  const handleDesktop = useCallback(() => setDesktopLaunchKey(launchKey), [launchKey]);
 
-  const handleLoadCardMinElapsed = useCallback(() => {
-    // min visible window elapsed
-  }, []);
+  if (!isOpen || !launch) return null;
 
-  const handleVideoReady = useCallback(() => {
-    setShowLoading(false);
-  }, []);
-
-  const handleError = useCallback(() => {
-    setShowLoading(false);
-  }, []);
-
-  const handleDesktop = useCallback(() => {
-    setTransparent(true);
-  }, []);
-
-  if (!isOpen && phase === 'exit') return null;
-  if (!launch) return null;
-
-  const overlay = (
+  return createPortal(
     <div
-      ref={overlayRef}
-      className={`fixed inset-0 z-[100] ${transparent ? 'bg-transparent' : 'bg-black'}`}
-      style={{
-        transform: phase === 'visible' || phase === 'exit'
-          ? 'translateY(0)'
-          : 'translateY(100%)',
-        opacity: phase === 'visible' || phase === 'exit' ? 1 : 0,
-        transition: phase === 'exit'
-          ? 'transform 0.2s ease-in, opacity 0.2s ease-in'
-          : 'transform 0.3s ease-out, opacity 0.3s ease-out',
-      }}
-      onTransitionEnd={() => {
-        if (phase === 'exit' && isOpen) close();
-      }}
+      role="dialog"
+      aria-label={`${launch.metadata.title} player`}
+      aria-modal="true"
+      className={`fixed inset-0 z-[100] ${desktopLaunchKey === launchKey ? 'bg-transparent' : 'bg-black'}`}
     >
-      {/* Branded loading card — shown while video initializes */}
-      {showLoading && (
-        <LoadingCard
-          background={launch.metadata.background}
-          poster={launch.metadata.poster}
-          logo={launch.metadata.logo}
-          title={launch.metadata.title}
-          minVisibleMs={800}
-          onMinElapsed={handleLoadCardMinElapsed}
-        />
-      )}
-
-      {/* Fallback when loading times out — gives the user an escape */}
-      {timedOut && !showLoading && (
-        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-4 bg-black">
-          <p className="text-white text-lg font-semibold">Taking too long</p>
-          <p className="text-white/50 text-sm text-center max-w-xs px-4">
-            Stream resolution is stuck. This can happen if addons are unresponsive.
-          </p>
-          <button
-            onClick={handleBack}
-            className="mt-2 px-6 py-2.5 bg-white/10 hover:bg-white/15 border border-white/10 text-white rounded-full text-sm cursor-pointer"
-          >
-            Back
-          </button>
-        </div>
-      )}
-
-      {/* Player shell — stream resolution + Vidstack */}
       <PlayerShell
+        key={launchKey}
         launch={launch}
         onBack={handleBack}
-        onVideoReady={handleVideoReady}
+        onVideoReady={handleReady}
         onError={handleError}
         onDesktop={handleDesktop}
         profileId={currentProfile?.id}
       />
-    </div>
+    </div>,
+    document.body,
   );
-
-  return createPortal(overlay, document.body);
 }

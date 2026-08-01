@@ -7,12 +7,14 @@
  */
 
 import { WebDemuxer } from 'web-demuxer';
+import { buildMediaProxyUrl } from '@/lib/player/media-proxy';
 
 export interface WebCodecsPlayerState {
   duration: number;
   currentTime: number;
   isPlaying: boolean;
   isReady: boolean;
+  ended?: boolean;
   error: string | null;
 }
 
@@ -27,7 +29,7 @@ export class WebCodecsPlayerEngine {
   private ctx: CanvasRenderingContext2D | null = null;
 
   private _state: WebCodecsPlayerState = {
-    duration: 0, currentTime: 0, isPlaying: false, isReady: false, error: null,
+    duration: 0, currentTime: 0, isPlaying: false, isReady: false, ended: false, error: null,
   };
 
   private listeners = new Set<StateListener>();
@@ -52,7 +54,7 @@ export class WebCodecsPlayerEngine {
 
     try {
       this.demuxer = new WebDemuxer({ wasmFilePath: `${location.origin}/web-demuxer.wasm` });
-      const proxied = `/api/media-proxy?url=${encodeURIComponent(url)}`;
+      const proxied = url.startsWith('/api/media-proxy') ? url : buildMediaProxyUrl(url);
       await this.demuxer.load(proxied);
 
       const videoConfig = await this.demuxer.getDecoderConfig('video');
@@ -69,7 +71,7 @@ export class WebCodecsPlayerEngine {
         this.audioReady = true;
       }
 
-      this._setState({ duration: videoStream.duration || 0, isReady: this.videoReady });
+      this._setState({ duration: videoStream.duration || 0, currentTime: 0, isReady: this.videoReady, ended: false, error: null });
     } catch (e) {
       this._setState({ error: `Failed to load: ${e}` });
     }
@@ -78,11 +80,12 @@ export class WebCodecsPlayerEngine {
   async seekTo(time: number) {
     if (this._state.duration <= 0) return;
     const clamped = Math.max(0, Math.min(time, this._state.duration));
-    this._setState({ currentTime: clamped });
+    this._setState({ currentTime: clamped, ended: false });
   }
 
   play() {
     if (!this._state.isReady || this._state.isPlaying) return;
+    if (this._state.ended) this._setState({ currentTime: 0, ended: false });
     this.audioCtx?.resume();
     this.videoPaused = false;
     this._setState({ isPlaying: true });
@@ -109,7 +112,7 @@ export class WebCodecsPlayerEngine {
       this.audioDecoder?.flush().catch(() => {}),
     ]);
 
-    this._setState({ currentTime: clamped, isPlaying: false });
+    this._setState({ currentTime: clamped, isPlaying: false, ended: false });
 
     if (wasPlaying) {
       this.videoPaused = false;
@@ -121,14 +124,16 @@ export class WebCodecsPlayerEngine {
   destroy() {
     this.pumpAbort?.abort();
     this.pumpAbort = null;
-    try { this.videoDecoder?.close(); } catch {}
-    try { this.audioDecoder?.close(); } catch {}
-    try { this.audioCtx?.close(); } catch {}
-    try { this.demuxer?.destroy(); } catch {}
+    try { this.videoDecoder?.close(); } catch { /* Decoder teardown can race with an in-flight flush. */ }
+    try { this.audioDecoder?.close(); } catch { /* Decoder teardown can race with an in-flight flush. */ }
+    try { this.audioCtx?.close(); } catch { /* Audio teardown can race with browser shutdown. */ }
+    try { this.demuxer?.destroy(); } catch { /* Demuxer teardown is best effort. */ }
     this.videoDecoder = null;
     this.audioDecoder = null;
     this.audioCtx = null;
     this.demuxer = null;
+    for (const id of this._activeTimers) clearTimeout(id);
+    this._activeTimers.clear();
   }
 
   // ── Internal ─────────────────────────────────────────────────────────────
@@ -251,6 +256,26 @@ export class WebCodecsPlayerEngine {
         // Pace: wait so decoders stay ~2s ahead of playback
         if (!signal.aborted && cursor < this._state.duration) {
           await new Promise<void>(r => setTimeout(r, (CHUNK - 8) * 1000));
+        }
+      }
+      if (!signal.aborted) {
+        await Promise.all([
+          this.videoDecoder?.flush().catch(() => undefined),
+          this.audioDecoder?.flush().catch(() => undefined),
+        ]);
+        const remainingMs = Math.max(0, (this._state.duration - this._state.currentTime) * 1000);
+        if (remainingMs > 0) {
+          await new Promise<void>(resolve => {
+            const id = setTimeout(resolve, remainingMs);
+            this._activeTimers.add(id);
+            signal.addEventListener('abort', () => {
+              clearTimeout(id);
+              resolve();
+            }, { once: true });
+          });
+        }
+        if (!signal.aborted) {
+          this._setState({ currentTime: this._state.duration, isPlaying: false, ended: true });
         }
       }
     } catch { /* pump stopped */ }

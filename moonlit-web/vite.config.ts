@@ -1,7 +1,9 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { transformWithEsbuild } from 'vite'
 import { defineConfig } from 'vitest/config'
 import react from '@vitejs/plugin-react'
 import path from 'path'
+import { parseMediaProxyHeaders } from './src/lib/player/media-proxy'
 
 // Dev-only CORS proxy that mirrors the Vercel edge functions in api/stremio/
 function srtToVtt(srt: string): string {
@@ -102,14 +104,15 @@ function mediaProxyDevProxy() {
         if (!req.url?.startsWith('/api/media-proxy')) return next();
 
         const base = `http://localhost${req.url}`;
-        const url = new URL(base).searchParams.get('url');
+        const params = new URL(base).searchParams;
+        const url = params.get('url');
         if (!url) {
           res.writeHead(400, { 'Access-Control-Allow-Origin': '*' });
           res.end('Missing url param');
           return;
         }
 
-        const headers: Record<string, string> = {};
+        const headers: Record<string, string> = parseMediaProxyHeaders(params.get('headers'));
         const range = req.headers.range;
         if (range) headers.Range = range;
 
