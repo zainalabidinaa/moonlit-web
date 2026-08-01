@@ -151,6 +151,9 @@ export class MediabunnyAdapter implements PlayerAdapter {
   requestRemotePlayback() { return this.inner.requestRemotePlayback(); }
   selectAudioTrack() {}
   selectSubtitleTrack(id: string | number | 'off') { return this.inner.selectSubtitleTrack(id); }
+  updateSubtitles(subtitles: PlayerAdapterLoadRequest['subtitles'], tracks: PlayerAdapterLoadRequest['tracks']) {
+    return this.inner.updateSubtitles(subtitles, tracks);
+  }
   subscribe(listener: (state: PlayerAdapterState) => void) { return this.inner.subscribe(listener); }
   destroy() { return this.inner.destroy(); }
 }

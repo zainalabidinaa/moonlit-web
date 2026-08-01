@@ -32,10 +32,14 @@ class FakeAdapter implements PlayerAdapter {
   readonly loads: PlayerAdapterLoadRequest[] = [];
   readonly pause = vi.fn();
   readonly seek = vi.fn();
+  readonly subtitleUpdates: PlayerAdapterLoadRequest['subtitles'][] = [];
   private state = normalizeAdapterState({ phase: 'idle' });
   private listeners = new Set<(state: PlayerAdapterState) => void>();
 
-  constructor(kind: PlaybackAttempt['adapter']) { this.kind = kind; }
+  constructor(
+    kind: PlaybackAttempt['adapter'],
+    private readonly destroyBehavior?: () => Promise<void>,
+  ) { this.kind = kind; }
   async load(request: PlayerAdapterLoadRequest) { this.loads.push(request); }
   play() {}
   setVolume() {}
@@ -45,8 +49,9 @@ class FakeAdapter implements PlayerAdapter {
   setPictureInPicture() {}
   selectAudioTrack() {}
   selectSubtitleTrack() {}
+  updateSubtitles(subtitles: PlayerAdapterLoadRequest['subtitles']) { this.subtitleUpdates.push(subtitles); }
   subscribe(listener: (state: PlayerAdapterState) => void) { this.listeners.add(listener); listener(this.state); return () => this.listeners.delete(listener); }
-  destroy() {}
+  destroy() { return this.destroyBehavior?.(); }
   emit(input: Partial<PlayerAdapterState> & Pick<PlayerAdapterState, 'phase'>) {
     this.state = normalizeAdapterState({ ...this.state, ...input });
     this.listeners.forEach(listener => listener(this.state));
@@ -147,6 +152,11 @@ describe('UnifiedPlayer', () => {
     expect(onProgress).toHaveBeenCalledWith(40, 100, false);
     act(() => adapter.emit({ phase: 'ended', position: 100, duration: 100, paused: true, hasVideo: true }));
     expect(onProgress).toHaveBeenLastCalledWith(100, 100, true);
+    const completionCallCount = onProgress.mock.calls.length;
+
+    act(() => vi.advanceTimersByTime(10_000));
+
+    expect(onProgress).toHaveBeenCalledTimes(completionCallCount);
   });
 
   it('does not restart active playback when async preferences or subtitles reconcile', async () => {
@@ -180,6 +190,50 @@ describe('UnifiedPlayer', () => {
     await act(async () => Promise.resolve());
 
     expect(adapters).toHaveLength(1);
+    expect(adapters[0].subtitleUpdates).toEqual([[{ id: 'sv', lang: 'sv', url: '/sv.vtt' }]]);
+  });
+
+  it('hands portable track languages, not adapter-local ids, to a switched source', async () => {
+    const adapter = new FakeAdapter('html-video');
+    const onSwitchStream = vi.fn();
+    const backup = { url: 'https://cdn.example/backup.mp4', title: 'Backup 1080p' };
+    render(
+      <UnifiedPlayer
+        launch={launch}
+        plan={{ ...plan, attempts: [plan.attempts[0]] }}
+        currentStream={stream}
+        streams={[stream, backup]}
+        subtitles={[]}
+        createAdapter={() => adapter}
+        onBack={vi.fn()}
+        onSwitchStream={onSwitchStream}
+      />,
+    );
+    await vi.waitFor(() => expect(adapter.loads).toHaveLength(1));
+    act(() => adapter.emit({
+      phase: 'playing',
+      position: 55,
+      duration: 100,
+      paused: false,
+      hasVideo: true,
+      selectedAudioId: 'html-audio-7',
+      selectedSubtitleId: 'html-sub-3',
+      audioTracks: [{ id: 'html-audio-7', kind: 'audio', label: 'Spanish', language: 'es', selected: true }],
+      subtitleTracks: [{ id: 'html-sub-3', kind: 'subtitles', label: 'English', language: 'en', selected: true }],
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Sources' }));
+    fireEvent.click(screen.getByRole('option', { name: /Backup 1080p/ }));
+
+    expect(onSwitchStream).toHaveBeenCalledWith(backup, {
+      position: 55,
+      tracks: {
+        audioId: null,
+        subtitleId: null,
+        audioLanguage: 'es',
+        subtitleLanguage: 'en',
+      },
+    });
   });
 
   it('uses the same shared loading surface while a stream plan is still resolving', () => {
@@ -238,5 +292,51 @@ describe('UnifiedPlayer', () => {
     await vi.waitFor(() => expect(autoAdapter.loads).toHaveLength(1));
     act(() => autoAdapter.emit({ phase: 'playing', position: 15, duration: 100, paused: false, hasVideo: true }));
     expect(autoAdapter.seek).toHaveBeenCalledWith(30);
+  });
+
+  it('awaits prior session teardown before reusing shared hosts for a replacement plan', async () => {
+    let releaseDestroy: (() => void) | null = null;
+    const adapters: FakeAdapter[] = [];
+    const createAdapter = (attempt: PlaybackAttempt) => {
+      const adapter = new FakeAdapter(
+        attempt.adapter,
+        adapters.length === 0
+          ? () => new Promise<void>(resolve => { releaseDestroy = resolve; })
+          : undefined,
+      );
+      adapters.push(adapter);
+      return adapter;
+    };
+    const view = render(
+      <UnifiedPlayer
+        launch={launch}
+        plan={plan}
+        currentStream={stream}
+        streams={[stream]}
+        subtitles={[]}
+        createAdapter={createAdapter}
+        onBack={vi.fn()}
+        onSwitchStream={vi.fn()}
+      />,
+    );
+    await vi.waitFor(() => expect(adapters).toHaveLength(1));
+
+    view.rerender(
+      <UnifiedPlayer
+        launch={launch}
+        plan={{ ...plan, attempts: [playbackAttempt('html-video', 'native-hls')] }}
+        currentStream={stream}
+        streams={[stream]}
+        subtitles={[]}
+        createAdapter={createAdapter}
+        onBack={vi.fn()}
+        onSwitchStream={vi.fn()}
+      />,
+    );
+    await act(async () => Promise.resolve());
+
+    expect(adapters).toHaveLength(1);
+    releaseDestroy?.();
+    await vi.waitFor(() => expect(adapters).toHaveLength(2));
   });
 });

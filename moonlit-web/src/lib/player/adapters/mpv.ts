@@ -56,15 +56,31 @@ const defaultBridge: MpvAdapterBridge = {
     await getCurrentWindow().setFullscreen(fullscreen);
   },
   setPictureInPicture: async enabled => {
-    const { getCurrentWindow, LogicalPosition, LogicalSize } = await import('@tauri-apps/api/window');
+    const { getCurrentWindow, LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize } = await import('@tauri-apps/api/window');
     const windowHandle = getCurrentWindow();
-    await windowHandle.setAlwaysOnTop(enabled);
     if (enabled) {
+      defaultPipRestore = {
+        position: await windowHandle.outerPosition(),
+        size: await windowHandle.outerSize(),
+      };
+      await windowHandle.setAlwaysOnTop(true);
       await windowHandle.setSize(new LogicalSize(480, 270));
       await windowHandle.setPosition(new LogicalPosition(window.screen.availWidth - 500, window.screen.availHeight - 320));
+    } else {
+      await windowHandle.setAlwaysOnTop(false);
+      if (defaultPipRestore) {
+        await windowHandle.setSize(new PhysicalSize(defaultPipRestore.size.width, defaultPipRestore.size.height));
+        await windowHandle.setPosition(new PhysicalPosition(defaultPipRestore.position.x, defaultPipRestore.position.y));
+        defaultPipRestore = null;
+      }
     }
   },
 };
+
+let defaultPipRestore: {
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+} | null = null;
 
 function tracks(state: MpvState, kind: 'audio' | 'subtitles'): PlayerTrack[] {
   const list = kind === 'audio' ? state.tracks.audio : state.tracks.subs;
@@ -120,10 +136,14 @@ export class MpvAdapter implements PlayerAdapter {
   };
   private restoredAudioLanguage = false;
   private restoredSubtitleLanguage = false;
+  private readonly addedSubtitleUrls = new Set<string>();
+  private loadGeneration = 0;
 
   constructor(private readonly bridge: MpvAdapterBridge = defaultBridge) {}
 
   async load(request: PlayerAdapterLoadRequest): Promise<void> {
+    const generation = this.loadGeneration + 1;
+    this.loadGeneration = generation;
     this.unlisten?.();
     this.geometryCleanup?.();
     this.geometryCleanup = null;
@@ -134,13 +154,23 @@ export class MpvAdapter implements PlayerAdapter {
     this.requestedTracks = { ...request.tracks };
     this.restoredAudioLanguage = false;
     this.restoredSubtitleLanguage = false;
+    this.addedSubtitleUrls.clear();
     this.emit({ phase: 'loading', position: request.position });
-    this.unlisten = await this.bridge.listen(event => this.handleEvent(event));
+    const unlisten = await this.bridge.listen(event => this.handleEvent(event));
+    if (request.signal.aborted || generation !== this.loadGeneration) {
+      unlisten();
+      return;
+    }
+    this.unlisten = unlisten;
     await this.bridge.start({
       url: request.attempt.url,
       startAtSec: request.position || undefined,
       headers: request.attempt.requestHeaders,
     });
+    if (request.signal.aborted || generation !== this.loadGeneration) {
+      await this.bridge.stop();
+      return;
+    }
     const requestedAudioId = mpvTrackId(request.tracks.audioId);
     if (requestedAudioId !== null) await this.bridge.setProp('aid', requestedAudioId);
     if (request.tracks.subtitleId === 'off') {
@@ -166,13 +196,7 @@ export class MpvAdapter implements PlayerAdapter {
       window.addEventListener('resize', syncGeometry);
       this.geometryCleanup = () => window.removeEventListener('resize', syncGeometry);
     }
-    for (const subtitle of request.subtitles) {
-      await this.bridge.subAdd(rawSubtitleUrl(subtitle.url), {
-        title: subtitle.name || subtitle.lang,
-        lang: subtitle.lang,
-        select: String(request.tracks.subtitleId) === subtitle.id,
-      });
-    }
+    await this.addSubtitles(request.subtitles, request.tracks);
   }
 
   play() { return this.bridge.setProp('pause', false); }
@@ -181,10 +205,24 @@ export class MpvAdapter implements PlayerAdapter {
   setVolume(volume: number) { return this.bridge.setProp('volume', Math.max(0, Math.min(1, volume)) * 100); }
   setMuted(muted: boolean) { return this.bridge.setProp('mute', muted); }
   setPlaybackRate(rate: number) { return this.bridge.setProp('speed', rate); }
-  setFullscreen(fullscreen: boolean) { return this.bridge.setFullscreen(fullscreen); }
-  setPictureInPicture(enabled: boolean) { return this.bridge.setPictureInPicture(enabled); }
+  async setFullscreen(fullscreen: boolean) {
+    await this.bridge.setFullscreen(fullscreen);
+    this.emit({ phase: this.state.phase, fullscreen });
+  }
+  async setPictureInPicture(enabled: boolean) {
+    await this.bridge.setPictureInPicture(enabled);
+    this.emit({ phase: this.state.phase, pictureInPicture: enabled });
+  }
   selectAudioTrack(id: string | number) { return this.bridge.setProp('aid', id); }
   selectSubtitleTrack(id: string | number | 'off') { return this.bridge.setProp('sid', id === 'off' ? 'no' : id); }
+
+  async updateSubtitles(
+    subtitles: PlayerAdapterLoadRequest['subtitles'],
+    tracks: PlayerTrackSelection,
+  ): Promise<void> {
+    this.requestedTracks = { ...tracks };
+    await this.addSubtitles(subtitles, tracks);
+  }
 
   async probeAudioTracks(): Promise<void> {
     const raw = await this.bridge.getProp('track-list');
@@ -198,6 +236,7 @@ export class MpvAdapter implements PlayerAdapter {
   }
 
   async destroy(): Promise<void> {
+    this.loadGeneration += 1;
     this.geometryCleanup?.();
     this.geometryCleanup = null;
     this.unlisten?.();
@@ -243,7 +282,7 @@ export class MpvAdapter implements PlayerAdapter {
       subtitleTracks: subtitles,
       selectedAudioId: audio.find(track => track.selected)?.id ?? null,
       selectedSubtitleId: subtitles.find(track => track.selected)?.id ?? 'off',
-      hasVideo: current.loaded,
+      hasVideo: current.hasVideoTrack,
       error: current.error,
     });
   }
@@ -257,6 +296,23 @@ export class MpvAdapter implements PlayerAdapter {
     await Promise.all(Object.entries(subtitlePrefsToMpvProps(preferences)).map(([name, value]) => (
       this.bridge.setProp(name, value)
     )));
+  }
+
+  private async addSubtitles(
+    subtitles: PlayerAdapterLoadRequest['subtitles'],
+    tracks: PlayerTrackSelection,
+  ): Promise<void> {
+    for (const subtitle of subtitles) {
+      const url = rawSubtitleUrl(subtitle.url);
+      if (this.addedSubtitleUrls.has(url)) continue;
+      await this.bridge.subAdd(url, {
+        title: subtitle.name || subtitle.lang,
+        lang: subtitle.lang,
+        select: String(tracks.subtitleId) === subtitle.id
+          || (!tracks.subtitleId && !!tracks.subtitleLanguage && tracks.subtitleLanguage === subtitle.lang),
+      });
+      this.addedSubtitleUrls.add(url);
+    }
   }
 
   private restorePreferredLanguages(): void {

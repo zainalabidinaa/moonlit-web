@@ -64,4 +64,27 @@ describe('selectStreamPlayback media fixtures', () => {
     expect(selection?.plan.outcome).toBe('external');
     expect(selection?.plan.attempts).toEqual([]);
   });
+
+  it('continues past an explicit protected source without leaking its headers to the next source', () => {
+    const protectedSource: StreamItem = {
+      url: 'https://protected.example/movie.mp4',
+      title: 'Protected copy',
+      behaviorHints: { proxyHeaders: { request: { Authorization: 'Bearer source-secret' } } },
+    };
+    const publicSource: StreamItem = {
+      url: 'https://public.example/movie.mp4',
+      title: 'Public H.264 AAC copy',
+    };
+
+    const selection = selectStreamPlayback([protectedSource, publicSource], browser, {
+      explicitUrl: protectedSource.url,
+      serverUrl: 'https://server.example',
+      requestHeaders: { Authorization: 'Bearer launch-secret' },
+    });
+
+    expect(selection?.stream).toBe(publicSource);
+    expect(selection?.plan.outcome).toBe('play-here');
+    expect(selection?.plan.attempts[0].requestHeaders).toBeUndefined();
+    expect(JSON.stringify(selection)).not.toContain('secret');
+  });
 });

@@ -16,7 +16,12 @@ export function PlayerOverlay() {
   useEffect(() => {
     if (!isOpen) return;
     const handler = (event: KeyboardEvent) => {
-      if (event.key !== 'Escape' || event.defaultPrevented || document.fullscreenElement) return;
+      if (
+        event.key !== 'Escape'
+        || event.defaultPrevented
+        || document.fullscreenElement
+        || document.querySelector('[data-player-panel="true"]')
+      ) return;
       close();
     };
     window.addEventListener('keydown', handler);

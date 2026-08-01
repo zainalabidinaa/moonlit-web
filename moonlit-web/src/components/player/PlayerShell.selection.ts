@@ -30,10 +30,6 @@ export function selectStreamPlayback(
     .filter((stream): stream is StreamItem => !!stream)
     .filter((stream, index, list) => list.findIndex(candidate => candidate === stream) === index);
 
-  if (explicit) {
-    return { stream: explicit, plan: buildPlaybackPlan(explicit, environment, options) };
-  }
-
   let firstExternal: StreamPlaybackSelection | null = null;
   let firstUnsupported: StreamPlaybackSelection | null = null;
   for (const stream of ordered) {

@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PlayerAdapterCapabilities, PlayerTrack } from '@/lib/player/contracts';
-import { PlayerChrome, type PlayerChromeController, type PlayerChromeState } from './PlayerChrome';
+import { PLAYER_AUTO_HIDE_MS, PlayerChrome, type PlayerChromeController, type PlayerChromeState } from './PlayerChrome';
 
 const capabilities: PlayerAdapterCapabilities = {
   seek: true,
@@ -145,6 +145,36 @@ describe('PlayerChrome', () => {
     expect(screen.getByRole('slider', { name: 'Playback position' })).toHaveAttribute('max', '3128');
   });
 
+  it('requests and renders a time-following seek thumbnail from the active renderer', async () => {
+    const controls = controller();
+    controls.requestSeekPreview = vi.fn(async position => ({
+      position,
+      imageUrl: 'data:image/jpeg;base64,preview-frame',
+    }));
+    renderChrome({ controller: controls });
+    const timeline = screen.getByTestId('seek-preview-timeline');
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue({
+      left: 100,
+      width: 400,
+      right: 500,
+      top: 0,
+      bottom: 44,
+      height: 44,
+      x: 100,
+      y: 0,
+      toJSON: () => ({}),
+    });
+
+    fireEvent.mouseMove(timeline, { clientX: 300 });
+
+    expect(controls.requestSeekPreview).toHaveBeenCalledWith(1564);
+    expect(await screen.findByRole('img', { name: 'Preview at 26:04' })).toHaveAttribute(
+      'src',
+      'data:image/jpeg;base64,preview-frame',
+    );
+    expect(screen.getByTestId('seek-preview')).toHaveStyle({ left: '50%' });
+  });
+
   it('opens audio, subtitles, and Up Next in the approved panel widths', async () => {
     const { controls } = renderChrome({
       upNextContent: close => <button type="button" onClick={close}>Play next episode</button>,
@@ -163,6 +193,29 @@ describe('PlayerChrome', () => {
     expect(await screen.findByRole('dialog', { name: 'Up Next' })).toHaveClass('w-[440px]');
     fireEvent.click(screen.getByRole('button', { name: 'Play next episode' }));
     expect(screen.queryByRole('dialog', { name: 'Up Next' })).not.toBeInTheDocument();
+  });
+
+  it('closes an open panel when playback leaves an interactive phase', () => {
+    const view = renderChrome();
+    fireEvent.click(screen.getByRole('button', { name: 'Sources' }));
+    expect(screen.getByRole('dialog', { name: 'Sources' })).toBeInTheDocument();
+
+    view.rerender(
+      <PlayerChrome
+        state={{ ...playingState, phase: 'error', error: 'route failed' }}
+        controller={view.controls}
+        metadata={{ mediaId: 'tt111', mediaType: 'movie', title: 'Movie' }}
+        mediaId="tt111"
+        mediaType="movie"
+        currentStream={{ url: 'https://cdn.example/movie.mp4' }}
+        streams={[]}
+        subtitles={[]}
+        onBack={vi.fn()}
+        onSwitchStream={vi.fn()}
+      />,
+    );
+
+    expect(screen.queryByRole('dialog', { name: 'Sources' })).not.toBeInTheDocument();
   });
 
   it('normalizes player hotkeys while ignoring modified shortcuts and form input', () => {
@@ -192,6 +245,40 @@ describe('PlayerChrome', () => {
     slider.focus();
     fireEvent.keyDown(slider, { key: ' ' });
     expect(controls.pause).toHaveBeenCalledTimes(1);
+  });
+
+  it('traps panel focus, restores the opener, and keeps global hotkeys out of interactive controls', async () => {
+    const { controls } = renderChrome();
+    const sourcesButton = screen.getByRole('button', { name: 'Sources' });
+    sourcesButton.focus();
+    fireEvent.click(sourcesButton);
+
+    const dialog = await screen.findByRole('dialog', { name: 'Sources' });
+    expect(screen.getByRole('button', { name: 'Close Sources' })).toHaveFocus();
+    const options = screen.getAllByRole('option');
+    expect(options.filter(option => option.tabIndex === 0)).toHaveLength(1);
+    options[0].focus();
+    fireEvent.keyDown(options[0], { key: 'ArrowDown' });
+    expect(options[1]).toHaveFocus();
+    expect(controls.seek).not.toHaveBeenCalled();
+
+    fireEvent.keyDown(dialog, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: 'Sources' })).not.toBeInTheDocument();
+    expect(sourcesButton).toHaveFocus();
+    fireEvent.keyDown(sourcesButton, { key: ' ' });
+    expect(controls.pause).not.toHaveBeenCalled();
+  });
+
+  it('keeps keyboard-focused controls visible while playback continues', () => {
+    vi.useFakeTimers();
+    renderChrome();
+    const controls = screen.getByTestId('player-chrome-controls');
+    screen.getByRole('button', { name: 'Back' }).focus();
+
+    act(() => vi.advanceTimersByTime(PLAYER_AUTO_HIDE_MS + 1));
+
+    expect(controls).toHaveAttribute('data-visible', 'true');
+    expect(controls).not.toHaveAttribute('aria-hidden', 'true');
   });
 
   it('honestly disables controls unavailable from the active adapter', () => {

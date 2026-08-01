@@ -119,13 +119,15 @@ function playbackHandoff(
   launch: NormalizedPlayerLaunch,
 ): PlaybackHandoff {
   const current = sessionState?.adapterState;
+  const audioTrack = current?.audioTracks.find(track => track.id === current.selectedAudioId);
+  const subtitleTrack = current?.subtitleTracks.find(track => track.id === current.selectedSubtitleId);
   return {
     position: current?.position ?? launch.startPosition,
     tracks: {
-      audioId: current?.selectedAudioId ?? launch.preferredTracks.audioId,
-      subtitleId: current?.selectedSubtitleId ?? launch.preferredTracks.subtitleId,
-      audioLanguage: launch.preferredTracks.audioLanguage,
-      subtitleLanguage: launch.preferredTracks.subtitleLanguage,
+      audioId: null,
+      subtitleId: current?.selectedSubtitleId === 'off' ? 'off' : null,
+      audioLanguage: audioTrack?.language ?? launch.preferredTracks.audioLanguage,
+      subtitleLanguage: subtitleTrack?.language ?? launch.preferredTracks.subtitleLanguage,
     },
   };
 }
@@ -150,6 +152,8 @@ export function UnifiedPlayer({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sessionRef = useRef<PlayerSession | null>(null);
+  const sessionGenerationRef = useRef(0);
+  const teardownQueueRef = useRef<Promise<void>>(Promise.resolve());
   const stateRef = useRef<PlayerSessionState | null>(null);
   const [sessionState, setSessionState] = useState<PlayerSessionState | null>(null);
   const [subtitlePreferences, setSubtitlePreferences] = useState<SubtitlePreferences>(loadSubtitlePreferences);
@@ -169,37 +173,53 @@ export function UnifiedPlayer({
   });
 
   useEffect(() => {
-    if (!plan || !rootRef.current || !videoRef.current || !canvasRef.current) {
-      stateRef.current = null;
-      setSessionState(null);
-      return;
-    }
+    const generation = sessionGenerationRef.current + 1;
+    sessionGenerationRef.current = generation;
     let active = true;
-    const hosts: PlayerHostElements = {
-      root: rootRef.current,
-      video: videoRef.current,
-      canvas: canvasRef.current,
-    };
-    const session = new PlayerSession(plan, {
-      createAdapter: attempt => createAdapter(attempt, hosts),
-    });
-    sessionRef.current = session;
-    const unsubscribe = session.subscribe(next => {
-      if (!active) return;
-      stateRef.current = next;
-      setSessionState(next);
-    });
-    readyAttemptRef.current = null;
-    errorRef.current = null;
-    endedRef.current = false;
-    startSession(session);
+    let session: PlayerSession | null = null;
+    let unsubscribe: (() => void) | null = null;
+    void (async () => {
+      await teardownQueueRef.current;
+      if (!active || generation !== sessionGenerationRef.current) return;
+      if (!plan || !rootRef.current || !videoRef.current || !canvasRef.current) {
+        stateRef.current = null;
+        setSessionState(null);
+        return;
+      }
+      const hosts: PlayerHostElements = {
+        root: rootRef.current,
+        video: videoRef.current,
+        canvas: canvasRef.current,
+      };
+      session = new PlayerSession(plan, {
+        createAdapter: attempt => createAdapter(attempt, hosts),
+      });
+      sessionRef.current = session;
+      unsubscribe = session.subscribe(next => {
+        if (!active) return;
+        stateRef.current = next;
+        setSessionState(next);
+      });
+      readyAttemptRef.current = null;
+      errorRef.current = null;
+      endedRef.current = false;
+      startSession(session);
+    })();
     return () => {
       active = false;
-      unsubscribe();
+      unsubscribe?.();
+      if (!session) return;
       if (sessionRef.current === session) sessionRef.current = null;
-      void session.destroy();
+      const retiringSession = session;
+      teardownQueueRef.current = teardownQueueRef.current
+        .then(() => retiringSession.destroy())
+        .catch(() => undefined);
     };
   }, [createAdapter, plan]);
+
+  useEffect(() => {
+    void sessionRef.current?.updateSubtitles(subtitles);
+  }, [subtitles]);
 
   useEffect(() => {
     introSkippedRef.current = false;
@@ -228,7 +248,9 @@ export function UnifiedPlayer({
   useEffect(() => {
     if (!onProgress) return;
     const timer = setInterval(() => {
-      const adapterState = stateRef.current?.adapterState;
+      const current = stateRef.current;
+      if (endedRef.current || current?.phase === 'ended') return;
+      const adapterState = current?.adapterState;
       if (adapterState && adapterState.duration > 0) onProgress(adapterState.position, adapterState.duration, false);
     }, 10_000);
     return () => clearInterval(timer);
@@ -254,7 +276,10 @@ export function UnifiedPlayer({
   }, [intro?.autoSkip, intro?.end, introActive, sessionState?.capabilities?.seek]);
 
   const controller = useMemo<PlayerChromeController>(() => ({
-    play: () => sessionRef.current?.play(),
+    play: () => {
+      if (stateRef.current?.phase === 'ended') endedRef.current = false;
+      sessionRef.current?.play();
+    },
     pause: () => sessionRef.current?.pause(),
     seek: position => sessionRef.current?.seek(position),
     setVolume: volume => sessionRef.current?.setVolume(volume),
@@ -263,6 +288,7 @@ export function UnifiedPlayer({
     setFullscreen: fullscreen => sessionRef.current?.setFullscreen(fullscreen),
     setPictureInPicture: enabled => sessionRef.current?.setPictureInPicture(enabled),
     requestRemotePlayback: () => sessionRef.current?.requestRemotePlayback(),
+    requestSeekPreview: position => sessionRef.current?.requestSeekPreview(position) ?? null,
     selectAudioTrack: id => sessionRef.current?.selectAudioTrack(id),
     selectSubtitleTrack: id => sessionRef.current?.selectSubtitleTrack(id),
     openAudioPanel: () => sessionRef.current?.openAudioPanel(),

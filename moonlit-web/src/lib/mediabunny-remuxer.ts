@@ -43,10 +43,6 @@ export class MediabunnyRemuxer {
     this.cancelled = false;
 
     try {
-      const sourceUrl = url.startsWith('/api/media-proxy')
-        ? url
-        : `/api/media-proxy?url=${encodeURIComponent(url)}`;
-
       // Create output first — we need the WritableStream ready
       this.writable = new WritableStream<Uint8Array>({
         write: (chunk) => {
@@ -62,9 +58,9 @@ export class MediabunnyRemuxer {
         target: new AppendOnlyStreamTarget(this.writable),
       });
 
-      // Create input from proxy URL
+      // Cross-origin inputs must provide their own CORS response headers.
       this.input = new Input({
-        source: new UrlSource(sourceUrl),
+        source: new UrlSource(url),
         formats: ALL_FORMATS,
       });
 
@@ -124,9 +120,9 @@ export class MediabunnyRemuxer {
   async destroy(): Promise<void> {
     this.cancelled = true;
     if (this.executing) {
-      try { await this.conversion?.cancel(); } catch {}
+      try { await this.conversion?.cancel(); } catch { /* Conversion may already be closed. */ }
     }
-    try { this.input?.dispose?.(); } catch {}
+    try { this.input?.dispose?.(); } catch { /* Input may already be disposed. */ }
     this.input = null;
     this.output = null;
     this.conversion = null;

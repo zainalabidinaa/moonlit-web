@@ -1,35 +1,12 @@
-/**
- * Streaming media proxy — passes Range requests through to the upstream URL.
- * Needed so web-demuxer can fetch MKV files from cross-origin sources that
- * don't set CORS headers.
- */
-import { parseMediaProxyHeaders } from '../src/lib/player/media-proxy';
-
 export const config = { runtime: 'edge' };
 
-export default async function handler(req: Request) {
-  const params = new URL(req.url).searchParams;
-  const url = params.get('url');
-  if (!url) return new Response('Missing url param', { status: 400 });
-
-  const headers = new Headers(parseMediaProxyHeaders(params.get('headers')));
-  const range = req.headers.get('range');
-  if (range) headers.set('Range', range);
-
-  const upstream = await fetch(url, { headers });
-
-  const responseHeaders = new Headers();
-  responseHeaders.set('Access-Control-Allow-Origin', '*');
-  responseHeaders.set('Access-Control-Allow-Headers', 'Range');
-  responseHeaders.set('Access-Control-Expose-Headers', 'Content-Range, Content-Length, Accept-Ranges');
-
-  for (const key of ['Content-Type', 'Content-Length', 'Content-Range', 'Accept-Ranges']) {
-    const val = upstream.headers.get(key);
-    if (val) responseHeaders.set(key, val);
-  }
-
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: responseHeaders,
+export default function handler(req: Request) {
+  void req;
+  return new Response('Media proxy disabled', {
+    status: 410,
+    headers: {
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8',
+    },
   });
 }

@@ -4,12 +4,16 @@ import type {
   PlayerAdapterCapabilities,
   PlayerAdapterLoadRequest,
   PlayerAdapterState,
+  PlayerSeekPreview,
   PlayerTrack,
   PlayerTrackSelection,
 } from '../contracts';
 import { normalizeAdapterState } from '../contracts';
+import { headersForExactOrigin } from '../media-proxy';
 
 interface HlsInstanceLike {
+  audioTracks?: Array<{ id?: number; name?: string; lang?: string; audioCodec?: string }>;
+  audioTrack?: number;
   on(event: string, listener: (event: string, data: { fatal?: boolean; type?: string }) => void): void;
   loadSource(url: string): void;
   attachMedia(video: HTMLVideoElement): void;
@@ -45,6 +49,9 @@ export interface HtmlVideoPlaybackDependencies {
   loadMpegTs?: () => Promise<{ default: MpegTsLike }>;
   onError?: (message: string) => void;
   detectBlackFrame?: (video: HTMLVideoElement) => boolean | Promise<boolean>;
+  signal?: AbortSignal;
+  onHlsAttached?: (hls: HlsInstanceLike | null) => void;
+  createSeekPreview?: (url: string, position: number) => Promise<PlayerSeekPreview | null>;
   attachPlayback?: (
     video: HTMLVideoElement,
     attempt: PlaybackAttempt,
@@ -88,6 +95,40 @@ function detectBlackVideoFrame(video: HTMLVideoElement): boolean {
   }
 }
 
+async function captureSeekPreview(url: string, position: number): Promise<PlayerSeekPreview | null> {
+  const preview = document.createElement('video');
+  preview.preload = 'auto';
+  preview.muted = true;
+  preview.crossOrigin = 'anonymous';
+  return new Promise(resolve => {
+    const finish = (result: PlayerSeekPreview | null) => {
+      clearTimeout(timer);
+      preview.removeAttribute('src');
+      resolve(result);
+    };
+    const timer = setTimeout(() => finish(null), 2_500);
+    preview.addEventListener('error', () => finish(null), { once: true });
+    preview.addEventListener('loadedmetadata', () => {
+      preview.currentTime = Math.min(Math.max(0, position), preview.duration || position);
+    }, { once: true });
+    preview.addEventListener('seeked', () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = 256;
+        canvas.height = 144;
+        const context = canvas.getContext('2d');
+        if (!context || preview.videoWidth <= 0 || preview.videoHeight <= 0) return finish(null);
+        context.drawImage(preview, 0, 0, canvas.width, canvas.height);
+        finish({ position, imageUrl: canvas.toDataURL('image/jpeg', 0.82) });
+      } catch {
+        finish(null);
+      }
+    }, { once: true });
+    preview.src = url;
+    preview.load();
+  });
+}
+
 export async function attachHtmlVideoPlayback(
   video: HTMLVideoElement,
   attempt: PlaybackAttempt,
@@ -95,10 +136,15 @@ export async function attachHtmlVideoPlayback(
 ): Promise<() => void> {
   const loadHls = dependencies.loadHls ?? defaultDependencies.loadHls;
   const loadMpegTs = dependencies.loadMpegTs ?? defaultDependencies.loadMpegTs;
+  if (dependencies.signal?.aborted) throw new DOMException('Playback load aborted', 'AbortError');
 
   if (attempt.method === 'hls-mse' || attempt.method === 'server-remux' || attempt.method === 'server-transcode') {
     const { default: Hls } = await loadHls();
+    if (dependencies.signal?.aborted) throw new DOMException('Playback load aborted', 'AbortError');
     if (!Hls.isSupported()) {
+      if (attempt.requestHeaders && Object.keys(attempt.requestHeaders).length > 0) {
+        throw new Error('Protected HLS requires HLS.js exact-origin header support.');
+      }
       if (video.canPlayType('application/vnd.apple.mpegurl')) {
         video.src = attempt.url;
         return () => clearMediaElement(video);
@@ -112,11 +158,14 @@ export async function attachHtmlVideoPlayback(
       backBufferLength: attempt.isLive ? 90 : 30,
       maxBufferLength: attempt.isLive ? 30 : 50,
       ...(headers && {
-        xhrSetup: (xhr: XMLHttpRequest) => {
-          for (const [name, value] of Object.entries(headers)) xhr.setRequestHeader(name, value);
+        xhrSetup: (xhr: XMLHttpRequest, url: string) => {
+          for (const [name, value] of Object.entries(headersForExactOrigin(headers, attempt.url, url))) {
+            xhr.setRequestHeader(name, value);
+          }
         },
       }),
     });
+    dependencies.onHlsAttached?.(hls);
     hls.on(Hls.Events.ERROR, (_event, data) => {
       if (!data.fatal) return;
       if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -128,6 +177,7 @@ export async function attachHtmlVideoPlayback(
     hls.loadSource(attempt.url);
     hls.attachMedia(video);
     return () => {
+      dependencies.onHlsAttached?.(null);
       hls.destroy();
       clearMediaElement(video);
     };
@@ -135,6 +185,7 @@ export async function attachHtmlVideoPlayback(
 
   if (attempt.method === 'mpeg-ts') {
     const { default: mpegts } = await loadMpegTs();
+    if (dependencies.signal?.aborted) throw new DOMException('Playback load aborted', 'AbortError');
     if (!mpegts.isSupported()) {
       throw new Error('MPEG-TS playback is unavailable in this browser.');
     }
@@ -197,7 +248,10 @@ export class HtmlVideoAdapter implements PlayerAdapter {
   private readonly listeners = new Set<(state: PlayerAdapterState) => void>();
   private readonly eventCleanups: (() => void)[] = [];
   private transportCleanup: (() => void) | null = null;
+  private hlsTransport: HlsInstanceLike | null = null;
+  private loadGeneration = 0;
   private pendingPosition = 0;
+  private previewUrl: string | null = null;
   private subtitleElements: HTMLTrackElement[] = [];
   private blackFrameProbeTimer: ReturnType<typeof setTimeout> | null = null;
   private blackFrameProbeGeneration = 0;
@@ -213,7 +267,6 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     private readonly fullscreenRoot: HTMLElement,
     private readonly dependencies: HtmlVideoPlaybackDependencies = {},
   ) {
-    const withTracks = video as VideoWithTracks;
     this.capabilities = {
       seek: true,
       volume: true,
@@ -221,9 +274,9 @@ export class HtmlVideoAdapter implements PlayerAdapter {
       fullscreen: typeof fullscreenRoot.requestFullscreen === 'function',
       pictureInPicture: typeof video.requestPictureInPicture === 'function',
       remotePlayback: 'remote' in video,
-      audioTracks: !!withTracks.audioTracks,
+      audioTracks: true,
       subtitleTracks: true,
-      seekPreview: false,
+      seekPreview: true,
       screenshot: false,
       anime4k: false,
     };
@@ -233,35 +286,36 @@ export class HtmlVideoAdapter implements PlayerAdapter {
   }
 
   async load(request: PlayerAdapterLoadRequest): Promise<void> {
-    this.transportCleanup?.();
-    this.transportCleanup = null;
+    const generation = this.loadGeneration + 1;
+    this.loadGeneration = generation;
+    await this.cleanupTransport();
+    if (request.signal.aborted || generation !== this.loadGeneration) return;
     this.subtitleElements.forEach(element => element.remove());
     this.subtitleElements = [];
     this.cancelBlackFrameProbe();
     this.pendingPosition = Math.max(0, request.position);
+    this.previewUrl = request.attempt.method === 'native'
+      && !request.attempt.isLive
+      && !request.attempt.requestHeaders
+      ? request.attempt.url
+      : null;
+    this.capabilities.seekPreview = this.previewUrl !== null;
     this.preferredTracks = { ...request.tracks };
     this.emit({ phase: 'loading', position: this.pendingPosition, error: null, blackFrameDetected: false });
-
-    for (const subtitle of request.subtitles) {
-      const element = document.createElement('track');
-      element.kind = 'subtitles';
-      element.src = subtitle.url;
-      element.label = subtitle.name || subtitle.lang || 'Subtitle';
-      element.srclang = subtitle.lang || 'und';
-      element.dataset.moonlitTrackId = subtitle.id;
-      element.default = request.tracks.subtitleId !== 'off' && (
-        String(request.tracks.subtitleId) === subtitle.id
-        || (!request.tracks.subtitleId && !!request.tracks.subtitleLanguage && request.tracks.subtitleLanguage === subtitle.lang)
-      );
-      this.video.appendChild(element);
-      this.subtitleElements.push(element);
-    }
+    this.installSubtitles(request.subtitles);
 
     const attachPlayback = this.dependencies.attachPlayback ?? attachHtmlVideoPlayback;
-    this.transportCleanup = await attachPlayback(this.video, request.attempt, {
+    const cleanup = await attachPlayback(this.video, request.attempt, {
       ...this.dependencies,
+      signal: request.signal,
+      onHlsAttached: hls => { this.hlsTransport = hls; },
       onError: message => this.emit({ phase: 'error', error: message }),
     });
+    if (request.signal.aborted || generation !== this.loadGeneration) {
+      await cleanup();
+      return;
+    }
+    this.transportCleanup = cleanup;
   }
 
   play() { return this.video.play(); }
@@ -288,10 +342,14 @@ export class HtmlVideoAdapter implements PlayerAdapter {
 
   selectAudioTrack(id: string | number): void {
     const list = (this.video as VideoWithTracks).audioTracks;
-    if (!list) return;
-    for (let index = 0; index < list.length; index += 1) {
-      const track = list[index];
-      track.enabled = String(track.id || index) === String(id);
+    if (list && list.length > 0) {
+      for (let index = 0; index < list.length; index += 1) {
+        const track = list[index];
+        track.enabled = String(track.id || index) === String(id);
+      }
+    } else if (this.hlsTransport?.audioTracks) {
+      const selected = this.hlsTransport.audioTracks.findIndex((track, index) => `hls:${track.id ?? index}` === String(id));
+      if (selected >= 0) this.hlsTransport.audioTrack = selected;
     }
     this.emitTracks();
   }
@@ -306,8 +364,21 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     this.emitTracks();
   }
 
+  updateSubtitles(subtitles: PlayerAdapterLoadRequest['subtitles'], tracks: PlayerTrackSelection): void {
+    this.preferredTracks = { ...tracks };
+    this.installSubtitles(subtitles);
+    this.restorePreferredTracks();
+    this.emitTracks();
+  }
+
   probeAudioTracks(): void {
     this.emitTracks();
+  }
+
+  requestSeekPreview(position: number): Promise<PlayerSeekPreview | null> {
+    if (!this.previewUrl) return Promise.resolve(null);
+    const create = this.dependencies.createSeekPreview ?? captureSeekPreview;
+    return create(this.previewUrl, Math.max(0, position));
   }
 
   subscribe(listener: (state: PlayerAdapterState) => void): () => void {
@@ -316,14 +387,22 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     return () => this.listeners.delete(listener);
   }
 
-  destroy(): void {
-    this.transportCleanup?.();
-    this.transportCleanup = null;
+  async destroy(): Promise<void> {
+    this.loadGeneration += 1;
+    await this.cleanupTransport();
     this.eventCleanups.splice(0).forEach(cleanup => cleanup());
     this.subtitleElements.forEach(element => element.remove());
     this.subtitleElements = [];
     this.cancelBlackFrameProbe();
+    this.previewUrl = null;
     this.listeners.clear();
+  }
+
+  private async cleanupTransport(): Promise<void> {
+    const cleanup = this.transportCleanup;
+    this.transportCleanup = null;
+    if (cleanup) await cleanup();
+    this.hlsTransport = null;
   }
 
   private bindEvents(): void {
@@ -374,7 +453,15 @@ export class HtmlVideoAdapter implements PlayerAdapter {
         return this.video.buffered.length > 0 ? this.video.buffered.end(this.video.buffered.length - 1) : 0;
       } catch { return 0; }
     })();
-    const tracks = audioTracks(this.video as VideoWithTracks);
+    const nativeTracks = audioTracks(this.video as VideoWithTracks);
+    const tracks = nativeTracks.length > 0 ? nativeTracks : (this.hlsTransport?.audioTracks ?? []).map((track, index): PlayerTrack => ({
+      id: `hls:${track.id ?? index}`,
+      kind: 'audio',
+      label: track.name || track.lang || `Track ${index + 1}`,
+      language: track.lang || undefined,
+      codec: track.audioCodec || undefined,
+      selected: this.hlsTransport?.audioTrack === index,
+    }));
     const textTracks = Array.from(this.video.textTracks ?? []);
     const subtitles = textTracks.map((track, index): PlayerTrack => {
       const externalElement = this.subtitleElementForTrack(track, index, textTracks);
@@ -413,6 +500,27 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     this.emit(this.snapshot(this.state.phase));
   }
 
+  private installSubtitles(subtitles: PlayerAdapterLoadRequest['subtitles']): void {
+    this.subtitleElements.forEach(element => element.remove());
+    this.subtitleElements = [];
+    for (const subtitle of subtitles) {
+      const element = document.createElement('track');
+      element.kind = 'subtitles';
+      element.src = subtitle.url;
+      element.label = subtitle.name || subtitle.lang || 'Subtitle';
+      element.srclang = subtitle.lang || 'und';
+      element.dataset.moonlitTrackId = subtitle.id;
+      element.default = this.preferredTracks.subtitleId !== 'off' && (
+        String(this.preferredTracks.subtitleId) === subtitle.id
+        || (!this.preferredTracks.subtitleId
+          && !!this.preferredTracks.subtitleLanguage
+          && this.preferredTracks.subtitleLanguage === subtitle.lang)
+      );
+      this.video.appendChild(element);
+      this.subtitleElements.push(element);
+    }
+  }
+
   private restorePreferredTracks(): void {
     const audioList = (this.video as VideoWithTracks).audioTracks;
     if (audioList && (this.preferredTracks.audioId !== null || this.preferredTracks.audioLanguage)) {
@@ -437,6 +545,16 @@ export class HtmlVideoAdapter implements PlayerAdapter {
           audioList[index].enabled = index === selectedIndex;
         }
       }
+    }
+    if (!audioList && this.hlsTransport?.audioTracks && (this.preferredTracks.audioId !== null || this.preferredTracks.audioLanguage)) {
+      const hlsTracks = this.hlsTransport.audioTracks;
+      let selectedIndex = this.preferredTracks.audioId === null
+        ? -1
+        : hlsTracks.findIndex((track, index) => `hls:${track.id ?? index}` === String(this.preferredTracks.audioId));
+      if (selectedIndex < 0 && this.preferredTracks.audioLanguage) {
+        selectedIndex = hlsTracks.findIndex(track => track.lang?.toLowerCase() === this.preferredTracks.audioLanguage?.toLowerCase());
+      }
+      if (selectedIndex >= 0) this.hlsTransport.audioTrack = selectedIndex;
     }
 
     const textTracks = Array.from(this.video.textTracks ?? []);

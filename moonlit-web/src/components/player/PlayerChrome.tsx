@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   Airplay,
   ArrowLeft,
@@ -27,6 +27,7 @@ import type { StreamItem } from '@/lib/types';
 import type {
   PlayerAdapterCapabilities,
   PlayerMetadata,
+  PlayerSeekPreview,
   PlayerTrack,
 } from '@/lib/player/contracts';
 
@@ -67,6 +68,7 @@ export interface PlayerChromeController {
   selectAudioTrack(id: string | number): void | Promise<void>;
   selectSubtitleTrack(id: string | number | 'off'): void | Promise<void>;
   openAudioPanel(): void | Promise<void>;
+  requestSeekPreview?(position: number): PlayerSeekPreview | null | Promise<PlayerSeekPreview | null>;
   retry(): void | Promise<void>;
 }
 
@@ -148,14 +150,48 @@ function PanelFrame({
   children: ReactNode;
   fullHeight?: boolean;
 }) {
+  const dialogRef = useRef<HTMLElement>(null);
+  const openerRef = useRef<HTMLElement | null>(null);
+
+  useLayoutEffect(() => {
+    openerRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const initial = dialogRef.current?.querySelector<HTMLElement>('button:not(:disabled), [href], [tabindex="0"]');
+    initial?.focus();
+    return () => openerRef.current?.focus();
+  }, []);
+
+  const handleKeyDown = (event: React.KeyboardEvent<HTMLElement>) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+      return;
+    }
+    if (event.key !== 'Tab') return;
+    const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex="0"]') ?? [])];
+    if (focusable.length === 0) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
+
   return (
     <div className="pointer-events-auto absolute inset-0 z-40 flex items-end justify-center bg-black/60 sm:items-center sm:justify-end" onMouseDown={event => {
       if (event.target === event.currentTarget) onClose();
     }}>
       <section
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-label={title}
+        data-player-panel="true"
+        onKeyDown={handleKeyDown}
         className={`${width} max-w-[calc(100vw-24px)] overflow-y-auto overscroll-contain border border-player-edge bg-player-surface text-player-ink shadow-ml-panel ${fullHeight ? 'h-[calc(100%-24px)] rounded-ml-lg sm:h-full sm:rounded-none' : 'max-h-[min(72vh,620px)] rounded-ml-lg p-4 sm:me-[26px] sm:mb-[106px]'}`}
       >
         <header className="sticky top-0 z-10 flex min-h-11 items-center gap-3 bg-player-surface pb-3">
@@ -181,7 +217,22 @@ function TrackRow({ selected, label, detail, onClick }: {
       type="button"
       role="option"
       aria-selected={selected}
+      tabIndex={selected ? 0 : -1}
       onClick={onClick}
+      onKeyDown={event => {
+        if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const listbox = event.currentTarget.closest('[role="listbox"]');
+        const options = [...(listbox?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
+        const current = options.indexOf(event.currentTarget);
+        const next = event.key === 'Home'
+          ? 0
+          : event.key === 'End'
+            ? options.length - 1
+            : (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
+        options[next]?.focus();
+      }}
       className={`flex min-h-11 w-full items-center gap-3 rounded-ml-ctl px-3 py-2 text-start transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${selected ? 'bg-player-elevated font-semibold text-player-ink' : 'text-player-ink-muted hover:bg-white/5 hover:text-player-ink'}`}
     >
       <span className={`grid h-4 w-4 shrink-0 place-items-center rounded-full ${selected ? 'bg-player-ink text-player-canvas' : 'bg-player-raised'}`}>
@@ -214,6 +265,9 @@ export function PlayerChrome({
 }: PlayerChromeProps) {
   const [visible, setVisible] = useState(true);
   const [panel, setPanel] = useState<Panel>(null);
+  const [chromeFocused, setChromeFocused] = useState(false);
+  const [seekPreview, setSeekPreview] = useState<(PlayerSeekPreview & { percent: number }) | null>(null);
+  const seekPreviewGeneration = useRef(0);
   const [showResume, setShowResume] = useState(resumePosition >= 10);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
@@ -229,10 +283,10 @@ export function PlayerChrome({
 
   const armHideTimer = useCallback(() => {
     clearHideTimer();
-    if (stateRef.current.phase === 'playing' && !stateRef.current.paused && panel === null) {
+    if (stateRef.current.phase === 'playing' && !stateRef.current.paused && panel === null && !chromeFocused) {
       hideTimer.current = setTimeout(() => setVisible(false), PLAYER_AUTO_HIDE_MS);
     }
-  }, [clearHideTimer, panel]);
+  }, [chromeFocused, clearHideTimer, panel]);
 
   const reveal = useCallback(() => {
     setVisible(true);
@@ -265,7 +319,7 @@ export function PlayerChrome({
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       const isFormControl = target instanceof Element
-        && target.matches('input, textarea, select, [contenteditable="true"]');
+        && target.matches('input, textarea, select, button, a, [role="option"], [contenteditable="true"]');
       if (event.metaKey || event.ctrlKey || event.altKey || isFormControl) return;
       if (event.key === 'Escape' && panel) {
         event.preventDefault();
@@ -340,10 +394,28 @@ export function PlayerChrome({
     void controller.openAudioPanel();
   };
 
+  const updateSeekPreview = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (!state.capabilities.seekPreview || !controller.requestSeekPreview || state.duration <= 0) return;
+    const bounds = event.currentTarget.getBoundingClientRect();
+    if (bounds.width <= 0) return;
+    const percent = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
+    const position = percent * state.duration;
+    const generation = seekPreviewGeneration.current + 1;
+    seekPreviewGeneration.current = generation;
+    void Promise.resolve(controller.requestSeekPreview(position)).then(result => {
+      if (generation === seekPreviewGeneration.current && result) setSeekPreview({ ...result, percent });
+    });
+  };
+
   const isLoading = state.phase === 'idle' || state.phase === 'resolving' || state.phase === 'loading';
   const isError = state.phase === 'error' || state.phase === 'external' || state.phase === 'unsupported';
+  useEffect(() => {
+    if (!isLoading && !isError) return;
+    const timer = setTimeout(() => setPanel(null), 0);
+    return () => clearTimeout(timer);
+  }, [isError, isLoading]);
   const controlsVisible = !isLoading && !isError && (
-    visible || state.phase !== 'playing' || state.paused || panel !== null
+    visible || chromeFocused || state.phase !== 'playing' || state.paused || panel !== null
   );
 
   return (
@@ -351,6 +423,16 @@ export function PlayerChrome({
       data-testid="player-chrome"
       className="pointer-events-auto absolute inset-0 z-20 select-none overflow-hidden text-player-ink"
       onMouseMove={reveal}
+      onFocusCapture={() => {
+        setChromeFocused(true);
+        setVisible(true);
+        clearHideTimer();
+      }}
+      onBlurCapture={event => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setChromeFocused(false);
+        armHideTimer();
+      }}
     >
       {isLoading && (
         <div
@@ -439,7 +521,15 @@ export function PlayerChrome({
         <footer className="pointer-events-auto bg-gradient-to-t from-black/95 via-black/75 to-transparent px-4 pb-[calc(16px+env(safe-area-inset-bottom))] pt-24 sm:px-7 sm:pb-[calc(23px+env(safe-area-inset-bottom))]">
           <div className="relative grid grid-cols-[42px_minmax(0,1fr)_42px] items-center gap-2.5 text-[10px] font-mono tabular-nums sm:text-xs">
             <span>{fmt(state.position)}</span>
-            <div className="group relative flex h-11 items-center">
+            <div
+              data-testid="seek-preview-timeline"
+              className="group relative flex h-11 items-center"
+              onMouseMove={updateSeekPreview}
+              onMouseLeave={() => {
+                seekPreviewGeneration.current += 1;
+                setSeekPreview(null);
+              }}
+            >
               <input
                 type="range"
                 aria-label="Playback position"
@@ -453,10 +543,12 @@ export function PlayerChrome({
               />
               <div
                 data-testid="seek-preview"
-                aria-hidden="true"
-                className="pointer-events-none absolute bottom-full start-1/2 hidden h-[144px] w-[256px] -translate-x-1/2 place-items-center overflow-hidden rounded-[7px] border border-white/10 bg-player-surface text-xs text-player-ink-muted shadow-ml-panel group-hover:grid"
+                className="pointer-events-none absolute bottom-full hidden h-[144px] w-[256px] -translate-x-1/2 place-items-center overflow-hidden rounded-[7px] border border-white/10 bg-player-surface text-xs text-player-ink-muted shadow-ml-panel group-hover:grid"
+                style={{ left: `${seekPreview ? seekPreview.percent * 100 : 50}%` }}
               >
-                {state.capabilities.seekPreview ? 'Preview' : 'Preview unavailable'}
+                {seekPreview
+                  ? <img src={seekPreview.imageUrl} alt={`Preview at ${fmt(seekPreview.position)}`} className="h-full w-full object-cover" />
+                  : state.capabilities.seekPreview ? 'Move to preview' : 'Preview unavailable'}
               </div>
             </div>
             <span className="text-end">{fmt(state.duration)}</span>
@@ -529,7 +621,7 @@ export function PlayerChrome({
         </footer>
       </div>
 
-      {panel === 'sources' && (
+      {!isLoading && !isError && panel === 'sources' && (
         <PanelFrame title="Sources" width="w-[440px]" onClose={() => setPanel(null)} fullHeight>
           <div className="space-y-2 px-3 pb-5" role="listbox" aria-label="Playback sources">
             {streams.map((stream, index) => (
@@ -546,7 +638,7 @@ export function PlayerChrome({
         </PanelFrame>
       )}
 
-      {panel === 'audio' && (
+      {!isLoading && !isError && panel === 'audio' && (
         <PanelFrame title="Audio" width="w-[360px]" onClose={() => setPanel(null)}>
           <div role="listbox" aria-label="Audio tracks" className="max-h-[260px] space-y-1 overflow-y-auto">
             {state.audioTracks.map(track => (
@@ -564,7 +656,7 @@ export function PlayerChrome({
         </PanelFrame>
       )}
 
-      {panel === 'subtitles' && (
+      {!isLoading && !isError && panel === 'subtitles' && (
         <PanelFrame title="Subtitles" width="w-[500px]" onClose={() => setPanel(null)}>
           <div className="grid gap-3 sm:grid-cols-[128px_minmax(0,1fr)]">
             <div className="rounded-ml-ctl bg-player-elevated p-2 text-xs text-player-ink-muted">
@@ -588,7 +680,7 @@ export function PlayerChrome({
         </PanelFrame>
       )}
 
-      {panel === 'speed' && (
+      {!isLoading && !isError && panel === 'speed' && (
         <PanelFrame title="Playback speed" width="w-[220px]" onClose={() => setPanel(null)}>
           <div role="listbox" aria-label="Playback speeds">
             {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
@@ -598,7 +690,7 @@ export function PlayerChrome({
         </PanelFrame>
       )}
 
-      {panel === 'up-next' && (
+      {!isLoading && !isError && panel === 'up-next' && (
         <PanelFrame title="Up Next" width="w-[440px]" onClose={() => setPanel(null)} fullHeight>
           <div className="px-4 pb-6">
             {typeof upNextContent === 'function'

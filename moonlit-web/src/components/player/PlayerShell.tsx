@@ -56,7 +56,16 @@ function streamsFromLaunch(launch: NormalizedPlayerLaunch): StreamItem[] {
   const streams = [...(launch.streams ?? [])];
   if (!launch.streamUrl) return streams;
   const match = streams.find(stream => stream.url === launch.streamUrl || stream.externalUrl === launch.streamUrl);
-  if (match) return streams;
+  if (match) {
+    if (!launch.requestHeaders) return streams;
+    return streams.map(stream => stream === match ? {
+      ...stream,
+      behaviorHints: {
+        ...stream.behaviorHints,
+        proxyHeaders: { request: launch.requestHeaders },
+      },
+    } : stream);
+  }
   return [{
     url: launch.streamUrl,
     addonName: 'Direct',
@@ -102,6 +111,7 @@ export function PlayerShell({
   const [subtitles, setSubtitles] = useState<SubtitleItem[]>(normalizedLaunch.subtitles ?? []);
   const [mpv, setMpv] = useState<MpvAvailability>({ checked: false, available: false });
   const [selection, setSelection] = useState<StreamPlaybackSelection | null>(null);
+  const progressWriteRef = useRef<Promise<unknown>>(Promise.resolve());
   const [handoff, setHandoff] = useState<PlaybackHandoff | null>(null);
   const [introResult, setIntroResult] = useState<{
     key: string;
@@ -233,12 +243,10 @@ export function PlayerShell({
     serverUrl: getStreamingServerUrl(),
     isLive: applied.launch.isLive,
     enginePreference: applied.enginePreference,
-    requestHeaders: applied.launch.requestHeaders,
     showOnlyCompatibleFormats: applied.showOnlyCompatibleFormats,
   }), [
     applied.enginePreference,
     applied.launch.isLive,
-    applied.launch.requestHeaders,
     applied.showOnlyCompatibleFormats,
   ]);
 
@@ -259,7 +267,7 @@ export function PlayerShell({
   }, [cacheKey]);
 
   useEffect(() => {
-    if (!mpv.checked || !streamsResolved) return;
+    if (!mpv.checked || !streamsResolved || selection) return;
     const candidates = streams.filter(stream => {
       const url = getPlayableStreamUrl(stream);
       return !url || !failedUrlsRef.current.has(url);
@@ -280,6 +288,7 @@ export function PlayerShell({
     environment,
     mpv.checked,
     normalizedLaunch.streamUrl,
+    selection,
     selectionOptions,
     streams,
     streamsResolved,
@@ -329,16 +338,18 @@ export function PlayerShell({
   const handleProgress = useCallback((position: number, duration: number, completed: boolean) => {
     latestHandoffRef.current = { ...latestHandoffRef.current, position };
     if (!activeProfileId || duration <= 0) return;
-    void updateWatchProgress(
-      activeProfileId,
-      normalizedLaunch.id,
-      normalizedLaunch.type,
-      position,
-      duration,
-      completed,
-      normalizedLaunch.metadata.title,
-      normalizedLaunch.metadata.poster,
-    );
+    progressWriteRef.current = progressWriteRef.current
+      .catch(() => undefined)
+      .then(() => updateWatchProgress(
+        activeProfileId,
+        normalizedLaunch.id,
+        normalizedLaunch.type,
+        position,
+        duration,
+        completed,
+        normalizedLaunch.metadata.title,
+        normalizedLaunch.metadata.poster,
+      ));
   }, [activeProfileId, normalizedLaunch.id, normalizedLaunch.metadata.poster, normalizedLaunch.metadata.title, normalizedLaunch.type]);
 
   const playbackLaunch = useMemo<NormalizedPlayerLaunch>(() => ({

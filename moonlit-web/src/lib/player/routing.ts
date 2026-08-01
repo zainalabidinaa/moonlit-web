@@ -7,7 +7,7 @@ import type {
   PlaybackPlan,
   PlayerAdapterKind,
 } from './contracts';
-import { buildMediaProxyUrl } from './media-proxy';
+import { sanitizeSourceRequestHeaders } from './media-proxy';
 
 export interface PlaybackEnvironment {
   chromium: boolean;
@@ -132,59 +132,80 @@ export function buildPlaybackPlan(
   const value = text(stream);
   const isLive = options.isLive === true;
   const serverUrl = options.serverUrl ?? getStreamingServerUrl();
-  const requestHeaders = options.requestHeaders ?? stream.behaviorHints?.proxyHeaders?.request;
+  const requestHeaders = sanitizeSourceRequestHeaders(stream.behaviorHints?.proxyHeaders?.request);
+  const hasRequestHeaders = Object.keys(requestHeaders).length > 0;
+  const sourceRequestHeaders = hasRequestHeaders ? requestHeaders : undefined;
 
   if (!rawUrl) {
     if (stream.externalUrl) return plan(stream, 'external', 'Open externally', 'This source exposes only an external-player URL.', [], stream.externalUrl);
     return plan(stream, 'unsupported', 'Not playable', stream.infoHash || stream.behaviorHints?.notWebReady ? 'This source still needs a resolver.' : 'No playback URL is available.');
   }
-  const protectedBrowserUrl = requestHeaders ? buildMediaProxyUrl(rawUrl, requestHeaders) : rawUrl;
+  const protectedBrowserUrl = rawUrl;
+  const isHls = HLS.test(rawUrl) || stream.behaviorHints?.webPlayableType === 'application/x-mpegurl';
   if (ARCHIVE.test(value)) return plan(stream, 'unsupported', 'Not playable', 'Archive files are not video sources.');
   if (AUDIO_ONLY.test(value)) return plan(stream, 'unsupported', 'Not playable', 'This source has no video track.');
-
-  if (options.enginePreference === 'mpv' && env.mpv) {
-    return plan(stream, 'play-here', 'Plays here', 'MPV selected by the active profile.', [
-      attempt('mpv', 'mpv', rawUrl, MKV.test(value) ? 'mkv' : 'video', isLive, 'Desktop MPV', requestHeaders),
-    ]);
+  if (hasRequestHeaders && !isHls) {
+    return plan(
+      stream,
+      'external',
+      'Open externally',
+      'This protected source requires an authenticated playback session; the insecure URL proxy is disabled.',
+      [],
+      stream.externalUrl ?? rawUrl,
+    );
   }
 
   const mpvUnavailable = options.enginePreference === 'mpv' && !env.mpv;
+  const mpvAttempt = env.mpv && !hasRequestHeaders
+    ? attempt('mpv', 'mpv', rawUrl, MKV.test(value) ? 'mkv' : 'video', isLive, 'Desktop MPV')
+    : null;
+  const preferMpv = options.enginePreference === 'mpv' && !!mpvAttempt;
   const blocked = codecBlockReason(value, env);
   if (blocked) {
-    if (serverUrl) {
+    const blockedAttempts: PlaybackAttempt[] = [];
+    if (preferMpv && mpvAttempt) blockedAttempts.push(mpvAttempt);
+    if (serverUrl && !hasRequestHeaders) {
       const method: PlaybackMethod = 'server-transcode';
       const tier = 'transcode';
-      return plan(stream, 'play-here', 'Plays here', `${blocked.reason} Using the configured streaming server.`, [
-        attempt(method, 'html-video', buildRemuxUrl(serverUrl, rawUrl, tier), 'hls', isLive, blocked.reason, requestHeaders),
-      ]);
+      blockedAttempts.push(
+        attempt(method, 'html-video', buildRemuxUrl(serverUrl, rawUrl, tier), 'hls', isLive, blocked.reason),
+      );
     }
-    if (env.mpv) {
-      return plan(stream, 'play-here', 'Plays here', `${blocked.reason} Using desktop MPV.`, [
-        attempt('mpv', 'mpv', rawUrl, MKV.test(value) ? 'mkv' : 'video', isLive, blocked.reason, requestHeaders),
-      ]);
+    if (!preferMpv && mpvAttempt) blockedAttempts.push(mpvAttempt);
+    if (blockedAttempts.length > 0) {
+      return plan(stream, 'play-here', 'Plays here', blocked.reason, blockedAttempts);
     }
     return plan(stream, 'external', 'Open externally', blocked.reason, [], stream.externalUrl ?? rawUrl);
   }
 
-  let attempts: PlaybackAttempt[] = [];
+  const attempts: PlaybackAttempt[] = [];
   const detail = mpvUnavailable ? 'MPV unavailable; using a browser adapter.' : 'Direct browser playback.';
+  if (preferMpv && mpvAttempt) attempts.push(mpvAttempt);
 
-  if (isLive && liveTsCandidate(rawUrl) && env.mediaSource) {
-    attempts = [attempt('mpeg-ts', 'html-video', rawUrl, 'mpeg-ts', true, 'Live MPEG-TS via lazy MSE loader', requestHeaders)];
-  } else if (HLS.test(rawUrl) || stream.behaviorHints?.webPlayableType === 'application/x-mpegurl') {
-    if (env.nativeHls && !requestHeaders) attempts.push(attempt('native-hls', 'html-video', rawUrl, 'hls', isLive, 'Native HLS', requestHeaders));
-    if (env.mediaSource) attempts.push(attempt('hls-mse', 'html-video', rawUrl, 'hls', isLive, 'HLS.js over Media Source Extensions', requestHeaders));
-    if (attempts.length === 0 && serverUrl) {
-      attempts.push(attempt('server-remux', 'html-video', buildRemuxUrl(serverUrl, rawUrl, 'remux'), 'hls', isLive, 'Server HLS fallback', requestHeaders));
+  if (isLive && liveTsCandidate(rawUrl)) {
+    if (env.mediaSource) attempts.push(attempt('mpeg-ts', 'html-video', rawUrl, 'mpeg-ts', true, 'Live MPEG-TS via lazy MSE loader', sourceRequestHeaders));
+    if (serverUrl && !hasRequestHeaders) {
+      attempts.push(attempt('server-remux', 'html-video', buildRemuxUrl(serverUrl, rawUrl, 'remux'), 'hls', true, 'Configured server live remux'));
+    }
+  } else if (isHls) {
+    if (env.nativeHls && !hasRequestHeaders) attempts.push(attempt('native-hls', 'html-video', rawUrl, 'hls', isLive, 'Native HLS'));
+    if (env.mediaSource) attempts.push(attempt('hls-mse', 'html-video', rawUrl, 'hls', isLive, 'HLS.js over Media Source Extensions', sourceRequestHeaders));
+    if (serverUrl && !hasRequestHeaders) {
+      attempts.push(attempt('server-remux', 'html-video', buildRemuxUrl(serverUrl, rawUrl, 'remux'), 'hls', isLive, 'Server HLS fallback'));
     }
   } else if (MKV.test(value)) {
-    if (env.chromium) attempts.push(attempt('chromium-mkv', 'html-video', protectedBrowserUrl, 'mkv', isLive, 'Chromium native Matroska demuxing', requestHeaders));
-    if (env.mediabunny) attempts.push(attempt('mediabunny-remux', 'mediabunny', protectedBrowserUrl, 'mkv', isLive, 'Lossless in-browser remux', requestHeaders));
-    if (serverUrl) attempts.push(attempt('server-remux', 'html-video', buildRemuxUrl(serverUrl, rawUrl, 'remux'), 'hls', isLive, 'Configured server remux', requestHeaders));
-    if (env.webCodecs) attempts.push(attempt('webcodecs', 'webcodecs', protectedBrowserUrl, 'mkv', isLive, 'Retained WebCodecs fallback', requestHeaders));
+    if (env.chromium) attempts.push(attempt('chromium-mkv', 'html-video', protectedBrowserUrl, 'mkv', isLive, 'Chromium native Matroska demuxing', sourceRequestHeaders));
+    if (env.mediabunny) attempts.push(attempt('mediabunny-remux', 'mediabunny', protectedBrowserUrl, 'mkv', isLive, 'Lossless in-browser remux', sourceRequestHeaders));
+    if (serverUrl) attempts.push(attempt('server-remux', 'html-video', buildRemuxUrl(serverUrl, rawUrl, 'remux'), 'hls', isLive, 'Configured server remux'));
+    if (env.webCodecs) attempts.push(attempt('webcodecs', 'webcodecs', protectedBrowserUrl, 'mkv', isLive, 'Retained WebCodecs fallback', sourceRequestHeaders));
   } else {
-    attempts = [attempt('native', 'html-video', protectedBrowserUrl, 'video', isLive, 'Native HTML media', requestHeaders)];
+    attempts.push(attempt('native', 'html-video', protectedBrowserUrl, 'video', isLive, 'Native HTML media', sourceRequestHeaders));
+    if (serverUrl) {
+      attempts.push(attempt('server-remux', 'html-video', buildRemuxUrl(serverUrl, rawUrl, 'remux'), 'hls', isLive, 'Configured server fallback'));
+    }
   }
+
+  if (!preferMpv && mpvAttempt) attempts.push(mpvAttempt);
 
   if (attempts.length === 0) {
     return plan(stream, 'external', 'Open externally', 'No safe browser playback adapter is available.', [], stream.externalUrl ?? rawUrl);

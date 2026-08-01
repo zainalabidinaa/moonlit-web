@@ -7,7 +7,6 @@
  */
 
 import { WebDemuxer } from 'web-demuxer';
-import { buildMediaProxyUrl } from '@/lib/player/media-proxy';
 
 export interface WebCodecsPlayerState {
   duration: number;
@@ -54,8 +53,7 @@ export class WebCodecsPlayerEngine {
 
     try {
       this.demuxer = new WebDemuxer({ wasmFilePath: `${location.origin}/web-demuxer.wasm` });
-      const proxied = url.startsWith('/api/media-proxy') ? url : buildMediaProxyUrl(url);
-      await this.demuxer.load(proxied);
+      await this.demuxer.load(url);
 
       const videoConfig = await this.demuxer.getDecoderConfig('video');
       const audioConfig = await this.demuxer.getDecoderConfig('audio').catch(() => null);

@@ -188,6 +188,12 @@ export interface PlayerAdapterLoadRequest {
   position: number;
   tracks: PlayerTrackSelection;
   subtitles: SubtitleItem[];
+  signal: AbortSignal;
+}
+
+export interface PlayerSeekPreview {
+  position: number;
+  imageUrl: string;
 }
 
 export interface PlayerAdapter {
@@ -205,7 +211,9 @@ export interface PlayerAdapter {
   requestRemotePlayback?(): void | Promise<void>;
   selectAudioTrack(id: string | number): void | Promise<void>;
   selectSubtitleTrack(id: string | number | 'off'): void | Promise<void>;
+  updateSubtitles?(subtitles: SubtitleItem[], tracks: PlayerTrackSelection): void | Promise<void>;
   probeAudioTracks?(): void | Promise<void>;
+  requestSeekPreview?(position: number): PlayerSeekPreview | null | Promise<PlayerSeekPreview | null>;
   subscribe(listener: (state: PlayerAdapterState) => void): () => void;
   destroy(): void | Promise<void>;
 }

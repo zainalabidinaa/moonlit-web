@@ -149,25 +149,91 @@ describe('buildPlaybackPlan routing matrix', () => {
     expect(plan.detail).toContain('MPV unavailable');
   });
 
-  it('routes protected direct media through the header-forwarding proxy', () => {
+  it('does not invent an insecure proxy route for protected direct media', () => {
     const plan = buildPlaybackPlan(
-      stream('https://cdn.example/protected.mp4', 'Movie H.264 AAC'),
+      stream('https://cdn.example/protected.mp4', 'Movie H.264 AAC', {
+        behaviorHints: { proxyHeaders: { request: { Authorization: 'Bearer test' } } },
+      }),
       browser,
-      { requestHeaders: { Authorization: 'Bearer test' } },
     );
 
-    expect(plan.attempts[0].method).toBe('native');
-    expect(plan.attempts[0].url).toContain('/api/media-proxy?');
-    expect(plan.attempts[0].url).toContain('headers=');
+    expect(plan.outcome).toBe('external');
+    expect(plan.externalUrl).toBe('https://cdn.example/protected.mp4');
+    expect(plan.attempts).toEqual([]);
   });
 
   it('does not choose native HLS when protected manifests require request headers', () => {
     const plan = buildPlaybackPlan(
-      stream('https://cdn.example/protected.m3u8', 'Channel H.264 AAC'),
+      stream('https://cdn.example/protected.m3u8', 'Channel H.264 AAC', {
+        behaviorHints: { proxyHeaders: { request: { Authorization: 'Bearer test' } } },
+      }),
       { ...browser, nativeHls: true },
-      { isLive: true, requestHeaders: { Authorization: 'Bearer test' } },
+      { isLive: true },
     );
 
     expect(plan.attempts.map(item => item.method)).toEqual(['hls-mse']);
+  });
+
+  it('binds headers to the selected stream and never forwards them to a configured server', () => {
+    const item = stream('https://source.example/protected.mkv', 'Movie 2160p HEVC AAC', {
+      behaviorHints: { proxyHeaders: { request: { Authorization: 'Bearer source' } } },
+    });
+    const plan = buildPlaybackPlan(item, browser, {
+      serverUrl: 'https://server.example',
+      requestHeaders: { Authorization: 'Bearer unrelated-launch' },
+    });
+
+    expect(plan.outcome).toBe('external');
+    expect(plan.attempts).toEqual([]);
+    expect(JSON.stringify(plan.attempts)).not.toContain('Bearer');
+  });
+
+  it.each([
+    {
+      name: 'HLS runtime recovery',
+      item: stream('https://cdn.example/master.m3u8', 'H.264 AAC HLS'),
+      env: { ...browser, nativeHls: true, mpv: true },
+      options: { serverUrl: 'https://server.example' },
+      methods: ['native-hls', 'hls-mse', 'server-remux', 'mpv'],
+    },
+    {
+      name: 'live MPEG-TS recovery',
+      item: stream('https://tv.example/live/user/pass/42', 'Live H.264 AAC'),
+      env: { ...browser, mpv: true },
+      options: { isLive: true, serverUrl: 'https://server.example' },
+      methods: ['mpeg-ts', 'server-remux', 'mpv'],
+    },
+    {
+      name: 'live MPEG-TS without browser MSE',
+      item: stream('https://tv.example/live/user/pass/42', 'Live H.264 AAC'),
+      env: { ...browser, mediaSource: false, mpv: true },
+      options: { isLive: true, serverUrl: 'https://server.example' },
+      methods: ['server-remux', 'mpv'],
+    },
+    {
+      name: 'explicit MPV runtime recovery',
+      item: stream('https://cdn.example/movie.mp4', 'H.264 AAC'),
+      env: { ...browser, mpv: true },
+      options: { enginePreference: 'mpv' as const, serverUrl: 'https://server.example' },
+      methods: ['mpv', 'native', 'server-remux'],
+    },
+    {
+      name: 'blocked codec recovery',
+      item: stream('https://cdn.example/movie.mkv', 'HEVC AAC'),
+      env: { ...browser, mpv: true },
+      options: { serverUrl: 'https://server.example' },
+      methods: ['server-transcode', 'mpv'],
+    },
+    {
+      name: 'direct file recovery',
+      item: stream('https://cdn.example/movie.mp4', 'H.264 AAC'),
+      env: { ...browser, mpv: true },
+      options: { serverUrl: 'https://server.example' },
+      methods: ['native', 'server-remux', 'mpv'],
+    },
+  ])('builds the complete ordered ladder for $name', ({ item, env, options, methods }) => {
+    const plan = buildPlaybackPlan(item, env, options);
+
+    expect(plan.attempts.map(value => value.method)).toEqual(methods);
   });
 });

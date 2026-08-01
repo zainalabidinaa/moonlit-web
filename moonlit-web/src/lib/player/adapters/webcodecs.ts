@@ -24,6 +24,8 @@ export class WebCodecsAdapter implements PlayerAdapter {
   private unsubscribeEngine: (() => void) | null = null;
   private state = normalizeAdapterState({ phase: 'idle' });
   private readonly listeners = new Set<(state: PlayerAdapterState) => void>();
+  private loadGeneration = 0;
+  private fullscreen = false;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -46,6 +48,8 @@ export class WebCodecsAdapter implements PlayerAdapter {
   }
 
   async load(request: PlayerAdapterLoadRequest): Promise<void> {
+    const generation = this.loadGeneration + 1;
+    this.loadGeneration = generation;
     this.unsubscribeEngine?.();
     this.engine?.destroy();
     const engine = this.createEngine();
@@ -53,6 +57,10 @@ export class WebCodecsAdapter implements PlayerAdapter {
     this.emit({ phase: 'loading', position: request.position });
     this.unsubscribeEngine = engine.subscribe(state => this.handleEngineState(state));
     await engine.load(request.attempt.url, this.canvas);
+    if (request.signal.aborted || generation !== this.loadGeneration || this.engine !== engine) {
+      engine.destroy();
+      return;
+    }
     if (request.position > 0) await engine.seekTo(request.position);
     engine.play();
   }
@@ -66,6 +74,8 @@ export class WebCodecsAdapter implements PlayerAdapter {
   async setFullscreen(fullscreen: boolean): Promise<void> {
     if (fullscreen && !document.fullscreenElement) await this.fullscreenRoot.requestFullscreen();
     else if (!fullscreen && document.fullscreenElement) await document.exitFullscreen();
+    this.fullscreen = fullscreen;
+    this.emit({ phase: this.state.phase, fullscreen });
   }
   setPictureInPicture() {}
   selectAudioTrack() {}
@@ -78,6 +88,7 @@ export class WebCodecsAdapter implements PlayerAdapter {
   }
 
   destroy(): void {
+    this.loadGeneration += 1;
     this.unsubscribeEngine?.();
     this.unsubscribeEngine = null;
     this.engine?.destroy();
@@ -103,6 +114,7 @@ export class WebCodecsAdapter implements PlayerAdapter {
       hasVideo: next.isReady,
       videoWidth: this.canvas.width,
       videoHeight: this.canvas.height,
+      fullscreen: this.fullscreen,
       error: next.error,
     });
   }

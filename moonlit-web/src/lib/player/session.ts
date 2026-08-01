@@ -57,6 +57,10 @@ export class PlayerSession {
   private adapter: PlayerAdapter | null = null;
   private unsubscribeAdapter: (() => void) | null = null;
   private startupTimer: ReturnType<typeof setTimeout> | null = null;
+  private loadAbortController: AbortController | null = null;
+  private loadGeneration = 0;
+  private destroyed = false;
+  private destroyPromise: Promise<void> | null = null;
   private startOptions: PlayerSessionStartOptions | null = null;
   private preservedPosition = 0;
   private preservedTracks: PlayerTrackSelection = {
@@ -99,6 +103,7 @@ export class PlayerSession {
   }
 
   async start(options: PlayerSessionStartOptions): Promise<void> {
+    if (this.destroyed) return;
     this.startOptions = options;
     this.preservedPosition = Math.max(0, options.position);
     this.preservedTracks = { ...options.tracks };
@@ -115,13 +120,21 @@ export class PlayerSession {
   }
 
   async destroy(): Promise<void> {
+    if (this.destroyPromise) return this.destroyPromise;
+    this.destroyed = true;
+    this.loadGeneration += 1;
+    this.loadAbortController?.abort();
+    this.loadAbortController = null;
     this.clearStartupTimer();
     this.unsubscribeAdapter?.();
     this.unsubscribeAdapter = null;
     const adapter = this.adapter;
     this.adapter = null;
-    if (adapter) await adapter.destroy();
-    this.listeners.clear();
+    this.destroyPromise = (async () => {
+      await this.destroyAdapter(adapter);
+      this.listeners.clear();
+    })();
+    return this.destroyPromise;
   }
 
   play() { return this.adapter?.play(); }
@@ -155,6 +168,12 @@ export class PlayerSession {
     if (!this.adapter?.capabilities.remotePlayback || !this.adapter.requestRemotePlayback) return;
     return this.adapter.requestRemotePlayback();
   }
+  requestSeekPreview(position: number) {
+    const adapter = this.adapter;
+    const request = adapter?.requestSeekPreview;
+    if (!adapter?.capabilities.seekPreview || !request) return null;
+    return request.call(adapter, Math.max(0, position));
+  }
   selectAudioTrack(id: string | number) {
     if (!this.adapter?.capabilities.audioTracks) return;
     this.preservedTracks.audioId = id;
@@ -164,6 +183,16 @@ export class PlayerSession {
     if (!this.adapter?.capabilities.subtitleTracks) return;
     this.preservedTracks.subtitleId = id;
     return this.adapter.selectSubtitleTrack(id);
+  }
+
+  async updateSubtitles(subtitles: SubtitleItem[]): Promise<void> {
+    if (!this.startOptions) return;
+    const previous = this.startOptions.subtitles;
+    const unchanged = previous.length === subtitles.length
+      && previous.every((item, index) => item.id === subtitles[index]?.id && item.url === subtitles[index]?.url);
+    if (unchanged) return;
+    this.startOptions = { ...this.startOptions, subtitles };
+    await this.adapter?.updateSubtitles?.(subtitles, { ...this.preservedTracks });
   }
 
   async openAudioPanel(): Promise<void> {
@@ -185,17 +214,24 @@ export class PlayerSession {
   private async loadAttempt(index: number, reason: string | null): Promise<void> {
     const attempt = this.plan.attempts[index];
     const options = this.startOptions;
-    if (!attempt || !options) return;
+    if (!attempt || !options || this.destroyed) return;
 
+    const generation = this.loadGeneration + 1;
+    this.loadGeneration = generation;
+    this.loadAbortController?.abort();
+    const abortController = new AbortController();
+    this.loadAbortController = abortController;
     this.clearStartupTimer();
     this.unsubscribeAdapter?.();
     this.unsubscribeAdapter = null;
     const previous = this.adapter;
     this.adapter = null;
-    if (previous) await previous.destroy();
+    await this.destroyAdapter(previous);
+    if (this.destroyed || generation !== this.loadGeneration) return;
 
     const adapter = this.createAdapter(attempt);
     this.adapter = adapter;
+    const isFirstAdapter = this.state.attemptIndex === -1;
     this.bufferingCount = 0;
     this.lastAdapterPhase = 'idle';
     this.audioProbed = false;
@@ -210,17 +246,29 @@ export class PlayerSession {
       capabilities: adapter.capabilities,
     });
     this.unsubscribeAdapter = adapter.subscribe(state => this.handleAdapterState(adapter, index, state));
-    this.armStartupTimer(index);
+    this.armStartupTimer(index, generation);
+    const adapterTracks = !isFirstAdapter
+      ? {
+          ...this.preservedTracks,
+          audioId: null,
+          subtitleId: this.preservedTracks.subtitleId === 'off' ? 'off' as const : null,
+        }
+      : { ...this.preservedTracks };
 
     try {
       await adapter.load({
         attempt,
         position: this.preservedPosition,
-        tracks: { ...this.preservedTracks },
+        tracks: adapterTracks,
         subtitles: options.subtitles,
+        signal: abortController.signal,
       });
+      if (this.destroyed || generation !== this.loadGeneration || abortController.signal.aborted) {
+        if (this.adapter === adapter) this.adapter = null;
+        await this.destroyAdapter(adapter);
+      }
     } catch (error) {
-      if (this.adapter === adapter) {
+      if (!abortController.signal.aborted && !this.destroyed && generation === this.loadGeneration && this.adapter === adapter) {
         await this.fallbackFrom(index, error instanceof Error ? error.message : 'Adapter failed to load');
       }
     }
@@ -276,6 +324,14 @@ export class PlayerSession {
       const nextIndex = index + 1;
       if (nextIndex >= this.plan.attempts.length) {
         this.clearStartupTimer();
+        this.loadGeneration += 1;
+        this.loadAbortController?.abort();
+        this.loadAbortController = null;
+        this.unsubscribeAdapter?.();
+        this.unsubscribeAdapter = null;
+        const terminalAdapter = this.adapter;
+        this.adapter = null;
+        await this.destroyAdapter(terminalAdapter);
         this.update({ phase: 'error', error: reason, fallbackReason: reason });
         return;
       }
@@ -289,11 +345,12 @@ export class PlayerSession {
     }
   }
 
-  private armStartupTimer(index: number): void {
+  private armStartupTimer(index: number, generation: number): void {
     this.clearStartupTimer();
     if (this.startupTimeoutMs <= 0) return;
     this.startupTimer = setTimeout(() => {
       this.startupTimer = null;
+      if (generation !== this.loadGeneration || this.destroyed) return;
       void this.fallbackFrom(index, 'Startup timed out');
     }, this.startupTimeoutMs);
   }
@@ -301,6 +358,15 @@ export class PlayerSession {
   private clearStartupTimer(): void {
     if (this.startupTimer) clearTimeout(this.startupTimer);
     this.startupTimer = null;
+  }
+
+  private async destroyAdapter(adapter: PlayerAdapter | null): Promise<void> {
+    if (!adapter) return;
+    try {
+      await adapter.destroy();
+    } catch {
+      // Teardown is best effort; a failed stop must not abort fallback.
+    }
   }
 
   private update(patch: Partial<PlayerSessionState>): void {

@@ -37,6 +37,7 @@ export interface MpvState {
   subDelay: number;
   audioDelay: number;
   aspect: number | null;
+  hasVideoTrack: boolean | null;
   tracks: { audio: MpvTrack[]; subs: MpvTrack[] };
 }
 
@@ -44,7 +45,7 @@ export function initialMpvState(): MpvState {
   return {
     position: 0, duration: 0, paused: false, muted: false, volume: 100, speed: 1,
     buffering: false, cacheTime: 0, loaded: false, ended: false, error: null,
-    subDelay: 0, audioDelay: 0, aspect: null, tracks: { audio: [], subs: [] },
+    subDelay: 0, audioDelay: 0, aspect: null, hasVideoTrack: null, tracks: { audio: [], subs: [] },
   };
 }
 
@@ -90,7 +91,11 @@ export function reduceMpvEvent(state: MpvState, ev: MpvEvent): MpvState {
         case 'paused-for-cache': return { ...state, buffering: d === true };
         case 'video-params/aspect': return typeof d === 'number' ? { ...state, aspect: d } : state;
         case 'eof-reached': return d === true ? { ...state, ended: true } : state;
-        case 'track-list': return { ...state, tracks: parseTrackList(d) };
+        case 'track-list': return {
+          ...state,
+          tracks: parseTrackList(d),
+          hasVideoTrack: Array.isArray(d) ? d.some(track => track && typeof track === 'object' && (track as RawTrack).type === 'video') : null,
+        };
         default: return state;
       }
     }

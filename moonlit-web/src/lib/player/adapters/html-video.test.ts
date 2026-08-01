@@ -74,6 +74,54 @@ describe('attachHtmlVideoPlayback', () => {
     expect(calls.destroyed).toBe(true);
   });
 
+  it('sends source headers only to exact-origin HLS requests', async () => {
+    const video = document.createElement('video');
+    let xhrSetup: ((xhr: XMLHttpRequest, url: string) => void) | undefined;
+    class FakeHls {
+      static isSupported() { return true; }
+      static Events = { ERROR: 'error' };
+      static ErrorTypes = { MEDIA_ERROR: 'mediaError' };
+      constructor(config: { xhrSetup?: (xhr: XMLHttpRequest, url: string) => void }) {
+        xhrSetup = config.xhrSetup;
+      }
+      on() {}
+      loadSource() {}
+      attachMedia() {}
+      recoverMediaError() {}
+      destroy() {}
+    }
+    await attachHtmlVideoPlayback(
+      video,
+      attempt('hls-mse', 'https://cdn.example/master.m3u8'),
+      { loadHls: async () => ({ default: FakeHls }), loadMpegTs: vi.fn() },
+    );
+    const sameOrigin = vi.fn();
+    const crossOrigin = vi.fn();
+
+    xhrSetup?.({ setRequestHeader: sameOrigin } as unknown as XMLHttpRequest, 'https://cdn.example/segment.ts');
+    xhrSetup?.({ setRequestHeader: crossOrigin } as unknown as XMLHttpRequest, 'https://evil.example/segment.ts');
+
+    expect(sameOrigin).toHaveBeenCalledWith('Authorization', 'Bearer test');
+    expect(crossOrigin).not.toHaveBeenCalled();
+  });
+
+  it('does not fall back to headerless native HLS for a protected manifest', async () => {
+    const video = document.createElement('video');
+    vi.spyOn(video, 'canPlayType').mockReturnValue('probably');
+    class UnsupportedHls {
+      static isSupported() { return false; }
+      static Events = { ERROR: 'error' };
+      static ErrorTypes = { MEDIA_ERROR: 'mediaError' };
+    }
+
+    await expect(attachHtmlVideoPlayback(
+      video,
+      attempt('hls-mse', 'https://cdn.example/protected.m3u8'),
+      { loadHls: async () => ({ default: UnsupportedHls as never }), loadMpegTs: vi.fn() },
+    )).rejects.toThrow(/protected HLS/i);
+    expect(video.hasAttribute('src')).toBe(false);
+  });
+
   it('lazily creates mpegts.js only for a planned live MPEG-TS route', async () => {
     const video = document.createElement('video');
     const calls: Record<string, unknown> = {};
@@ -113,6 +161,50 @@ describe('attachHtmlVideoPlayback', () => {
 });
 
 describe('HtmlVideoAdapter', () => {
+  it('lazily exposes and selects HLS.js audio renditions when native audioTracks are absent', async () => {
+    const video = document.createElement('video');
+    class FakeHls {
+      static instance: FakeHls | null = null;
+      static isSupported() { return true; }
+      static Events = { ERROR: 'error' };
+      static ErrorTypes = { MEDIA_ERROR: 'mediaError' };
+      audioTracks = [
+        { id: 10, name: 'English', lang: 'en', audioCodec: 'mp4a.40.2' },
+        { id: 20, name: 'Japanese', lang: 'ja', audioCodec: 'mp4a.40.2' },
+      ];
+      audioTrack = 0;
+      constructor() { FakeHls.instance = this; }
+      on() {}
+      loadSource() {}
+      attachMedia() {}
+      recoverMediaError() {}
+      destroy() {}
+    }
+    const adapter = new HtmlVideoAdapter(video, video, {
+      loadHls: async () => ({ default: FakeHls }),
+      loadMpegTs: vi.fn(),
+    });
+    let latestTracks: Array<{ id: string | number; language?: string }> = [];
+    adapter.subscribe(state => { latestTracks = state.audioTracks; });
+
+    await adapter.load({
+      attempt: attempt('hls-mse', 'https://cdn.example/master.m3u8'),
+      position: 0,
+      tracks: { audioId: null, subtitleId: 'off', audioLanguage: null, subtitleLanguage: null },
+      subtitles: [],
+      signal: new AbortController().signal,
+    });
+    adapter.probeAudioTracks?.();
+
+    expect(adapter.capabilities.audioTracks).toBe(true);
+    expect(latestTracks).toEqual([
+      expect.objectContaining({ id: 'hls:10', language: 'en' }),
+      expect.objectContaining({ id: 'hls:20', language: 'ja' }),
+    ]);
+    adapter.selectAudioTrack('hls:20');
+    expect(FakeHls.instance?.audioTrack).toBe(1);
+  });
+
   it('normalizes media events and restores the requested position', async () => {
     const video = document.createElement('video');
     Object.defineProperties(video, {
@@ -134,6 +226,7 @@ describe('HtmlVideoAdapter', () => {
       position: 42,
       tracks: { audioId: null, subtitleId: 'off', audioLanguage: null, subtitleLanguage: null },
       subtitles: [],
+      signal: new AbortController().signal,
     });
     video.dispatchEvent(new Event('loadedmetadata'));
     expect(states.at(-1)).toBe('loading:42:true');
@@ -176,6 +269,7 @@ describe('HtmlVideoAdapter', () => {
         { id: 'sub-en', lang: 'en', url: '/en.vtt' },
         { id: 'sub-sv', lang: 'sv', url: '/sv.vtt' },
       ],
+      signal: new AbortController().signal,
     });
     video.dispatchEvent(new Event('loadedmetadata'));
 
@@ -210,6 +304,7 @@ describe('HtmlVideoAdapter', () => {
         { id: 'sub-en', lang: 'en', name: 'External English', url: '/en.vtt' },
         { id: 'sub-sv', lang: 'sv', name: 'External Svenska', url: '/sv.vtt' },
       ],
+      signal: new AbortController().signal,
     });
     video.dispatchEvent(new Event('loadedmetadata'));
 
@@ -237,12 +332,63 @@ describe('HtmlVideoAdapter', () => {
       position: 0,
       tracks: { audioId: null, subtitleId: 'off', audioLanguage: null, subtitleLanguage: null },
       subtitles: [],
+      signal: new AbortController().signal,
     });
 
     video.dispatchEvent(new Event('playing'));
     await vi.advanceTimersByTimeAsync(6_000);
 
     expect(blackFrameDetected).toBe(true);
+  });
+
+  it('appends subtitles delivered after playback is ready without reloading transport', async () => {
+    const video = document.createElement('video');
+    const attachPlayback = vi.fn(async () => () => undefined);
+    const adapter = new HtmlVideoAdapter(video, video, { attachPlayback });
+    await adapter.load({
+      attempt: attempt('native'),
+      position: 0,
+      tracks: { audioId: null, subtitleId: null, audioLanguage: null, subtitleLanguage: 'sv' },
+      subtitles: [],
+      signal: new AbortController().signal,
+    });
+
+    expect(typeof adapter.updateSubtitles).toBe('function');
+    await adapter.updateSubtitles?.(
+      [{ id: 'late-sv', lang: 'sv', name: 'Svenska', url: '/late-sv.vtt' }],
+      { audioId: null, subtitleId: null, audioLanguage: null, subtitleLanguage: 'sv' },
+    );
+
+    expect(attachPlayback).toHaveBeenCalledTimes(1);
+    expect(video.querySelector('track')?.dataset.moonlitTrackId).toBe('late-sv');
+    expect(video.querySelector('track')).toHaveAttribute('src', '/late-sv.vtt');
+  });
+
+  it('cleans up a transport that resolves after its load was aborted', async () => {
+    const video = document.createElement('video');
+    const cleanup = vi.fn();
+    let resolveAttach: ((value: () => void) => void) | null = null;
+    const adapter = new HtmlVideoAdapter(video, video, {
+      attachPlayback: () => new Promise(resolve => { resolveAttach = resolve; }),
+    });
+    const controller = new AbortController();
+    const load = adapter.load({
+      attempt: attempt('native'),
+      position: 0,
+      tracks: { audioId: null, subtitleId: null, audioLanguage: null, subtitleLanguage: null },
+      subtitles: [],
+      signal: controller.signal,
+    });
+    await Promise.resolve();
+    expect(resolveAttach).not.toBeNull();
+
+    controller.abort();
+    const destroy = adapter.destroy();
+    resolveAttach?.(cleanup);
+    await load;
+    await destroy;
+
+    expect(cleanup).toHaveBeenCalledTimes(1);
   });
 });
 
