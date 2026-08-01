@@ -1,30 +1,41 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { FeaturedHomeItem, MetaDetail } from '@/lib/types';
 import { Link } from '@tanstack/react-router';
-import { EASE } from '@/lib/design/motion';
 
 interface HomeHeroProps {
   featuredItems: FeaturedHomeItem[];
   activeIndex: number;
   metas: Record<string, MetaDetail | null>;
   backdrops?: Record<string, string>;
+  awards?: Record<string, string>;
   onIndexChange: (i: number) => void;
+  isPaused?: boolean;
+  onPauseChange?: (paused: boolean) => void;
 }
 
-export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndexChange }: HomeHeroProps) {
-  const [logoFailed, setLogoFailed] = React.useState(false);
-
-  if (featuredItems.length === 0) return null;
-
+export function HomeHero({
+  featuredItems,
+  activeIndex,
+  metas,
+  backdrops,
+  awards = {},
+  onIndexChange,
+  isPaused = false,
+  onPauseChange,
+}: HomeHeroProps) {
+  const [failedLogoSrc, setFailedLogoSrc] = React.useState<string | null>(null);
   const featured = featuredItems[activeIndex] ?? featuredItems[0];
-  const meta = metas[featured.item.id] ?? null;
 
-  React.useEffect(() => { setLogoFailed(false); }, [featured.item.id]);
+  if (!featured) return null;
+  const meta = metas[featured.item.id] ?? null;
 
   const title = meta?.name || featured.item.name;
   const description = meta?.description || featured.item.description || '';
-  const bgImage = meta?.background || backdrops?.[featured.item.id] || featured.item.banner || null;
-  const logoSrc = logoFailed ? null : meta?.logo;
+  // Addon landscape artwork wins. Enriched metadata and the independently
+  // resolved TMDB community backdrop are fallbacks, in that order.
+  const bgImage = featured.item.banner || meta?.background || backdrops?.[featured.item.id] || null;
+  const logoSrc = [meta?.logo, featured.item.logo].find(source => source && source !== failedLogoSrc) ?? null;
+  const awardSummary = awards[featured.item.id] || featured.item.awards;
 
   const genres = (meta?.genres || featured.item.genres || []);
   const genreLabel = genres[0] || null;
@@ -32,7 +43,11 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
   const rating = meta?.imdbRating || featured.item.imdbRating;
 
   return (
-    <div className="relative w-full overflow-hidden" style={{ height: 'min(85vh, 700px)' }}>
+    <section
+      aria-label={`Featured: ${title}`}
+      className="home-hero relative w-full overflow-hidden"
+      style={{ '--hero-desktop-height': '560px' } as React.CSSProperties}
+    >
       {/* Hero backdrop image */}
       {bgImage ? (
         <img
@@ -62,13 +77,15 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
         )}
 
         {logoSrc ? (
-          <img
-            src={logoSrc}
-            alt={title}
-            onError={() => setLogoFailed(true)}
-            className="mb-4 object-contain object-left"
-            style={{ maxHeight: 120, maxWidth: 380, filter: 'drop-shadow(0 3px 8px rgba(0,0,0,0.55))' }}
-          />
+          <>
+            <h1 className="sr-only">{title}</h1>
+            <img
+              src={logoSrc}
+              alt={title}
+              onError={() => setFailedLogoSrc(logoSrc)}
+              className="mb-4 max-h-[120px] max-w-[min(380px,78vw)] object-contain object-left drop-shadow-2xl"
+            />
+          </>
         ) : (
           <h1 className="text-[42px] md:text-[52px] font-black text-white mb-4 max-w-2xl leading-[1.02] tracking-tight drop-shadow-2xl">
             {title}
@@ -93,6 +110,9 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
           {rating && (
             <span className="rating-badge">★ {rating}</span>
           )}
+          {awardSummary && (
+            <span className="text-[11px] font-semibold text-white/65">{awardSummary}</span>
+          )}
         </div>
 
         {description && (
@@ -105,48 +125,69 @@ export function HomeHero({ featuredItems, activeIndex, metas, backdrops, onIndex
           <Link
             to="/browse/$type/$id"
             params={{ type: featured.item.type, id: featured.item.id }}
-            className="btn-primary inline-flex items-center gap-2.5 !rounded text-[15px] !px-7 !py-3"
+            className="btn-primary inline-flex min-h-11 items-center gap-2.5 !rounded-full text-[15px] !px-6 !py-3"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4">
-              <path d="M8 5v14l11-7z" />
+            {featured.item.type === 'series' ? 'Go to Series' : 'Go to Movie'}
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.3" className="h-4 w-4">
+              <path d="m9 5 7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            Play
-          </Link>
-          <Link
-            to="/browse/$type/$id"
-            params={{ type: featured.item.type, id: featured.item.id }}
-            className="btn-secondary inline-flex items-center gap-2 !rounded text-[15px] !px-6 !py-3"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M12 16v-4M12 8h.01" strokeLinecap="round" />
-            </svg>
-            More Info
           </Link>
         </div>
       </div>
 
       {/* Carousel dots */}
       {featuredItems.length > 1 && (
-        <div className="absolute bottom-6 left-0 right-0 flex items-center justify-center gap-1.5">
-          {featuredItems.map((_, i) => {
-            const active = i === activeIndex;
-            return (
+        <>
+          <button
+            type="button"
+            aria-label="Previous featured title"
+            onClick={() => onIndexChange((activeIndex - 1 + featuredItems.length) % featuredItems.length)}
+            className="hero-arrow hero-arrow-previous"
+          >
+            <span aria-hidden="true">‹</span>
+          </button>
+          <button
+            type="button"
+            aria-label="Next featured title"
+            onClick={() => onIndexChange((activeIndex + 1) % featuredItems.length)}
+            className="hero-arrow hero-arrow-next"
+          >
+            <span aria-hidden="true">›</span>
+          </button>
+          <div className="absolute bottom-1 left-0 right-0 flex items-center justify-center gap-0.5" aria-label="Featured titles">
+            {featuredItems.map((_, i) => {
+              const active = i === activeIndex;
+              return (
+                <button
+                  key={i}
+                  type="button"
+                  onClick={() => onIndexChange(i)}
+                  aria-label={`Go to item ${i + 1}`}
+                  aria-pressed={active}
+                  className="hero-page-button flex h-11 w-11 items-center justify-center rounded-full"
+                >
+                  <span
+                    aria-hidden="true"
+                    className="block h-[5px] rounded-full bg-white transition-[width,opacity]"
+                    style={{ width: active ? 28 : 8, opacity: active ? 1 : 0.42 }}
+                  />
+                </button>
+              );
+            })}
+            {onPauseChange && (
               <button
-                key={i}
-                onClick={() => onIndexChange(i)}
-                aria-label={`Go to item ${i + 1}`}
-                className="rounded-full transition-all duration-300"
-                style={{
-                  height: 4,
-                  width: active ? 24 : 8,
-                  backgroundColor: active ? '#e50914' : 'rgba(255,255,255,0.40)',
-                }}
-              />
-            );
-          })}
-        </div>
+                type="button"
+                aria-label={`${isPaused ? 'Resume' : 'Pause'} featured titles`}
+                aria-pressed={isPaused}
+                onClick={() => onPauseChange(!isPaused)}
+                className="hero-page-button flex h-11 w-11 items-center justify-center rounded-full text-sm font-bold text-white/75"
+              >
+                <span aria-hidden="true">{isPaused ? '▶' : 'Ⅱ'}</span>
+              </button>
+            )}
+          </div>
+        </>
       )}
-    </div>
+    </section>
   );
 }

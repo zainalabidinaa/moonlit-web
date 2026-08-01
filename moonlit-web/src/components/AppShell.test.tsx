@@ -37,6 +37,14 @@ function renderShell(path = '/movies') {
 }
 
 describe('AppShell navigation', () => {
+  it('provides a keyboard skip link and lets catalog artwork sit beneath the navigation', async () => {
+    const { container } = renderShell('/movies');
+
+    expect(await screen.findByRole('link', { name: 'Skip to content' })).toHaveAttribute('href', '#main-content');
+    expect(container.querySelector('main')).toHaveAttribute('id', 'main-content');
+    expect(container.querySelector('main')).not.toHaveClass('pt-14');
+  });
+
   it('renders the approved brand and primary destinations', async () => {
     renderShell();
 

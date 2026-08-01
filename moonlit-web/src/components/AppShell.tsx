@@ -51,7 +51,10 @@ export function AppShell({ children }: AppShellProps) {
   }, [menuOpen]);
 
   const activePath = activePrimaryPath(pathname);
-  const headerOverArtwork = pathname === '/home' || pathname.startsWith('/browse/');
+  const headerOverArtwork = pathname === '/home'
+    || pathname === '/movies'
+    || pathname === '/series'
+    || pathname.startsWith('/browse/');
 
   const navigationLinks = primaryNavItems.map(({ href, label }) => {
     const active = activePath === href;
@@ -70,6 +73,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="relative min-h-screen bg-moonlit-bg">
+      <a href="#main-content" className="skip-link">Skip to content</a>
       <header className={`app-navbar ${scrolled ? 'app-navbar-scrolled' : ''}`}>
         <div className="flex min-w-0 flex-1 items-center gap-5 xl:gap-8">
           <Link
@@ -169,7 +173,7 @@ export function AppShell({ children }: AppShellProps) {
         </nav>
       )}
 
-      <main className={`min-h-screen ${headerOverArtwork ? '' : 'pt-14'}`}>{children}</main>
+      <main id="main-content" tabIndex={-1} className={`min-h-screen ${headerOverArtwork ? '' : 'pt-14'}`}>{children}</main>
     </div>
   );
 }

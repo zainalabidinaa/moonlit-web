@@ -1,274 +1,248 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { Link } from '@tanstack/react-router';
+
 import { useAuth } from '@/app/AuthProvider';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { getLibrary, toggleLibrary as toggleLib, getWatchProgress } from '@/lib/services/api';
-import { getLikedItems, removeLiked, refreshUpcoming, LikedItem, UpcomingInfo } from '@/lib/liked';
-import { Link, useNavigate } from '@tanstack/react-router';
+import { MediaRow } from '@/components/MediaRow';
+import { getLikedItems, refreshUpcoming, removeLiked, type LikedItem, type UpcomingInfo } from '@/lib/liked';
+import { getUserWatchlist, removeUserWatchlistItem } from '@/lib/services/api';
+import type { MetaPreview, UserList, UserListItem } from '@/lib/types';
+import { useArtworkPreferences } from './catalog-data';
 
 type MediaFilter = 'all' | 'movie' | 'series';
 
-const POSTER_GRID = { gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' } as const;
-
-function PosterCard({
-  to, params, poster, name, mediaType, progress, onRemove,
-}: {
-  to: string; params: Record<string, string>; poster?: string | null;
-  name: string; mediaType: string; progress?: number;
-  onRemove?: (e: React.MouseEvent) => void;
-}) {
-  return (
-    <Link to={to as any} params={params as any} className="group cursor-pointer block">
-      <div className="relative rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]" style={{ aspectRatio: '2/3' }}>
-        {poster
-          ? <img src={poster} alt={name} loading="lazy"
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-          : <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-white/15 text-xs text-center px-2">{name}</span>
-            </div>}
-
-        {onRemove && (
-          <button onClick={onRemove}
-            className="absolute top-1.5 right-1.5 w-6 h-6 rounded bg-black/70 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity z-10"
-            aria-label="Remove">
-            <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-              <path d="M18 6L6 18M6 6l12 12"/>
-            </svg>
-          </button>
-        )}
-
-        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-          <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-            <svg viewBox="0 0 24 24" fill="white" className="w-5 h-5 ml-0.5"><polygon points="6,4 20,12 6,20"/></svg>
-          </div>
-        </div>
-
-        {progress !== undefined && (
-          <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/10">
-            <div className="h-full bg-[#e50914]" style={{ width: `${Math.round(progress * 100)}%` }} />
-          </div>
-        )}
-      </div>
-      <p className="text-xs font-medium text-[#b3b3b3] truncate">{name}</p>
-      <p className="text-[10px] text-white/35 mt-0.5">{mediaType === 'series' ? 'Series' : 'Movie'}</p>
-    </Link>
-  );
+function asPreview(item: UserListItem): MetaPreview {
+  return {
+    id: item.media_id,
+    type: item.media_type,
+    name: item.name || item.media_id,
+    poster: item.poster,
+  };
 }
 
-function SectionHeader({ title, count, icon }: { title: string; count: number; icon?: React.ReactNode }) {
-  return (
-    <div className="flex items-center gap-2 mb-3 mt-10 first:mt-0">
-      {icon}
-      <h2 className="text-lg font-bold text-white">{title}</h2>
-      <span className="text-sm text-white/35">({count})</span>
-    </div>
-  );
-}
-
-function FilterChips({ value, onChange }: { value: MediaFilter; onChange: (f: MediaFilter) => void }) {
-  return (
-    <div className="flex gap-2 mb-5">
-      {(['all', 'movie', 'series'] as MediaFilter[]).map(f => (
-        <button key={f} onClick={() => onChange(f)}
-          className={`px-3.5 py-1.5 rounded text-xs font-semibold transition-all ${
-            value === f ? 'bg-white/20 text-white' : 'bg-white/8 text-white/50 hover:text-white/80'
-          }`}>
-          {f === 'all' ? 'All' : f === 'movie' ? 'Movies' : 'Series'}
-        </button>
-      ))}
-    </div>
-  );
+function likedPreview(item: LikedItem, upcoming?: UpcomingInfo): MetaPreview {
+  return {
+    id: item.mediaId,
+    type: item.mediaType,
+    name: item.name,
+    poster: item.poster,
+    banner: upcoming?.backdrop,
+    releaseInfo: upcoming?.badge,
+  };
 }
 
 export default function LibraryPage() {
   const { currentProfile } = useAuth();
   const queryClient = useQueryClient();
-  const navigate = useNavigate();
-  const [watchlistFilter, setWatchlistFilter] = useState<MediaFilter>('all');
+  const artworkPreferences = useArtworkPreferences(currentProfile?.id);
+  const [filter, setFilter] = useState<MediaFilter>('all');
   const [likedFilter, setLikedFilter] = useState<MediaFilter>('all');
   const [likedItems, setLikedItems] = useState<LikedItem[]>(() => getLikedItems());
   const [upcoming, setUpcoming] = useState<Record<string, UpcomingInfo>>({});
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [optimisticallyRemoved, setOptimisticallyRemoved] = useState<Set<string>>(() => new Set());
+  const queryKey = ['user-watchlist', currentProfile?.id ?? 'guest'] as const;
 
   useEffect(() => {
-    function onChanged() { setLikedItems(getLikedItems()); }
-    window.addEventListener('moonlit-liked-changed', onChanged);
-    return () => window.removeEventListener('moonlit-liked-changed', onChanged);
+    const handleLikedChange = () => setLikedItems(getLikedItems());
+    window.addEventListener('moonlit-liked-changed', handleLikedChange);
+    return () => window.removeEventListener('moonlit-liked-changed', handleLikedChange);
   }, []);
 
   useEffect(() => {
     if (likedItems.length === 0) return;
-    refreshUpcoming(likedItems).then(setUpcoming);
+    void refreshUpcoming(likedItems).then(setUpcoming);
   }, [likedItems]);
 
-  const { data, isLoading } = useQuery({
-    queryKey: ['library', currentProfile?.id],
-    queryFn: async () => {
-      const [items, progress] = await Promise.all([
-        getLibrary(currentProfile!.id),
-        getWatchProgress(currentProfile!.id),
-      ]);
-      const progressMap: Record<string, number> = {};
-      for (const p of progress) {
-        if (p.duration_seconds > 0 && !p.completed) {
-          const baseId = decodeURIComponent(p.media_id).split(':')[0];
-          const frac = p.position_seconds / p.duration_seconds;
-          if (frac > 0.02) progressMap[baseId] = frac;
-        }
-      }
-      return { items, progressMap };
-    },
-    enabled: !!currentProfile,
+  const watchlistQuery = useQuery({
+    queryKey,
+    queryFn: () => getUserWatchlist(currentProfile!.id),
+    enabled: Boolean(currentProfile),
+    staleTime: 2 * 60 * 1000,
   });
 
-  const watchlist = data?.items ?? [];
-  const progressMap = data?.progressMap ?? {};
+  const removal = useMutation({
+    mutationFn: removeUserWatchlistItem,
+    onMutate: async itemId => {
+      setMutationError(null);
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<UserList>(queryKey);
+      const removed = previous?.items.find(item => item.id === itemId);
+      queryClient.setQueryData<UserList>(queryKey, current => current ? {
+        ...current,
+        items: current.items.filter(item => item.id !== itemId),
+      } : current);
+      return { previous, removed };
+    },
+    onError: (_error, _itemId, context) => {
+      if (context?.previous) queryClient.setQueryData(queryKey, context.previous);
+      setOptimisticallyRemoved(current => {
+        const next = new Set(current);
+        next.delete(_itemId);
+        return next;
+      });
+      setMutationError(`${context?.removed?.name || 'That title'} was not removed. Try again.`);
+    },
+    onSuccess: (_data, itemId) => {
+      setOptimisticallyRemoved(current => {
+        const next = new Set(current);
+        next.delete(itemId);
+        return next;
+      });
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey }),
+  });
 
-  const filteredWatchlist = watchlistFilter === 'all'
-    ? watchlist : watchlist.filter(i => i.media_type === watchlistFilter);
-
-  const upcomingItems = likedItems.filter(i => upcoming[i.mediaId]);
-  const availableLiked = likedItems.filter(i => !upcoming[i.mediaId]);
-  const filteredLiked = likedFilter === 'all'
-    ? availableLiked : availableLiked.filter(i => i.mediaType === likedFilter);
-
-  async function handleRemoveWatchlist(mediaId: string, mediaType: string) {
-    if (!currentProfile) return;
-    await toggleLib(currentProfile.id, mediaId, mediaType);
-    queryClient.invalidateQueries({ queryKey: ['library', currentProfile.id] });
-  }
+  const watchlist = (watchlistQuery.data?.items ?? [])
+    .filter(item => !optimisticallyRemoved.has(item.id));
+  const visibleItems = filter === 'all'
+    ? watchlist
+    : watchlist.filter(item => item.media_type === filter);
+  const upcomingItems = likedItems.filter(item => upcoming[item.mediaId]);
+  const availableLiked = likedItems.filter(item => !upcoming[item.mediaId]);
+  const visibleLiked = likedFilter === 'all'
+    ? availableLiked
+    : availableLiked.filter(item => item.mediaType === likedFilter);
 
   return (
-    <div className="px-6 md:px-14 py-8 max-w-screen-xl mx-auto">
-      {upcomingItems.length > 0 && (
-        <>
-          <SectionHeader
-            title="Upcoming"
-            count={upcomingItems.length}
-            icon={
-              <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-[#e50914]">
-                <path fillRule="evenodd" d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3A.75.75 0 0118 3v1.5h.75a3 3 0 013 3v11.25a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zm13.5 9a1.5 1.5 0 00-1.5-1.5H5.25a1.5 1.5 0 00-1.5 1.5v7.5a1.5 1.5 0 001.5 1.5h13.5a1.5 1.5 0 001.5-1.5v-7.5z" clipRule="evenodd"/>
-              </svg>
-            }
-          />
-          <div className="flex gap-3 overflow-x-auto pb-2 scrollbar-hide mb-2">
-            {upcomingItems.map(item => {
-              const info = upcoming[item.mediaId];
-              const img = info?.backdrop || item.poster;
+    <div className="watchlist-page relative mx-auto min-h-[calc(100vh-56px)] max-w-[1600px] overflow-hidden px-4 pb-20 pt-16 sm:px-6 md:px-14">
+      <div aria-hidden="true" className="watchlist-warm-ambient" />
+      <header className="relative mb-10 max-w-2xl">
+        <p className="type-label mb-2 text-moonlit-text-tertiary">Saved for later</p>
+        <h1 className="type-title-lg text-white">Watchlist</h1>
+        <p className="mt-3 text-sm leading-relaxed text-moonlit-text-secondary">
+          Titles saved to this profile stay together across Moonlit devices.
+        </p>
+      </header>
+
+      {watchlistQuery.isLoading && (
+        <div role="status" className="relative flex min-h-64 items-center justify-center gap-3 text-sm text-moonlit-text-secondary">
+          <span aria-hidden="true" className="h-6 w-6 animate-spin-arc rounded-full border-2 border-white/15 border-t-white" />
+          Loading your watchlist…
+        </div>
+      )}
+
+      {watchlistQuery.isError && (
+        <div role="alert" className="surface-card relative max-w-xl p-6">
+          <h2 className="type-title-sm text-white">Your watchlist could not be loaded</h2>
+          <p className="mt-2 text-sm text-moonlit-text-secondary">Check your connection, then try the request again.</p>
+          <button type="button" onClick={() => watchlistQuery.refetch()} className="btn-primary mt-5 min-h-11">
+            Try again
+          </button>
+        </div>
+      )}
+
+      {!watchlistQuery.isLoading && !watchlistQuery.isError && watchlist.length === 0 && (
+        <section className="surface-card relative flex min-h-72 max-w-2xl flex-col items-start justify-center p-8 sm:p-10">
+          <span aria-hidden="true" className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-white/10 text-white/75">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" className="h-6 w-6">
+              <path d="M6 4.8A1.8 1.8 0 0 1 7.8 3h8.4A1.8 1.8 0 0 1 18 4.8V21l-6-3-6 3V4.8Z" strokeLinejoin="round" />
+            </svg>
+          </span>
+          <h2 className="type-title-sm text-white">Your watchlist is empty</h2>
+          <p className="mt-2 max-w-md text-sm leading-relaxed text-moonlit-text-secondary">
+            Save a movie or series from its detail page and it will appear here.
+          </p>
+          <div className="mt-6 flex flex-wrap gap-3">
+            <Link to="/movies" className="btn-primary inline-flex min-h-11 items-center">Browse movies</Link>
+            <Link to="/series" className="btn-secondary inline-flex min-h-11 items-center">Browse series</Link>
+          </div>
+        </section>
+      )}
+
+      {!watchlistQuery.isLoading && !watchlistQuery.isError && watchlist.length > 0 && (
+        <div className="relative">
+          <div role="group" aria-label="Filter watchlist" className="mb-8 flex gap-2 overflow-x-auto py-1 scrollbar-hide">
+            {(['all', 'movie', 'series'] as MediaFilter[]).map(value => {
+              const label = value === 'all' ? 'All' : value === 'movie' ? 'Movies' : 'Series';
               return (
-                <Link key={item.id} to="/browse/$type/$id" params={{ type: item.mediaType, id: item.mediaId }}
-                  className="group flex-shrink-0" style={{ width: 248 }}>
-                  <div className="relative rounded overflow-hidden bg-[#2a2a2a] border border-white/[0.06]" style={{ aspectRatio: '16/9' }}>
-                    {img
-                      ? <img src={img} alt={item.name} loading="lazy"
-                          className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                      : <div className="absolute inset-0 bg-white/5" />}
-                    <div className="absolute inset-x-0 bottom-0 h-2/3 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
-                    <div className="absolute top-2 right-2 flex items-center gap-1 px-2 py-1 rounded bg-white text-black text-[10px] font-bold shadow-lg max-w-[85%]">
-                      <svg viewBox="0 0 24 24" fill="currentColor" className="w-3 h-3 shrink-0">
-                        <path d="M6.75 2.25A.75.75 0 017.5 3v1.5h9V3a.75.75 0 011.5 0v1.5h.75a3 3 0 013 3v9.75a3 3 0 01-3 3H5.25a3 3 0 01-3-3V7.5a3 3 0 013-3H6V3a.75.75 0 01.75-.75zM18.75 9H5.25a1.5 1.5 0 00-1.5 1.5v.75h16.5V10.5a1.5 1.5 0 00-1.5-1.5z"/>
-                      </svg>
-                      <span className="truncate">{info?.badge}</span>
-                    </div>
-                    <div className="absolute inset-x-0 bottom-0 p-3">
-                      <p className="text-sm font-semibold text-white truncate drop-shadow">{item.name}</p>
-                      <p className="text-[11px] text-white/60 mt-0.5">{item.mediaType === 'series' ? 'Series' : 'Movie'}</p>
-                    </div>
-                  </div>
-                </Link>
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={filter === value}
+                  onClick={() => setFilter(value)}
+                  className={`category-pill min-h-11 ${filter === value ? 'category-pill-active' : 'category-pill-idle'}`}
+                >
+                  {label}
+                </button>
               );
             })}
           </div>
-        </>
+
+          {mutationError && (
+            <p role="alert" className="glass-panel mb-6 max-w-xl rounded-ml-ctl px-4 py-3 text-sm text-white/80">
+              {mutationError}
+            </p>
+          )}
+
+          {visibleItems.length > 0 ? (
+            <MediaRow
+              title="Saved titles"
+              items={visibleItems.map(asPreview)}
+              artworkPreferences={artworkPreferences}
+              badges={{ rating: true, genre: true, quality: true, age: true }}
+              onRemove={preview => {
+                const item = watchlist.find(saved => saved.media_id === preview.id);
+                if (item) {
+                  setOptimisticallyRemoved(current => new Set(current).add(item.id));
+                  removal.mutate(item.id);
+                }
+              }}
+            />
+          ) : (
+            <div className="surface-card max-w-lg p-6">
+              <h2 className="type-title-sm text-white">No {filter === 'movie' ? 'movies' : 'series'} saved</h2>
+              <p className="mt-2 text-sm text-moonlit-text-secondary">Choose another filter or save a title from its detail page.</p>
+            </div>
+          )}
+        </div>
       )}
 
-      <SectionHeader
-        title="Watchlist"
-        count={watchlist.length}
-        icon={
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-white/70">
-            <path d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z"/>
-          </svg>
-        }
-      />
-
-      {isLoading ? (
-        <div className="flex items-center justify-center py-16">
-          <div className="w-7 h-7 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
-        </div>
-      ) : watchlist.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-white/35">
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-10 h-10 mb-3 opacity-40">
-            <path d="M6.32 2.577a49.255 49.255 0 0111.36 0c1.497.174 2.57 1.46 2.57 2.93V21a.75.75 0 01-1.085.67L12 18.089l-7.165 3.583A.75.75 0 013.75 21V5.507c0-1.47 1.073-2.756 2.57-2.93z"/>
-          </svg>
-          <p className="text-sm text-white/50">Nothing saved yet</p>
-          <p className="text-xs mt-1 text-white/25">Tap the bookmark on any title</p>
-        </div>
-      ) : (
-        <>
-          <FilterChips value={watchlistFilter} onChange={setWatchlistFilter} />
-          {filteredWatchlist.length === 0 ? (
-            <p className="text-sm text-white/35 py-8 text-center">
-              No {watchlistFilter === 'movie' ? 'movies' : 'series'} saved
-            </p>
-          ) : (
-            <div className="grid gap-3" style={POSTER_GRID}>
-              {filteredWatchlist.map(item => (
-                <PosterCard
-                  key={item.id}
-                  to="/browse/$type/$id"
-                  params={{ type: item.media_type, id: item.media_id }}
-                  poster={item.poster}
-                  name={item.name || item.media_id}
-                  mediaType={item.media_type}
-                  progress={progressMap[item.media_id]}
-                  onRemove={e => { e.preventDefault(); handleRemoveWatchlist(item.media_id, item.media_type); }}
-                />
+      <section aria-labelledby="liked-heading" className="relative mt-12">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <h2 id="liked-heading" className="text-xl font-bold text-white">Liked</h2>
+          {availableLiked.length > 0 && (
+            <div role="group" aria-label="Filter liked titles" className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
+              {(['all', 'movie', 'series'] as MediaFilter[]).map(value => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={likedFilter === value}
+                  onClick={() => setLikedFilter(value)}
+                  className={`category-pill min-h-11 ${likedFilter === value ? 'category-pill-active' : 'category-pill-idle'}`}
+                >
+                  {value === 'all' ? 'All' : value === 'movie' ? 'Movies' : 'Series'}
+                </button>
               ))}
             </div>
           )}
-        </>
-      )}
-
-      <SectionHeader
-        title="Liked"
-        count={availableLiked.length}
-        icon={
-          <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 text-red-400">
-            <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z"/>
-          </svg>
-        }
-      />
-
-      {availableLiked.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-16 text-white/35">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-10 h-10 mb-3 opacity-40">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z"/>
-          </svg>
-          <p className="text-sm text-white/50">Nothing liked yet</p>
-          <p className="text-xs mt-1 text-white/25">Tap ❤️ on any title to add it</p>
         </div>
-      ) : (
-        <>
-          <FilterChips value={likedFilter} onChange={setLikedFilter} />
-          {filteredLiked.length === 0 ? (
-            <p className="text-sm text-white/35 py-8 text-center">
-              No {likedFilter === 'movie' ? 'movies' : 'series'} liked
-            </p>
-          ) : (
-            <div className="grid gap-3" style={POSTER_GRID}>
-              {filteredLiked.map(item => (
-                <PosterCard
-                  key={item.id}
-                  to="/browse/$type/$id"
-                  params={{ type: item.mediaType, id: item.mediaId }}
-                  poster={item.poster}
-                  name={item.name}
-                  mediaType={item.mediaType}
-                  onRemove={e => { e.preventDefault(); removeLiked(item.mediaId); setLikedItems(getLikedItems()); }}
-                />
-              ))}
-            </div>
-          )}
-        </>
+        {availableLiked.length === 0 ? (
+          <p className="text-sm text-moonlit-text-tertiary">Titles you like will collect here.</p>
+        ) : visibleLiked.length > 0 ? (
+          <MediaRow
+            title="Liked titles"
+            items={visibleLiked.map(item => likedPreview(item))}
+            artworkPreferences={artworkPreferences}
+            removeFromLabel="liked titles"
+            onRemove={preview => removeLiked(preview.id)}
+          />
+        ) : (
+          <p className="surface-card max-w-lg p-6 text-sm text-moonlit-text-secondary">No titles match this filter.</p>
+        )}
+      </section>
+
+      {upcomingItems.length > 0 && (
+        <div className="relative mt-8">
+          <MediaRow
+            title="Upcoming"
+            variant="cinematic"
+            items={upcomingItems.map(item => likedPreview(item, upcoming[item.mediaId]))}
+            artworkPreferences={artworkPreferences}
+            removeFromLabel="upcoming titles"
+            onRemove={preview => removeLiked(preview.id)}
+          />
+        </div>
       )}
     </div>
   );

@@ -11,6 +11,10 @@ export interface MetaPreview {
   imdbRating?: string;
   genres?: string[];
   popularity?: number;
+  quality?: string;
+  ageRating?: string;
+  previewVideo?: string;
+  awards?: string;
   /** For folder group-tiles: the folder's own tile shape (POSTER | LANDSCAPE). */
   tileShape?: string;
 }
@@ -42,6 +46,8 @@ export interface MetaDetail {
   links?: MetaLink[];
   moreLikeThis?: MetaPreview[];
   tmdbId?: string;
+  gallery?: { id: string; url: string; caption?: string }[];
+  awards?: string[];
 }
 
 export interface Person {
@@ -154,6 +160,25 @@ export interface LibraryItem {
   name?: string;
   poster?: string;
   saved_at: string;
+}
+
+export interface UserListItem {
+  id: string;
+  list_id: string;
+  media_id: string;
+  media_type: string;
+  name?: string;
+  poster?: string;
+  added_at: string;
+}
+
+export interface UserList {
+  id: string;
+  profile_id: string;
+  name: string;
+  system_kind?: string | null;
+  created_at: string;
+  items: UserListItem[];
 }
 
 export interface InviteCode {

@@ -1,5 +1,5 @@
 import { supabase } from '../supabase';
-import { MoonlitProfile, WatchProgressEntry, LibraryItem, InviteCode, AdminStats, SystemAddon, Collection, Folder, FolderCatalog } from '../types';
+import { MoonlitProfile, WatchProgressEntry, LibraryItem, InviteCode, AdminStats, SystemAddon, Collection, Folder, FolderCatalog, UserList, UserListItem } from '../types';
 
 export async function signIn(email: string, password: string) {
   const { data, error } = await supabase.auth.signInWithPassword({ email, password });
@@ -176,6 +176,80 @@ export async function isInLibrary(profileId: string, mediaId: string): Promise<b
     .eq('media_id', mediaId)
     .maybeSingle();
   return !!data;
+}
+
+type UserListRecord = Omit<UserList, 'items'> & { user_list_items?: UserListItem[] };
+
+function normalizeUserList(data: UserListRecord): UserList {
+  const items = Array.isArray(data?.user_list_items)
+    ? [...data.user_list_items].sort((left, right) => Date.parse(right.added_at) - Date.parse(left.added_at))
+    : [];
+  return {
+    id: data.id,
+    profile_id: data.profile_id,
+    name: data.name || 'Watchlist',
+    system_kind: data.system_kind ?? null,
+    created_at: data.created_at,
+    items,
+  };
+}
+
+/** The web watchlist is a first-class user_list, not the legacy library_items table. */
+export async function getUserWatchlist(profileId: string): Promise<UserList> {
+  const { data, error } = await supabase
+    .from('user_lists')
+    .select('id, profile_id, name, system_kind, created_at, user_list_items(id, list_id, media_id, media_type, name, poster, added_at)')
+    .eq('profile_id', profileId)
+    .eq('system_kind', 'watchlist')
+    .maybeSingle();
+  if (error) throw error;
+  if (data) return normalizeUserList(data);
+
+  const { data: created, error: createError } = await supabase
+    .from('user_lists')
+    .insert({ profile_id: profileId, name: 'Watchlist', system_kind: 'watchlist' })
+    .select('id, profile_id, name, system_kind, created_at')
+    .single();
+  if (createError) throw createError;
+  return normalizeUserList({ ...created, user_list_items: [] });
+}
+
+export async function addUserWatchlistItem(
+  profileId: string,
+  item: Pick<UserListItem, 'media_id' | 'media_type' | 'name' | 'poster'>,
+): Promise<UserListItem> {
+  const list = await getUserWatchlist(profileId);
+  const { data, error } = await supabase
+    .from('user_list_items')
+    .insert({ list_id: list.id, ...item })
+    .select('id, list_id, media_id, media_type, name, poster, added_at')
+    .single();
+  if (error) throw error;
+  return data as UserListItem;
+}
+
+export async function removeUserWatchlistItem(itemId: string): Promise<void> {
+  const { error } = await supabase.from('user_list_items').delete().eq('id', itemId);
+  if (error) throw error;
+}
+
+export async function toggleUserWatchlistItem(
+  profileId: string,
+  item: Pick<UserListItem, 'media_id' | 'media_type' | 'name' | 'poster'>,
+): Promise<boolean> {
+  const list = await getUserWatchlist(profileId);
+  const existing = list.items.find(saved => saved.media_id === item.media_id);
+  if (existing) {
+    await removeUserWatchlistItem(existing.id);
+    return false;
+  }
+  await addUserWatchlistItem(profileId, item);
+  return true;
+}
+
+export async function isInUserWatchlist(profileId: string, mediaId: string): Promise<boolean> {
+  const list = await getUserWatchlist(profileId);
+  return list.items.some(item => item.media_id === mediaId);
 }
 
 export async function getInstalledAddons(profileId: string): Promise<string[]> {

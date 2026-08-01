@@ -1,19 +1,27 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/app/AuthProvider';
 import { usePlayer } from '@/app/PlayerProvider';
 import { HomeHero } from '@/components/HomeHero';
 import { FusionBackground } from '@/components/FusionBackground';
-import { MediaRow } from '@/components/MediaRow';
+import { MediaRow, type MediaRailVariant } from '@/components/MediaRow';
 import { CollectionRow } from '@/components/CollectionRow';
 import { FeaturedHomeItem, MetaDetail, WatchProgressEntry } from '@/lib/types';
 import { getWatchProgress, getSystemAddon } from '@/lib/services/api';
 import { fetchManifest, fetchMeta } from '@/lib/stremio';
 import { TMDB_API_KEY } from '@/lib/supabase';
 import { formatContinueWatchingTitle } from '@/lib/player-utils';
-import { loadCollections, refreshCollections, fetchLiveOrganizer } from '@/lib/collections/repository';
-import { useQueryClient } from '@tanstack/react-query';
 import { pickFeaturedItems } from './home-data';
+import { useArtworkPreferences, useCatalogRowsData } from './catalog-data';
+
+function rowVariant(title: string, viewMode?: string, tileShape?: string): MediaRailVariant {
+  const hint = `${viewMode ?? ''} ${title}`.toLowerCase();
+  if (hint.includes('top 10') || hint.includes('top ten') || hint.includes('top10')) return 'top10';
+  if (hint.includes('cinematic') || hint.includes('carousel')) return 'carousel';
+  if (hint.includes('banner') || tileShape?.toLowerCase() === 'landscape') return 'banner';
+  if (hint.includes('stack')) return 'stack';
+  return 'standard';
+}
 
 function formatTimeRemaining(positionSec: number, durationSec: number): string {
   if (durationSec > 0) {
@@ -35,32 +43,15 @@ function formatTimeRemaining(positionSec: number, durationSec: number): string {
 export default function HomePage() {
   const { currentProfile, addons } = useAuth();
   const { open: openPlayer } = usePlayer();
-  const queryClient = useQueryClient();
-
-  const heroRef = useRef<HTMLDivElement>(null);
-  const [heroHeight, setHeroHeight] = useState(0);
-
-  useEffect(() => {
-    if (heroRef.current) {
-      setHeroHeight(heroRef.current.getBoundingClientRect().height);
-    }
-  }, []);
+  const artworkPreferences = useArtworkPreferences(currentProfile?.id);
 
   // ── Progressive rows state ────────────────────────────────────────────────
-  const [featuredItems, setFeaturedItems] = useState<FeaturedHomeItem[]>([]);
   const [featuredMetas, setFeaturedMetas] = useState<Record<string, MetaDetail | null>>({});
   const [featuredBackdrops, setFeaturedBackdrops] = useState<Record<string, string>>({});
   const [featuredIndex, setFeaturedIndex] = useState(0);
+  const [heroPaused, setHeroPaused] = useState(false);
   const heroTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heroPausedRef = useRef(false);
-
-  useEffect(() => {
-    if (featuredItems.length <= 1) return;
-    heroTimerRef.current = setInterval(() => {
-      if (!heroPausedRef.current) setFeaturedIndex(prev => (prev + 1) % featuredItems.length);
-    }, 60000);
-    return () => { if (heroTimerRef.current) clearInterval(heroTimerRef.current); };
-  }, [featuredItems.length]);
 
   // ── Initial data: CW progress + system addon ────────────────────────────
   const { data: initialData, isLoading: initialLoading } = useQuery({
@@ -83,32 +74,11 @@ export default function HomePage() {
     staleTime: 5 * 60 * 1000,
   });
 
-  const { data: collectionRows = [], isLoading: collectionsLoading } = useQuery({
-    queryKey: ['home-collections', currentProfile?.id, addons.map(a => a.id).join(',')],
-    queryFn: async () => {
-      if (addons.length === 0) return [];
-      return loadCollections(addons, TMDB_API_KEY);
-    },
-    enabled: addons.length > 0,
-    staleTime: 5 * 60 * 1000,
-  });
+  // Home, Movies, and Series share this one organizer/catalog pipeline and
+  // React Query cache. Each destination only projects the loaded rows.
+  const { data: collectionRows = [] } = useCatalogRowsData(addons, currentProfile?.id);
 
-  const collectionsQueryKey = ['home-collections', currentProfile?.id, addons.map(a => a.id).join(',')];
-  useEffect(() => {
-    if (collectionsLoading || addons.length === 0) return;
-    let cancelled = false;
-    (async () => {
-      const organized = await fetchLiveOrganizer();
-      if (cancelled || !organized) return;
-      const rows = await refreshCollections(organized, addons, TMDB_API_KEY);
-      if (cancelled) return;
-      queryClient.setQueryData(collectionsQueryKey, rows);
-    })();
-    return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionsLoading, addons.length]);
-
-  useEffect(() => {
+  const featuredItems: FeaturedHomeItem[] = useMemo(() => {
     const homeCatalogRows = collectionRows
       .filter(r => !r.isGroupTile)
       .map(r => ({
@@ -122,12 +92,21 @@ export default function HomePage() {
           'Popular Shows','Trending Shows','Latest','Top Rated',
         ].some(n => n.toLowerCase() === r.title.toLowerCase()) : false,
       }));
-    const next = pickFeaturedItems(homeCatalogRows);
-    if (next.length > 0) {
-      setFeaturedItems(next);
-      setFeaturedIndex(0);
-    }
+    return pickFeaturedItems(homeCatalogRows);
   }, [collectionRows]);
+
+  useEffect(() => {
+    if (
+      featuredItems.length <= 1
+      || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    ) return;
+    heroTimerRef.current = setInterval(() => {
+      if (!heroPausedRef.current && document.visibilityState !== 'hidden') {
+        setFeaturedIndex(prev => (prev + 1) % featuredItems.length);
+      }
+    }, 60000);
+    return () => { if (heroTimerRef.current) clearInterval(heroTimerRef.current); };
+  }, [featuredItems.length]);
 
   useEffect(() => {
     if (featuredItems.length === 0) return;
@@ -291,88 +270,74 @@ export default function HomePage() {
     );
   }
 
+  const activeFeaturedIndex = featuredIndex < featuredItems.length ? featuredIndex : 0;
   const currentBackdrop =
     featuredItems.length > 0
       ? (() => {
-          const f = featuredItems[featuredIndex] ?? featuredItems[0];
+          const f = featuredItems[activeFeaturedIndex];
           const m = featuredMetas[f.item.id] ?? null;
-          return m?.background || featuredBackdrops[f.item.id] || f.item.banner || null;
+          return f.item.banner || m?.background || featuredBackdrops[f.item.id] || null;
         })()
       : null;
 
   return (
     <>
-      <FusionBackground backdropUrl={currentBackdrop} heroHeight={heroHeight} />
+      <FusionBackground backdropUrl={currentBackdrop} heroHeight={560} />
 
       {featuredItems.length > 0 && (
         <div
-          ref={heroRef}
           className="relative"
           onMouseEnter={() => { heroPausedRef.current = true; }}
-          onMouseLeave={() => { heroPausedRef.current = false; }}
+          onMouseLeave={() => { heroPausedRef.current = heroPaused; }}
         >
           <HomeHero
             featuredItems={featuredItems}
-            activeIndex={featuredIndex}
+            activeIndex={activeFeaturedIndex}
             metas={featuredMetas}
             backdrops={featuredBackdrops}
             onIndexChange={setFeaturedIndex}
+            isPaused={heroPaused}
+            onPauseChange={paused => {
+              heroPausedRef.current = paused;
+              setHeroPaused(paused);
+            }}
           />
         </div>
       )}
 
       <div className="px-8 md:px-14 pb-16">
-        {/* Continue Watching */}
         {continueWatching.length > 0 && (
-          <section className="mb-10">
-            <h2 className="text-[19px] font-bold text-white mb-4">Continue Watching</h2>
-            <div className="flex gap-3 overflow-x-auto py-3 -my-3 scrollbar-hide">
-              {continueWatching.map(item => {
-                const fallback = cwMetas?.[item.media_id];
-                const poster = (item.media_type === 'series' && item.media_id.includes(':'))
-                  ? (fallback?.poster ?? item.poster)
-                  : (item.poster ?? fallback?.poster);
-                const name = item.name ?? fallback?.name;
-                const parts = item.media_id.split(':');
-                const progressPct = item.duration_seconds > 0
-                  ? Math.min(100, (item.position_seconds / item.duration_seconds) * 100)
-                  : 0;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleCwPlay(item)}
-                    className="media-card w-[320px] text-left"
-                  >
-                    <div className="relative h-[180px] bg-[#2a2a2a] rounded overflow-hidden mb-2 border border-white/[0.06]">
-                      {poster ? (
-                        <img src={poster} alt={name || item.media_id}
-                          className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center">
-                          <svg className="w-6 h-6 text-white/10" viewBox="0 0 24 24" fill="currentColor">
-                            <path d="M4 4h16a2 2 0 012 2v12a2 2 0 01-2 2H4a2 2 0 01-2-2V6a2 2 0 012-2z"/>
-                          </svg>
-                        </div>
-                      )}
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-transparent" />
-                      <div className="absolute bottom-0 left-0 right-0 h-[3px] bg-white/20">
-                        <div className="h-full bg-[#e50914] transition-all duration-500" style={{ width: `${progressPct}%` }} />
-                      </div>
-                      <div className="absolute inset-x-0 bottom-[5px] flex items-end justify-between gap-2 px-3 pb-2.5">
-                        <span className="text-[11px] font-bold text-white drop-shadow-md">
-                          {item.media_type === 'series' && parts.length >= 3 ? `S${parts[1]} E${parts[2]}` : ''}
-                        </span>
-                        <span className="text-[11px] font-medium text-white/75 drop-shadow-md whitespace-nowrap">
-                          {formatTimeRemaining(item.position_seconds, item.duration_seconds)}
-                        </span>
-                      </div>
-                    </div>
-                    <p className="text-[13px] text-[#b3b3b3] font-medium truncate group-hover:text-white transition-colors">{name || item.media_id}</p>
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          <MediaRow
+            title="Continue Watching"
+            variant="continue"
+            artworkPreferences={artworkPreferences}
+            badges={{}}
+            items={continueWatching.map(item => {
+              const fallback = cwMetas?.[item.media_id];
+              const poster = item.media_type === 'series' && item.media_id.includes(':')
+                ? fallback?.poster ?? item.poster
+                : item.poster ?? fallback?.poster;
+              return {
+                id: item.media_id,
+                type: item.media_type,
+                name: item.name ?? fallback?.name ?? item.media_id,
+                banner: poster,
+                poster,
+              };
+            })}
+            progressById={Object.fromEntries(continueWatching.map(item => {
+              const parts = item.media_id.split(':');
+              return [item.media_id, {
+                fraction: item.duration_seconds > 0 ? item.position_seconds / item.duration_seconds : 0,
+                label: formatTimeRemaining(item.position_seconds, item.duration_seconds),
+                episodeLabel: item.media_type === 'series' && parts.length >= 3 ? `S${parts[1]} E${parts[2]}` : undefined,
+              }];
+            }))}
+            onItemActivate={preview => {
+              const entry = continueWatching.find(item => item.media_id === preview.id);
+              if (entry) handleCwPlay(entry);
+            }}
+          />
         )}
 
         {!hasSystemAddon ? (
@@ -408,7 +373,14 @@ export default function HomePage() {
               }}
             />
           ) : (
-            <MediaRow key={row.id} title={row.title} titleLogo={row.titleLogo} items={row.items} />
+            <MediaRow
+              key={row.id}
+              title={row.title}
+              titleLogo={row.titleLogo}
+              items={row.items}
+              variant={rowVariant(row.title, row.viewMode, row.tileShape)}
+              artworkPreferences={artworkPreferences}
+            />
           ))}
       </div>
     </>

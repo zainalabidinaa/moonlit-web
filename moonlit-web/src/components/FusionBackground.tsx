@@ -66,7 +66,7 @@ export function FusionBackground({ backdropUrl, heroHeight = 0, noCharcoal = fal
             src={backdropUrl}
             alt=""
             className="absolute inset-0 w-full fusion-bg-backdrop"
-            style={{ height: `${heroHeight || 60}vh` }}
+            style={{ height: heroHeight ? `${heroHeight}px` : '60vh' }}
           />
           <div
             className="absolute inset-0"

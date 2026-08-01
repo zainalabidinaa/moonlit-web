@@ -1,16 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
-import { useParams, Link, useNavigate } from '@tanstack/react-router';
+import { useState, useEffect, useRef, type CSSProperties } from 'react';
+import { useParams } from '@tanstack/react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useAuth } from '@/app/AuthProvider';
 import { usePlayer } from '@/app/PlayerProvider';
 import { FusionBackground } from '@/components/FusionBackground';
+import { MediaRow } from '@/components/MediaRow';
 import { MetaDetail, StreamItem, Season } from '@/lib/types';
 import { fetchMeta, fetchStreamsFromAll } from '@/lib/stremio';
-import { isInLibrary, toggleLibrary, getWatchProgress } from '@/lib/services/api';
+import { isInUserWatchlist, toggleUserWatchlistItem, getWatchProgress } from '@/lib/services/api';
 import { cacheStreams } from '@/lib/stream-cache';
 import { getPlayableStreamUrl } from '@/lib/player-utils';
 import { TMDB_API_KEY } from '@/lib/supabase';
 import { useAmbientColors } from '@/lib/design/artwork-color';
+import { useArtworkPreferences } from './catalog-data';
 
 const PlayIcon = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="w-5 h-5 ml-0.5">
@@ -24,8 +26,8 @@ export default function DetailPage() {
   const { type, id } = useParams({ strict: false }) as { type: string; id: string };
   const { currentProfile, addons } = useAuth();
   const { open: openPlayer } = usePlayer();
-  const navigate = useNavigate();
   const queryClient = useQueryClient();
+  const artworkPreferences = useArtworkPreferences(currentProfile?.id);
 
   const [streams, setStreams] = useState<StreamItem[]>([]);
   const [showStreams, setShowStreams] = useState(false);
@@ -33,12 +35,7 @@ export default function DetailPage() {
   const [selectedSeason, setSelectedSeason] = useState<Season | null>(null);
   const [selectedEpisodeId, setSelectedEpisodeId] = useState<string | null>(null);
   const prefetchedRef = useRef<string | null>(null);
-  const heroRef = useRef<HTMLDivElement>(null);
-  const [heroHeight, setHeroHeight] = useState(0);
-
-  useEffect(() => {
-    if (heroRef.current) setHeroHeight(heroRef.current.getBoundingClientRect().height);
-  }, []);
+  const [watchlistOverride, setWatchlistOverride] = useState<boolean | null>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ['browse', type, id, currentProfile?.id],
@@ -58,11 +55,11 @@ export default function DetailPage() {
       let savedPosition = 0;
       let trailers: { id: string; title: string; youtubeId: string }[] = [];
       let recentEp: { mediaId: string; positionSec: number } | null = null;
-      let epProgress: Record<string, number> = {};
+      const epProgress: Record<string, number> = {};
 
       if (currentProfile) {
         const [lib, progress] = await Promise.all([
-          isInLibrary(currentProfile.id, id),
+          isInUserWatchlist(currentProfile.id, id),
           getWatchProgress(currentProfile.id),
         ]);
         inLib = lib;
@@ -153,20 +150,31 @@ export default function DetailPage() {
   });
 
   const detail = data?.meta ?? null;
-  const inLibrary = data?.inLib ?? false;
+  const inLibrary = watchlistOverride ?? data?.inLib ?? false;
   const savedPositionSeconds = data?.savedPosition ?? 0;
   const trailers = data?.trailers ?? [];
   const recentEp = data?.recentEp ?? null;
   const epProgress = data?.epProgress ?? {};
-
-  if (data?.initialSeason && !selectedSeason) {
-    setSelectedSeason(data.initialSeason);
-  }
+  const backdropSrc = detail?.background || detail?.poster;
+  const ambient = useAmbientColors(backdropSrc);
+  const activeSeason = selectedSeason ?? data?.initialSeason ?? null;
 
   async function handleToggleLibrary() {
     if (!currentProfile || !detail) return;
-    await toggleLibrary(currentProfile.id, id, type, detail.name, detail.poster);
-    queryClient.invalidateQueries({ queryKey: ['browse', type, id, currentProfile.id] });
+    const next = !inLibrary;
+    setWatchlistOverride(next);
+    try {
+      await toggleUserWatchlistItem(currentProfile.id, {
+        media_id: id,
+        media_type: type,
+        name: detail.name,
+        poster: detail.poster,
+      });
+      queryClient.invalidateQueries({ queryKey: ['user-watchlist', currentProfile.id] });
+      queryClient.invalidateQueries({ queryKey: ['browse', type, id, currentProfile.id] });
+    } catch {
+      setWatchlistOverride(!next);
+    }
   }
 
   useEffect(() => {
@@ -198,8 +206,8 @@ export default function DetailPage() {
     const mediaId = selectedEpisodeId || id;
     const cacheKey = `${type}:${mediaId}`;
     cacheStreams(cacheKey, streams);
-    const ep = selectedEpisodeId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === selectedEpisodeId) : null;
-    const watchTitle = ep ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}` : (detail?.name || '');
+    const ep = selectedEpisodeId && activeSeason ? activeSeason.episodes?.find(e => e.id === selectedEpisodeId) : null;
+    const watchTitle = ep ? `${detail?.name || ''} — S${activeSeason!.number}:E${ep.episode}: ${ep.title}` : (detail?.name || '');
     openPlayer({
       type, id: mediaId,
       streamUrl,
@@ -211,9 +219,9 @@ export default function DetailPage() {
 
   function handleAutoPlay(streamId?: string) {
     const sid = streamId || id;
-    const ep = streamId && selectedSeason ? selectedSeason.episodes?.find(e => e.id === streamId) : null;
+    const ep = streamId && activeSeason ? activeSeason.episodes?.find(e => e.id === streamId) : null;
     const watchTitle = ep
-      ? `${detail?.name || ''} — S${selectedSeason!.number}:E${ep.episode}: ${ep.title}`
+      ? `${detail?.name || ''} — S${activeSeason!.number}:E${ep.episode}: ${ep.title}`
       : (detail?.name || '');
     openPlayer({
       type, id: sid,
@@ -230,225 +238,225 @@ export default function DetailPage() {
     );
   }
 
-  const backdropSrc = detail?.background || detail?.poster;
-  const ambient = useAmbientColors(backdropSrc);
   const title = detail?.name || decodeURIComponent(id);
   const isSeries = type === 'series';
 
-  const trailersSection = trailers.length > 0 ? (
-    <section className="mb-8">
-      <h3 className="text-sm font-bold text-white mb-4">Trailers &amp; Clips</h3>
-      <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
-        {trailers.map(trailer => (
-          <a key={trailer.id} href={`https://www.youtube.com/watch?v=${trailer.youtubeId}`}
-            target="_blank" rel="noopener noreferrer" className="flex-shrink-0 w-52 group cursor-pointer">
-            <div className="relative w-52 h-[117px] rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]">
-              <img src={`https://img.youtube.com/vi/${trailer.youtubeId}/mqdefault.jpg`} alt={trailer.title}
-                className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" />
-              <div className="absolute bottom-2 right-2 bg-red-600/90 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">YouTube</div>
-            </div>
-            <p className="text-sm font-semibold text-white line-clamp-1">{trailer.title}</p>
-          </a>
-        ))}
-      </div>
-    </section>
-  ) : null;
-
   return (
-    <>
-      <FusionBackground backdropUrl={backdropSrc} heroHeight={heroHeight} />
+    <div className="detail-page pb-16">
+      <FusionBackground backdropUrl={backdropSrc} heroHeight={780} />
 
-      <div ref={heroRef} className="relative min-h-[70vh] flex items-end">
+      <section
+        data-detail-hero
+        aria-label={`${title} details`}
+        className="detail-hero relative flex items-end overflow-hidden"
+        style={{ '--detail-hero-height': '780px' } as CSSProperties}
+      >
         {backdropSrc && (
-          <div className="absolute inset-0 overflow-hidden">
-            <img src={backdropSrc} alt="" className="w-full h-full object-cover object-[center_20%]" aria-hidden="true" />
-          </div>
+          <img src={backdropSrc} alt="" className="absolute inset-0 h-full w-full object-cover object-[center_20%]" />
         )}
         {ambient && (
-          <div className="absolute inset-0 pointer-events-none overflow-hidden" style={{ opacity: 0.5, transition: 'opacity 1.2s ease-in-out' }}>
-            <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${ambient[0]}66, transparent 60%)`, transition: 'background 1.2s ease-in-out' }} />
-            <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 70% 0%, ${ambient[1]}52, transparent 50%)`, transition: 'background 1.2s ease-in-out' }} />
+          <div aria-hidden="true" className="absolute inset-0 overflow-hidden opacity-50">
+            <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${ambient[0]}55, transparent 62%)` }} />
+            <div className="absolute inset-0" style={{ background: `radial-gradient(circle at 72% 10%, ${ambient[1]}42, transparent 54%)` }} />
           </div>
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#141414] via-[#141414]/40 to-transparent" />
-        <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/80 via-transparent to-transparent" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-t from-[#0d0d0d] via-[#0d0d0d]/30 to-transparent" />
+        <div aria-hidden="true" className="absolute inset-0 bg-gradient-to-r from-[#0d0d0d]/90 via-[#0d0d0d]/28 to-transparent" />
 
-        <div className="relative z-10 w-full px-8 md:px-14 pt-28 pb-14 max-w-4xl">
-          <div className="max-w-xl">
+        <div className="relative z-10 w-full max-w-[1500px] px-4 pb-14 pt-28 sm:px-6 md:px-14">
+          <div className="max-w-[760px]">
             {detail?.logo ? (
-              <img src={detail.logo} alt={title} className="h-14 sm:h-20 object-contain object-left mb-3" />
+              <>
+                <h1 className="sr-only">{title}</h1>
+                <img src={detail.logo} alt={title} className="mb-5 max-h-28 max-w-[min(440px,82vw)] object-contain object-left drop-shadow-2xl" />
+              </>
             ) : (
-              <h1 className="text-3xl sm:text-5xl font-bold tracking-tight mb-3 text-white">{title}</h1>
+              <h1 className="mb-5 text-4xl font-black leading-none tracking-tight text-white sm:text-6xl">{title}</h1>
             )}
-            <div className="flex items-center gap-3 text-sm text-white/50 mb-4 flex-wrap">
-              {(detail as any)?.year && <span>{(detail as any).year}</span>}
+
+            <div className="mb-5 flex flex-wrap items-center gap-2.5 text-sm text-white/65">
+              {detail?.releaseInfo && <span>{detail.releaseInfo}</span>}
               {detail?.runtime && <span>{detail.runtime}</span>}
-              {detail?.imdbRating && (
-                <span className="rating-badge">
-                  <svg viewBox="0 0 20 20" fill="currentColor" className="w-3.5 h-3.5">
-                    <path fillRule="evenodd" d="M10.868 2.884c-.321-.772-1.415-.772-1.736 0l-1.83 4.401-4.753.381c-.833.067-1.171 1.107-.536 1.651l3.62 3.102-1.106 4.637c-.194.813.691 1.456 1.405 1.02L10 15.591l4.069 2.485c.713.436 1.598-.207 1.404-1.02l-1.106-4.637 3.62-3.102c.635-.544.297-1.584-.536-1.65l-4.752-.382-1.831-4.401z" clipRule="evenodd" />
-                  </svg>
-                  {detail.imdbRating}
-                </span>
-              )}
+              {detail?.imdbRating && <span className="rating-badge">★ {detail.imdbRating}</span>}
+              {detail?.genres?.slice(0, 3).map(genre => <span key={genre}>{genre}</span>)}
+              {detail?.awards?.[0] && <span className="font-semibold text-white/75">{detail.awards[0]}</span>}
             </div>
-            {detail?.genres && detail.genres.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-4">
-                {detail.genres.slice(0, 5).map(g => (
-                  <span key={g} className="px-3 py-1 rounded bg-white/8 border border-white/10 text-xs text-white/60 font-medium">{g}</span>
-                ))}
-              </div>
-            )}
-            {detail?.description && (
-              <p className="text-sm text-white/50 leading-relaxed mb-6 line-clamp-3">{detail.description}</p>
-            )}
-            <div className="flex items-center gap-3">
+
+            <div className="mb-7 flex flex-wrap items-center gap-3">
               {!isSeries ? (
-                <button onClick={() => handleAutoPlay()} className="btn-primary flex items-center gap-2">
+                <button type="button" onClick={() => handleAutoPlay()} className="btn-primary flex min-h-11 items-center gap-2 rounded-full">
                   <PlayIcon /> Play
                 </button>
               ) : recentEp ? (
-                (() => {
-                  const parts = recentEp.mediaId.split(':');
-                  const s = parts[1], e = parts[2];
-                  return (
-                    <button onClick={() => handleAutoPlay(recentEp.mediaId)} className="btn-primary flex items-center gap-2">
-                      <PlayIcon /> {s && e ? `Continue · S${s}E${e}` : 'Continue'}
-                    </button>
-                  );
-                })()
+                <button type="button" onClick={() => handleAutoPlay(recentEp.mediaId)} className="btn-primary flex min-h-11 items-center gap-2 rounded-full">
+                  <PlayIcon /> Continue {recentEp.mediaId.split(':').slice(1, 3).join('E')}
+                </button>
               ) : detail?.seasons?.[0]?.episodes?.[0] ? (
-                <button onClick={() => handleAutoPlay(detail.seasons![0].episodes![0].id)} className="btn-primary flex items-center gap-2">
+                <button type="button" onClick={() => handleAutoPlay(detail.seasons![0].episodes![0].id)} className="btn-primary flex min-h-11 items-center gap-2 rounded-full">
                   <PlayIcon /> Play First Episode
                 </button>
-              ) : <div />}
+              ) : null}
 
-              <button onClick={handleToggleLibrary}
+              <button
+                type="button"
+                onClick={handleToggleLibrary}
                 aria-label={inLibrary ? 'Remove from watchlist' : 'Add to watchlist'}
-                title={inLibrary ? 'Saved' : 'Watchlist'}
-                className={`w-10 h-10 shrink-0 flex items-center justify-center rounded-full border transition-all active:scale-95 ${inLibrary ? 'bg-[#e50914]/20 border-[#e50914]/40 text-[#e50914]' : 'bg-white/8 border-white/10 text-white hover:bg-white/12'}`}>
-                <svg viewBox="0 0 24 24" fill={inLibrary ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.5" className="w-5 h-5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.593 3.322c1.1.128 1.907 1.077 1.907 2.185V21L12 17.25 4.5 21V5.507c0-1.108.806-2.057 1.907-2.185a48.507 48.507 0 0111.186 0z" />
+                aria-pressed={inLibrary}
+                className={`detail-icon-action ${inLibrary ? 'detail-icon-action-active' : ''}`}
+              >
+                <svg aria-hidden="true" viewBox="0 0 24 24" fill={inLibrary ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M17.6 3.3c1.1.1 1.9 1.1 1.9 2.2V21L12 17.3 4.5 21V5.5c0-1.1.8-2.1 1.9-2.2a48.5 48.5 0 0 1 11.2 0Z" />
                 </svg>
               </button>
-
               {!isSeries && (
-                <button onClick={() => loadStreams()} aria-label="Sources" title="Sources"
-                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/8 border border-white/10 text-white hover:bg-white/12 transition-all active:scale-95">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="w-5 h-5"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"/></svg>
+                <button type="button" onClick={() => loadStreams()} aria-label="Choose source" className="detail-icon-action">
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" /></svg>
                 </button>
               )}
-
-              {trailers.length > 0 && trailers[0].youtubeId && (
-                <a href={`https://www.youtube.com/watch?v=${trailers[0].youtubeId}`} target="_blank" rel="noopener noreferrer"
-                  aria-label="Trailer" title="Trailer"
-                  className="w-10 h-10 shrink-0 flex items-center justify-center rounded-full bg-white/8 border border-white/10 text-white hover:bg-white/12 transition-all active:scale-95">
-                  <svg viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 ml-0.5"><polygon points="5,3 19,12 5,21"/></svg>
-                </a>
-              )}
             </div>
+
+            {detail?.description && (
+              <div className="max-w-[680px]">
+                <h2 className="mb-2 text-[15px] font-bold text-white">Overview</h2>
+                <p className="line-clamp-3 text-sm font-medium leading-relaxed text-white/70">{detail.description}</p>
+              </div>
+            )}
           </div>
         </div>
-      </div>
+      </section>
 
-      <div className="px-8 md:px-14 pb-16 max-w-4xl space-y-10">
-        {!isSeries && trailersSection}
-
-        {detail?.cast && detail.cast.length > 0 && (
-          <section>
-            <h3 className="text-sm font-bold text-white mb-4">Cast &amp; Creators</h3>
-            <div className="flex gap-5 overflow-x-auto pb-3 scrollbar-hide">
-              {detail.cast.slice(0, 25).map(p => (
-                <div key={p.name} className="flex-shrink-0 text-center w-20">
-                  <div className="w-20 h-20 rounded-full bg-white/5 mx-auto mb-2 overflow-hidden ring-1 ring-white/10">
-                    {p.photo ? (
-                      <img src={p.photo} alt={p.name} className="w-full h-full object-cover" loading="lazy" />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-base font-semibold text-white/60">{p.name[0]}</div>
-                    )}
-                  </div>
-                  <p className="text-xs text-white/60 truncate">{p.name}</p>
-                </div>
+      <div className="relative mx-auto max-w-[1500px] space-y-12 px-4 sm:px-6 md:px-14">
+        {trailers.length > 0 && (
+          <section aria-labelledby="trailers-heading">
+            <h2 id="trailers-heading" className="detail-section-title">Trailers &amp; Clips</h2>
+            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
+              {trailers.map(trailer => (
+                <a key={trailer.id} href={`https://www.youtube.com/watch?v=${trailer.youtubeId}`} target="_blank" rel="noopener noreferrer" className="detail-trailer-card group">
+                  <span className="relative block aspect-video overflow-hidden rounded-ml-card bg-moonlit-elevated">
+                    <img src={`https://img.youtube.com/vi/${trailer.youtubeId}/mqdefault.jpg`} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    <span className="absolute inset-0 flex items-center justify-center bg-black/20">
+                      <span className="flex h-11 w-11 items-center justify-center rounded-full bg-white text-black"><PlayIcon /></span>
+                    </span>
+                  </span>
+                  <span className="mt-2 block truncate text-sm font-semibold text-white">{trailer.title}</span>
+                </a>
               ))}
             </div>
           </section>
         )}
 
-        {(() => {
-          const similar = (detail?.moreLikeThis ?? []).filter(item => item.id.startsWith('tt'));
-          if (similar.length === 0) return null;
-          return (
-            <section className="mb-8">
-              <h3 className="text-sm font-bold text-white mb-4">More Like This</h3>
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
-                {similar.slice(0, 15).map(item => (
-                  <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }} className="group cursor-pointer">
-                    <div className="relative aspect-[2/3] rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]">
-                      {item.poster ? (
-                        <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" />
-                      ) : (
-                        <div className="absolute inset-0 flex items-center justify-center text-white/20 text-xs font-semibold text-center px-2">{item.name}</div>
-                      )}
-                    </div>
-                    <p className="text-xs font-medium text-[#b3b3b3] truncate">{item.name}</p>
-                    {item.releaseInfo && <p className="text-[10px] text-white/40 mt-0.5">{item.releaseInfo}</p>}
-                  </Link>
+        {isSeries && detail?.seasons && detail.seasons.length > 0 && (
+          <section aria-labelledby="episodes-heading">
+            <div className="mb-5 flex flex-wrap items-center gap-3">
+              <h2 id="episodes-heading" className="detail-section-title !mb-0">Episodes</h2>
+              <div role="group" aria-label="Choose season" className="flex gap-2 overflow-x-auto py-1 scrollbar-hide">
+                {detail.seasons.map(season => (
+                  <button
+                    key={season.id}
+                    type="button"
+                    aria-pressed={activeSeason?.id === season.id}
+                    onClick={() => { setSelectedSeason(season); setShowStreams(false); setSelectedEpisodeId(null); }}
+                    className={`category-pill min-h-11 whitespace-nowrap ${activeSeason?.id === season.id ? 'category-pill-active' : 'category-pill-idle'}`}
+                  >
+                    Season {season.number}
+                  </button>
                 ))}
               </div>
-            </section>
-          );
-        })()}
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fit,minmax(min(260px,100%),1fr))] gap-5">
+              {activeSeason?.episodes?.map(ep => (
+                <button
+                  key={ep.id}
+                  type="button"
+                  onClick={() => { setSelectedEpisodeId(ep.id); handleAutoPlay(ep.id); }}
+                  className="episode-card group min-w-0 text-left"
+                >
+                  <span className="relative block aspect-video overflow-hidden rounded-ml-card bg-moonlit-elevated">
+                    {ep.thumbnail ? <img src={ep.thumbnail} alt="" className="h-full w-full object-cover" loading="lazy" /> : <span className="flex h-full items-center justify-center text-white/30">Episode {ep.episode}</span>}
+                    {epProgress[ep.id] > 0 && (
+                      <span role="progressbar" aria-label={`${ep.title} progress`} aria-valuenow={Math.round(epProgress[ep.id] * 100)} aria-valuemin={0} aria-valuemax={100} className="media-progress-track">
+                        <span style={{ width: `${epProgress[ep.id] * 100}%` }} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-3 block text-xs font-semibold uppercase tracking-wider text-white/45">Episode {ep.episode}</span>
+                  <span className="mt-1 block truncate text-sm font-semibold text-white">{ep.title}</span>
+                  {ep.overview && <span className="mt-1.5 block line-clamp-2 text-xs leading-relaxed text-white/50">{ep.overview}</span>}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
 
-        {detail?.links && detail.links.length > 0 && (() => {
-          const networks = detail.links.filter(l => l.category === 'network');
-          const studios = detail.links.filter(l => l.category === 'production');
-          if (networks.length === 0 && studios.length === 0) return null;
-          return (
-            <section className="flex gap-8 flex-wrap">
-              {networks.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Network</h4>
-                  <div className="flex gap-2 flex-wrap">
-                    {networks.map(l => <span key={l.url} className="px-3 py-1.5 rounded bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
-                  </div>
-                </div>
-              )}
-              {studios.length > 0 && (
-                <div>
-                  <h4 className="text-xs font-bold text-white/40 uppercase tracking-wider mb-3">Production</h4>
-                  <div className="flex gap-2 flex-wrap">
-                    {studios.map(l => <span key={l.url} className="px-3 py-1.5 rounded bg-white/6 border border-white/8 text-xs text-white/70 font-semibold">{l.name}</span>)}
-                  </div>
-                </div>
-              )}
-            </section>
-          );
-        })()}
+        {detail?.cast && detail.cast.length > 0 && (
+          <section aria-labelledby="cast-heading">
+            <h2 id="cast-heading" className="detail-section-title">Cast &amp; Creators</h2>
+            <div className="flex gap-5 overflow-x-auto pb-3 scrollbar-hide">
+              {detail.cast.slice(0, 25).map(person => (
+                <article key={person.id || person.name} className="w-24 shrink-0 text-center">
+                  <span className="mx-auto mb-2 flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-white/5 ring-1 ring-white/10">
+                    {person.photo ? <img src={person.photo} alt="" className="h-full w-full object-cover" loading="lazy" /> : <span className="text-lg font-semibold text-white/55">{person.name[0]}</span>}
+                  </span>
+                  <h3 className="truncate text-xs font-medium text-white/70">{person.name}</h3>
+                </article>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {detail?.gallery && detail.gallery.length > 0 && (
+          <section aria-labelledby="gallery-heading">
+            <h2 id="gallery-heading" className="detail-section-title">Gallery</h2>
+            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
+              {detail.gallery.map(image => (
+                <figure key={image.id} className="w-[min(420px,82vw)] shrink-0">
+                  <img src={image.url} alt={image.caption || `${title} gallery image`} className="aspect-video w-full rounded-ml-card object-cover ring-1 ring-white/10" loading="lazy" />
+                  {image.caption && <figcaption className="mt-2 text-xs text-white/50">{image.caption}</figcaption>}
+                </figure>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {detail?.awards && detail.awards.length > 0 && (
+          <section aria-labelledby="awards-heading">
+            <h2 id="awards-heading" className="detail-section-title">Awards</h2>
+            <div className="glass-panel max-w-2xl rounded-ml-lg p-6">
+              {detail.awards.map(award => <p key={award} className="text-sm font-semibold text-moonlit-rating-gold">★ {award}</p>)}
+            </div>
+          </section>
+        )}
+
+        {detail?.links && detail.links.length > 0 && (
+          <section aria-labelledby="links-heading">
+            <h2 id="links-heading" className="detail-section-title">Links</h2>
+            <div className="flex flex-wrap gap-3">
+              {detail.links.map(link => (
+                <a key={link.url} href={link.url} target="_blank" rel="noopener noreferrer" className="glass-panel inline-flex min-h-11 items-center rounded-full px-4 text-sm font-semibold text-white/80 hover:text-white">
+                  {link.name} <span aria-hidden="true" className="ml-2">↗</span>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {detail?.moreLikeThis && detail.moreLikeThis.length > 0 && (
+          <MediaRow title="Recommendations" items={detail.moreLikeThis} artworkPreferences={artworkPreferences} />
+        )}
 
         {showStreams && (
-          <section>
-            <h3 className="text-sm font-semibold text-white mb-4">
-              Sources {!loadingStreams && streams.length > 0 && <span className="text-white/30 font-normal">({streams.length})</span>}
-            </h3>
+          <section aria-labelledby="sources-heading">
+            <h2 id="sources-heading" className="detail-section-title">Sources</h2>
             {loadingStreams ? (
-              <div className="flex items-center gap-2 text-white/30 text-sm">
-                <div className="w-5 h-5 rounded-full border-2 border-white/[0.14] border-t-white animate-spin-arc" />
-                Fetching streams...
-              </div>
+              <p role="status" className="text-sm text-white/50">Fetching sources…</p>
             ) : streams.length === 0 ? (
-              <p className="text-white/30 text-sm">No sources found</p>
+              <p className="text-sm text-white/50">No sources found.</p>
             ) : (
-              <div className="space-y-1">
-                {streams.slice(0, 30).map((s, i) => (
-                  <button key={s.url ? `${s.url}-${i}` : `stream-${i}`} onClick={() => handlePlay(s)}
-                    className="w-full text-left p-3 hover:bg-white/5 rounded transition-all flex items-center justify-between group">
-                    <div className="min-w-0">
-                      <p className="text-sm text-white truncate">{s.title || s.name || s.description || 'Unknown'}</p>
-                      <p className="text-xs text-white/30 mt-0.5">{s.addonName}</p>
-                    </div>
-                    <div className="flex-shrink-0 w-7 h-7 rounded-full bg-white/10 group-hover:bg-[#e50914]/20 flex items-center justify-center ml-3 transition-colors opacity-0 group-hover:opacity-100">
-                      <PlayIcon />
-                    </div>
+              <div className="grid gap-2">
+                {streams.slice(0, 30).map((stream, index) => (
+                  <button key={stream.url ? `${stream.url}-${index}` : `stream-${index}`} type="button" onClick={() => handlePlay(stream)} className="surface-card min-h-11 p-3 text-left text-sm text-white hover:bg-white/10">
+                    {stream.title || stream.name || stream.description || 'Unknown source'}
+                    {stream.addonName && <span className="ml-2 text-white/40">· {stream.addonName}</span>}
                   </button>
                 ))}
               </div>
@@ -456,47 +464,6 @@ export default function DetailPage() {
           </section>
         )}
       </div>
-
-      {isSeries && detail?.seasons && detail.seasons.length > 0 && (
-        <section className="mb-10 px-8 md:px-14">
-          <h3 className="text-sm font-semibold text-white mb-4">Episodes</h3>
-          <div className="flex gap-2 overflow-x-auto pb-2 mb-5 scrollbar-hide">
-            {detail.seasons.map(s => (
-              <button key={s.id} onClick={() => { setSelectedSeason(s); setShowStreams(false); setSelectedEpisodeId(null); }}
-                className={`flex-shrink-0 px-4 py-2 rounded text-sm transition-all ${selectedSeason?.id === s.id ? 'bg-white text-black font-bold' : 'bg-white/5 text-white/60 font-medium hover:bg-white/10 hover:text-white'}`}>
-                Season {s.number}
-              </button>
-            ))}
-          </div>
-          {selectedSeason?.episodes && (
-            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-hide">
-              {selectedSeason.episodes.map(ep => (
-                <button key={ep.id} onClick={() => { setSelectedEpisodeId(ep.id); handleAutoPlay(ep.id); }}
-                  className={`flex-shrink-0 w-52 text-left group rounded overflow-hidden transition-all ${selectedEpisodeId === ep.id ? 'ring-2 ring-white/60' : ''}`}>
-                  <div className="relative w-full aspect-video bg-[#2a2a2a] rounded overflow-hidden mb-2 border border-white/[0.06]">
-                    {ep.thumbnail ? (
-                      <img src={ep.thumbnail} alt={ep.title} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]" loading="lazy" />
-                    ) : (
-                      <div className="absolute inset-0 flex items-center justify-center text-white/15 text-sm font-semibold">E{ep.episode}</div>
-                    )}
-                    {epProgress[ep.id] !== undefined && epProgress[ep.id] > 0 && (
-                      <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-white/20">
-                        <div className="h-full bg-[#e50914]" style={{ width: `${Math.round(epProgress[ep.id] * 100)}%` }} />
-                      </div>
-                    )}
-                  </div>
-                  <p className="text-[10px] text-white/40 mb-0.5">Episode {ep.episode}</p>
-                  {ep.released && <p className="text-[10px] text-white/30 mb-0.5">{new Date(ep.released).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</p>}
-                  <p className="text-sm font-semibold text-white truncate">{ep.title}</p>
-                  {ep.overview && <p className="text-xs text-white/40 mt-1 line-clamp-2 leading-relaxed">{ep.overview}</p>}
-                </button>
-              ))}
-            </div>
-          )}
-        </section>
-      )}
-
-      {isSeries && <div className="px-8 md:px-14 pb-8 max-w-4xl">{trailersSection}</div>}
-    </>
+    </div>
   );
 }
