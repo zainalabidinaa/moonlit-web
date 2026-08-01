@@ -79,7 +79,7 @@ export function MediaCard({
   index = 0,
   variant = 'standard',
   artworkPreferences = DEFAULT_ARTWORK_PREFERENCES,
-  badges = { rating: true },
+  badges = { rating: true, quality: true, age: true },
   progress,
   onActivate,
   onRemove,
@@ -183,6 +183,12 @@ export function MediaCard({
 
   return (
     <article className={`media-card-shell media-card-${variant}`} style={style}>
+      {variant === 'stack' && (
+        <>
+          <span aria-hidden="true" data-testid="media-stack-depth-layer" className="media-stack-depth media-stack-depth-back" />
+          <span aria-hidden="true" data-testid="media-stack-depth-layer" className="media-stack-depth media-stack-depth-front" />
+        </>
+      )}
       {onActivate ? (
         <button
           type="button"
@@ -198,7 +204,7 @@ export function MediaCard({
       ) : (
         <Link
           to="/browse/$type/$id"
-          params={{ type: item.type, id: item.id }}
+          params={{ type: item.type, id: item.routeId ?? item.id }}
           data-media-card={geometry.shape}
           className={className}
           style={style}

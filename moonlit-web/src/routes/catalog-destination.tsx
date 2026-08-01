@@ -2,13 +2,18 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 
 import { useAuth } from '@/app/AuthProvider';
+import { usePlayer } from '@/app/PlayerProvider';
 import { FusionBackground } from '@/components/FusionBackground';
 import { HomeHero } from '@/components/HomeHero';
-import { MediaRow, type MediaRailVariant } from '@/components/MediaRow';
+import { MediaRow } from '@/components/MediaRow';
 import type { CatalogRow } from '@/lib/collections/types';
 import { getWatchProgress } from '@/lib/services/api';
 import type { FeaturedHomeItem, HomeCatalogRow, MetaPreview, WatchProgressEntry } from '@/lib/types';
+import { formatContinueWatchingTitle } from '@/lib/player-utils';
 import { useArtworkPreferences, useCatalogRowsData } from './catalog-data';
+import { catalogRailVariant } from './rail-variant';
+import { useFeaturedEnrichment } from './featured-enrichment';
+import type { HeroTransitionSource } from '@/lib/design/motion';
 
 function toHomeRow(row: CatalogRow, mediaType: 'movie' | 'series'): HomeCatalogRow {
   return {
@@ -20,20 +25,14 @@ function toHomeRow(row: CatalogRow, mediaType: 'movie' | 'series'): HomeCatalogR
   };
 }
 
-function railVariant(row: CatalogRow): MediaRailVariant {
-  const hint = `${row.viewMode ?? ''} ${row.title}`.toLowerCase();
-  if (hint.includes('top 10') || hint.includes('top ten') || hint.includes('top10')) return 'top10';
-  if (hint.includes('cinematic') || hint.includes('carousel')) return 'carousel';
-  if (hint.includes('banner') || row.tileShape?.toLowerCase() === 'landscape') return 'banner';
-  if (hint.includes('stack')) return 'stack';
-  return 'standard';
-}
-
 function continueItem(entry: WatchProgressEntry): MetaPreview {
+  const mediaId = entry.media_id;
+  const baseId = mediaId.split(':')[0];
   return {
-    id: decodeURIComponent(entry.media_id).split(':')[0],
+    id: mediaId,
+    routeId: baseId,
     type: entry.media_type,
-    name: entry.name || decodeURIComponent(entry.media_id).split(':')[0],
+    name: entry.name || baseId,
     banner: entry.poster,
     poster: entry.poster,
   };
@@ -47,11 +46,13 @@ function timeRemaining(entry: WatchProgressEntry): string {
 
 export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 'series'; title: string }) {
   const { addons, currentProfile } = useAuth();
+  const { open: openPlayer } = usePlayer();
   const { data: rows = [], isLoading, isError } = useCatalogRowsData(addons, currentProfile?.id);
   const artworkPreferences = useArtworkPreferences(currentProfile?.id);
   const [selectedGenre, setSelectedGenre] = useState('All');
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
+  const [heroTransitionSource, setHeroTransitionSource] = useState<HeroTransitionSource>('manual');
 
   const { data: progress = [] } = useQuery({
     queryKey: ['watch-progress', currentProfile?.id ?? 'guest'],
@@ -88,11 +89,15 @@ export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 
     }
     return output;
   }, [matchingRows, mediaType]);
+  const featuredEnrichment = useFeaturedEnrichment(featuredItems, addons);
 
   useEffect(() => {
     if (heroPaused || featuredItems.length <= 1 || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const interval = window.setInterval(
-      () => setFeaturedIndex(index => (index + 1) % featuredItems.length),
+      () => {
+        setHeroTransitionSource('automatic');
+        setFeaturedIndex(index => (index + 1) % featuredItems.length);
+      },
       60_000,
     );
     return () => window.clearInterval(interval);
@@ -100,21 +105,33 @@ export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 
 
   const activeFeaturedIndex = featuredIndex < featuredItems.length ? featuredIndex : 0;
 
-  const continueEntries = progress
-    .filter(entry => entry.media_type === mediaType && !entry.completed && entry.position_seconds > 0)
-    .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at));
+  const continueEntries = useMemo(() => {
+    const seenBaseIds = new Set<string>();
+    return progress
+      .filter(entry => entry.media_type === mediaType && !entry.completed && entry.position_seconds > 0)
+      .map(entry => ({ ...entry, media_id: decodeURIComponent(entry.media_id) }))
+      .sort((left, right) => Date.parse(right.updated_at) - Date.parse(left.updated_at))
+      .filter(entry => {
+        const baseId = entry.media_id.split(':')[0];
+        if (seenBaseIds.has(baseId)) return false;
+        seenBaseIds.add(baseId);
+        return true;
+      });
+  }, [mediaType, progress]);
   const continueItems = continueEntries.map(continueItem);
   const progressById = Object.fromEntries(continueEntries.map(entry => {
-    const id = decodeURIComponent(entry.media_id).split(':')[0];
-    const parts = decodeURIComponent(entry.media_id).split(':');
-    return [id, {
+    const parts = entry.media_id.split(':');
+    return [entry.media_id, {
       fraction: entry.duration_seconds > 0 ? entry.position_seconds / entry.duration_seconds : 0,
       label: timeRemaining(entry),
       episodeLabel: entry.media_type === 'series' && parts.length >= 3 ? `S${parts[1]} E${parts[2]}` : undefined,
     }];
   }));
-  const currentBackdrop = featuredItems[activeFeaturedIndex]?.item.banner
-    || featuredItems[activeFeaturedIndex]?.item.poster;
+  const activeFeature = featuredItems[activeFeaturedIndex];
+  const activeFeatureId = activeFeature?.item.id;
+  const currentBackdrop = activeFeature?.item.banner
+    || (activeFeatureId ? featuredEnrichment.metas[activeFeatureId]?.background : undefined)
+    || (activeFeatureId ? featuredEnrichment.backdrops[activeFeatureId] : undefined);
 
   return (
     <div className="catalog-destination min-h-[calc(100vh-56px)] pb-16">
@@ -124,8 +141,14 @@ export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 
         <HomeHero
           featuredItems={featuredItems}
           activeIndex={activeFeaturedIndex}
-          metas={{}}
-          onIndexChange={setFeaturedIndex}
+          metas={featuredEnrichment.metas}
+          backdrops={featuredEnrichment.backdrops}
+          awards={featuredEnrichment.awards}
+          transitionSource={heroTransitionSource}
+          onIndexChange={(index, source = 'manual') => {
+            setHeroTransitionSource(source);
+            setFeaturedIndex(index);
+          }}
           isPaused={heroPaused}
           onPauseChange={setHeroPaused}
         />
@@ -184,6 +207,25 @@ export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 
             artworkPreferences={artworkPreferences}
             progressById={progressById}
             badges={{}}
+            onItemActivate={item => {
+              const entry = continueEntries.find(candidate => candidate.media_id === item.id);
+              if (!entry) return;
+              openPlayer({
+                type: entry.media_type,
+                id: entry.media_id,
+                metadata: {
+                  mediaId: entry.media_id,
+                  mediaType: entry.media_type,
+                  title: formatContinueWatchingTitle({
+                    mediaId: entry.media_id,
+                    mediaType: entry.media_type,
+                    name: entry.name || entry.media_id.split(':')[0],
+                  }),
+                  poster: entry.poster,
+                },
+                startPosition: entry.position_seconds,
+              });
+            }}
           />
         )}
 
@@ -200,7 +242,7 @@ export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 
             title={row.title}
             titleLogo={row.titleLogo}
             items={row.items}
-            variant={railVariant(row)}
+            variant={catalogRailVariant(row)}
             artworkPreferences={artworkPreferences}
           />
         ))}

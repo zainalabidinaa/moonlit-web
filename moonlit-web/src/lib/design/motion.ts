@@ -11,7 +11,16 @@ export const SPRING = {
   cardHover: spring(motionTokens.cardSpring.response, motionTokens.cardSpring.dampingFraction),
   nav: spring(0.25, 0.75),
   panel: spring(motionTokens.rowSpring.response, motionTokens.rowSpring.dampingFraction),
+  heroManual: spring(motionTokens.heroManualSpring.response, motionTokens.heroManualSpring.dampingFraction),
+  heroAutomatic: spring(motionTokens.heroAutomaticSpring.response, motionTokens.heroAutomaticSpring.dampingFraction),
 } as const;
+
+export type HeroTransitionSource = 'manual' | 'automatic';
+
+export function heroTransition(source: HeroTransitionSource, reducedMotion: boolean): Transition {
+  if (reducedMotion) return { duration: 0 };
+  return source === 'automatic' ? SPRING.heroAutomatic : SPRING.heroManual;
+}
 
 export const EASE = {
   heroCrossfade: { duration: motionTokens.heroCrossfade, ease: 'easeInOut' },

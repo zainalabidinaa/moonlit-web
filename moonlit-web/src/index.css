@@ -334,6 +334,25 @@ body {
   scroll-snap-align: start;
 }
 
+.media-stack-depth {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  left: 0;
+  display: block;
+  width: 100%;
+  height: var(--media-card-height);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--media-card-radius);
+  background: linear-gradient(145deg, rgba(60, 55, 72, 0.9), rgba(24, 23, 28, 0.95));
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.22);
+  pointer-events: none;
+}
+
+.media-stack-depth-back { transform: translate(10px, -8px) scale(0.94); opacity: 0.48; }
+.media-stack-depth-front { transform: translate(5px, -4px) scale(0.97); opacity: 0.72; }
+.media-card-stack .media-card-link { z-index: 1; }
+
 .media-card-link {
   position: relative;
   display: flex;

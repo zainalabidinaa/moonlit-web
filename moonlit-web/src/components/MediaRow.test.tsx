@@ -73,6 +73,35 @@ describe('MediaRow parity variants', () => {
     },
   );
 
+  it.each([
+    ['standard', 'poster', '154px', '231px'],
+    ['cinematic', 'landscape', '360px', '203px'],
+    ['banner', 'landscape', '320px', '180px'],
+    ['stack', 'landscape', '270px', '152px'],
+    ['top10', 'poster', '154px', '231px'],
+    ['continue', 'landscape', '320px', '180px'],
+  ] as const)(
+    'gives %s observable geometry distinct from the other rail compositions',
+    (variant, shape, width, height) => {
+      render(<MediaRow title={`${variant} geometry`} items={[item]} variant={variant} />);
+
+      const card = screen.getByRole('link', { name: /Card Title/ });
+      expect(card).toHaveAttribute('data-media-card', shape);
+      expect(card).toHaveStyle({ '--media-card-width': width, '--media-card-height': height });
+    },
+  );
+
+  it('uses a leading-card composition for carousel and visible depth layers for stack', () => {
+    const second = { ...item, id: 'tt-card-two', name: 'Second Card' };
+    const { rerender } = render(<MediaRow title="Carousel" items={[item, second]} variant="carousel" />);
+
+    expect(screen.getByRole('link', { name: /Card Title/ })).toHaveStyle({ '--media-card-width': '420px' });
+    expect(screen.getByRole('link', { name: /Second Card/ })).toHaveStyle({ '--media-card-width': '320px' });
+
+    rerender(<MediaRow title="Stack" items={[item]} variant="stack" />);
+    expect(screen.getAllByTestId('media-stack-depth-layer')).toHaveLength(2);
+  });
+
   it('delays an enabled hover preview and keeps it user-triggered', async () => {
     vi.useFakeTimers();
     render(

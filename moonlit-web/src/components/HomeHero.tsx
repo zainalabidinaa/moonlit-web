@@ -1,6 +1,8 @@
 import React from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { FeaturedHomeItem, MetaDetail } from '@/lib/types';
 import { Link } from '@tanstack/react-router';
+import { heroTransition, type HeroTransitionSource } from '@/lib/design/motion';
 
 interface HomeHeroProps {
   featuredItems: FeaturedHomeItem[];
@@ -8,9 +10,10 @@ interface HomeHeroProps {
   metas: Record<string, MetaDetail | null>;
   backdrops?: Record<string, string>;
   awards?: Record<string, string>;
-  onIndexChange: (i: number) => void;
+  onIndexChange: (i: number, source?: HeroTransitionSource) => void;
   isPaused?: boolean;
   onPauseChange?: (paused: boolean) => void;
+  transitionSource?: HeroTransitionSource;
 }
 
 export function HomeHero({
@@ -22,6 +25,7 @@ export function HomeHero({
   onIndexChange,
   isPaused = false,
   onPauseChange,
+  transitionSource = 'manual',
 }: HomeHeroProps) {
   const [failedLogoSrc, setFailedLogoSrc] = React.useState<string | null>(null);
   const featured = featuredItems[activeIndex] ?? featuredItems[0];
@@ -41,6 +45,8 @@ export function HomeHero({
   const genreLabel = genres[0] || null;
   const releaseInfo = meta?.releaseInfo || featured.item.releaseInfo;
   const rating = meta?.imdbRating || featured.item.imdbRating;
+  const reducedMotion = typeof window !== 'undefined'
+    && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   return (
     <section
@@ -49,21 +55,33 @@ export function HomeHero({
       style={{ '--hero-desktop-height': '560px' } as React.CSSProperties}
     >
       {/* Hero backdrop image */}
-      {bgImage ? (
-        <img
-          key={bgImage}
-          src={bgImage}
-          alt=""
-          fetchPriority="high"
-          className="absolute inset-0 w-full h-full object-cover object-[center_18%] animate-fade-in"
-          style={{
-            maskImage: 'linear-gradient(to bottom, black 0%, black 45%, transparent 100%)',
-            WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 45%, transparent 100%)',
-          }}
-        />
-      ) : (
-        <div className="absolute inset-0 bg-[#1f1f1f]" />
-      )}
+      <AnimatePresence initial={false} mode="sync">
+        <motion.div
+          key={`${featured.item.id}-${bgImage ?? 'empty'}`}
+          data-testid="hero-artwork-transition"
+          data-transition-source={transitionSource}
+          className="absolute inset-0"
+          initial={reducedMotion ? false : { opacity: 0.28, scale: 1.015 }}
+          animate={{ opacity: 1, scale: 1 }}
+          exit={reducedMotion ? undefined : { opacity: 0.24, scale: 0.995 }}
+          transition={heroTransition(transitionSource, reducedMotion)}
+        >
+          {bgImage ? (
+            <img
+              src={bgImage}
+              alt=""
+              fetchPriority="high"
+              className="absolute inset-0 h-full w-full object-cover object-[center_18%]"
+              style={{
+                maskImage: 'linear-gradient(to bottom, black 0%, black 45%, transparent 100%)',
+                WebkitMaskImage: 'linear-gradient(to bottom, black 0%, black 45%, transparent 100%)',
+              }}
+            />
+          ) : (
+            <div className="absolute inset-0 bg-[#1f1f1f]" />
+          )}
+        </motion.div>
+      </AnimatePresence>
 
       {/* Left vignette for text legibility */}
       <div className="absolute inset-0 bg-gradient-to-r from-[#141414]/95 via-[#141414]/40 to-transparent pointer-events-none" />
@@ -141,7 +159,7 @@ export function HomeHero({
           <button
             type="button"
             aria-label="Previous featured title"
-            onClick={() => onIndexChange((activeIndex - 1 + featuredItems.length) % featuredItems.length)}
+            onClick={() => onIndexChange((activeIndex - 1 + featuredItems.length) % featuredItems.length, 'manual')}
             className="hero-arrow hero-arrow-previous"
           >
             <span aria-hidden="true">‹</span>
@@ -149,7 +167,7 @@ export function HomeHero({
           <button
             type="button"
             aria-label="Next featured title"
-            onClick={() => onIndexChange((activeIndex + 1) % featuredItems.length)}
+            onClick={() => onIndexChange((activeIndex + 1) % featuredItems.length, 'manual')}
             className="hero-arrow hero-arrow-next"
           >
             <span aria-hidden="true">›</span>
@@ -161,7 +179,7 @@ export function HomeHero({
                 <button
                   key={i}
                   type="button"
-                  onClick={() => onIndexChange(i)}
+                  onClick={() => onIndexChange(i, 'manual')}
                   aria-label={`Go to item ${i + 1}`}
                   aria-pressed={active}
                   className="hero-page-button flex h-11 w-11 items-center justify-center rounded-full"

@@ -62,6 +62,8 @@ export const motionTokens = {
   standard: 0.25,
   cardSpring: { response: 0.3, dampingFraction: 0.78 },
   rowSpring: { response: 0.42, dampingFraction: 0.82 },
+  heroManualSpring: { response: 0.42, dampingFraction: 0.82 },
+  heroAutomaticSpring: { response: 0.5, dampingFraction: 0.82 },
   heroCrossfade: 0.6,
   ambientColor: 0.9,
 } as const;

@@ -180,13 +180,15 @@ describe('HomeHero', () => {
         onIndexChange={onIndexChange}
         isPaused={false}
         onPauseChange={onPauseChange}
+        transitionSource="automatic"
       />,
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Next featured title' }));
     fireEvent.click(screen.getByRole('button', { name: 'Pause featured titles' }));
 
-    expect(onIndexChange).toHaveBeenCalledWith(1);
+    expect(screen.getByTestId('hero-artwork-transition')).toHaveAttribute('data-transition-source', 'automatic');
+    expect(onIndexChange).toHaveBeenCalledWith(1, 'manual');
     expect(onPauseChange).toHaveBeenCalledWith(true);
   });
 

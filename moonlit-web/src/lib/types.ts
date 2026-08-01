@@ -1,5 +1,7 @@
 export interface MetaPreview {
   id: string;
+  /** Optional detail-route identifier when the card's playback identity is more specific. */
+  routeId?: string;
   type: string;
   name: string;
   poster?: string;

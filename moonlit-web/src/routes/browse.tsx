@@ -22,6 +22,29 @@ const PlayIcon = () => (
 
 const STREAILER_URL = 'https://9aa032f52161-streailer.baby-beamup.club/%7B%22language%22%3A%22en-US%22%2C%22externalLink%22%3Atrue%2C%22showRecap%22%3Atrue%7D';
 
+interface StreailerStream {
+  externalUrl?: string;
+  name?: string;
+  title?: string;
+}
+
+type AddonTrailer = NonNullable<MetaDetail['trailers']>[number] & { source?: string };
+
+interface TmdbCastMember {
+  id: string | number;
+  name: string;
+  profile_path?: string;
+}
+
+interface TmdbRecommendation {
+  id: string | number;
+  name?: string;
+  title?: string;
+  poster_path?: string;
+  first_air_date?: string;
+  release_date?: string;
+}
+
 export default function DetailPage() {
   const { type, id } = useParams({ strict: false }) as { type: string; id: string };
   const { currentProfile, addons } = useAuth();
@@ -40,16 +63,17 @@ export default function DetailPage() {
   const { data, isLoading } = useQuery({
     queryKey: ['browse', type, id, currentProfile?.id],
     queryFn: async () => {
+      const namespacedTmdbId = id.startsWith('tmdb:') ? id.slice('tmdb:'.length) : null;
       const metaAddons = addons.filter(a => a.resources?.some(r => (typeof r === 'string' ? r : r.name) === 'meta'));
       let detail: MetaDetail | null = null;
-      for (const addon of metaAddons) {
-        if (!addon.transportUrl) continue;
-        detail = await fetchMeta(addon.transportUrl, type, id);
-        if (detail) break;
+      if (!namespacedTmdbId) {
+        for (const addon of metaAddons) {
+          if (!addon.transportUrl) continue;
+          detail = await fetchMeta(addon.transportUrl, type, id);
+          if (detail) break;
+        }
       }
       let enrichedMeta: MetaDetail = detail || { id, type, name: decodeURIComponent(id) } as MetaDetail;
-
-      const initialSeason = enrichedMeta.seasons && enrichedMeta.seasons.length > 0 ? enrichedMeta.seasons[0] : null;
 
       let inLib = false;
       let savedPosition = 0;
@@ -58,11 +82,12 @@ export default function DetailPage() {
       const epProgress: Record<string, number> = {};
 
       if (currentProfile) {
-        const [lib, progress] = await Promise.all([
+        const [libResult, progressResult] = await Promise.allSettled([
           isInUserWatchlist(currentProfile.id, id),
           getWatchProgress(currentProfile.id),
         ]);
-        inLib = lib;
+        if (libResult.status === 'fulfilled') inLib = libResult.value;
+        const progress = progressResult.status === 'fulfilled' ? progressResult.value : [];
         const decoded = progress.map(p => ({ ...p, media_id: decodeURIComponent(p.media_id) }));
         const entry = decoded.find(p => p.media_id === id || p.media_id.startsWith(id + ':'));
         if (entry && entry.position_seconds > 0) savedPosition = entry.position_seconds;
@@ -79,30 +104,30 @@ export default function DetailPage() {
 
       try {
         const res = await fetch(`${STREAILER_URL}/stream/${type}/${id}.json`);
-        const streailerData = await res.json();
+        const streailerData = await res.json() as { streams?: StreailerStream[] };
         trailers = (streailerData.streams || [])
-          .filter((s: any) => s.externalUrl?.includes('youtube'))
-          .map((s: any) => {
+          .filter((s): s is StreailerStream & { externalUrl: string } => Boolean(s.externalUrl?.includes('youtube')))
+          .map(s => {
             const url = s.externalUrl;
             const match = url.match(/[?&]v=([^&]+)/) || url.match(/youtu\.be\/([^?]+)/);
             const youtubeId = match ? match[1] : '';
-            return { id: youtubeId || s.name, title: s.title || s.name || 'Trailer', youtubeId };
+            return { id: youtubeId || s.name || 'trailer', title: s.title || s.name || 'Trailer', youtubeId };
           })
-          .filter((t: any) => t.youtubeId);
-      } catch {}
+          .filter(t => t.youtubeId);
+      } catch { /* Streailer is optional enrichment. */ }
 
       trailers = [
         ...trailers,
-        ...(enrichedMeta.trailers || [])
-          .map((t: any) => ({ id: t.id || t.source, title: t.title || 'Trailer', youtubeId: t.youtubeId || t.source || '' }))
-          .filter((t: any) => t.youtubeId),
+        ...((enrichedMeta.trailers || []) as AddonTrailer[])
+          .map(t => ({ id: t.id || t.source || 'trailer', title: t.title || 'Trailer', youtubeId: t.youtubeId || t.source || '' }))
+          .filter(t => t.youtubeId),
       ];
 
       const seenIds = new Set<string>();
       trailers = trailers.filter(t => { if (seenIds.has(t.youtubeId)) return false; seenIds.add(t.youtubeId); return true; });
 
       try {
-        let tmdbId = enrichedMeta.tmdbId;
+        let tmdbId = namespacedTmdbId || enrichedMeta.tmdbId;
         if (!tmdbId && id.startsWith('tt')) {
           const findRes = await fetch(
             `https://api.themoviedb.org/3/find/${id}?api_key=${TMDB_API_KEY}&external_source=imdb_id`
@@ -117,32 +142,58 @@ export default function DetailPage() {
         if (tmdbId) {
           const tmdbType = type === 'series' ? 'tv' : 'movie';
           const tmdbRes = await fetch(
-            `https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits,similar`
+            `https://api.themoviedb.org/3/${tmdbType}/${tmdbId}?api_key=${TMDB_API_KEY}&append_to_response=credits,similar,images`
           );
           if (tmdbRes.ok) {
             const tmdb = await tmdbRes.json();
             const updates: Partial<MetaDetail> = {};
+            if (namespacedTmdbId || !detail) {
+              updates.id = `tmdb:${tmdbId}`;
+              updates.tmdbId = String(tmdbId);
+              updates.name = tmdb.name || tmdb.title || enrichedMeta.name;
+              updates.description = tmdb.overview || enrichedMeta.description;
+              updates.background = tmdb.backdrop_path
+                ? `https://image.tmdb.org/t/p/original${tmdb.backdrop_path}`
+                : enrichedMeta.background;
+              updates.poster = tmdb.poster_path
+                ? `https://image.tmdb.org/t/p/w500${tmdb.poster_path}`
+                : enrichedMeta.poster;
+              updates.releaseInfo = (tmdb.first_air_date || tmdb.release_date || '').slice(0, 4) || enrichedMeta.releaseInfo;
+              updates.runtime = tmdb.runtime ? `${tmdb.runtime}m` : enrichedMeta.runtime;
+              updates.genres = tmdb.genres?.map((genre: { name?: string }) => genre.name).filter(Boolean) || enrichedMeta.genres;
+              updates.imdbRating = tmdb.vote_average ? Number(tmdb.vote_average).toFixed(1) : enrichedMeta.imdbRating;
+            }
             if (tmdb.credits?.cast?.length) {
-              updates.cast = (tmdb.credits.cast as any[]).slice(0, 25).map((c: any) => ({
+              updates.cast = (tmdb.credits.cast as TmdbCastMember[]).slice(0, 25).map(c => ({
                 id: String(c.id),
                 name: c.name,
                 photo: c.profile_path ? `https://image.tmdb.org/t/p/w185${c.profile_path}` : undefined,
               }));
             }
             if (!enrichedMeta.moreLikeThis?.length && tmdb.similar?.results?.length) {
-              updates.moreLikeThis = (tmdb.similar.results as any[]).slice(0, 15).map((r: any) => ({
-                id: String(r.id),
+              updates.moreLikeThis = (tmdb.similar.results as TmdbRecommendation[]).slice(0, 15).map(r => ({
+                id: `tmdb:${r.id}`,
                 type,
                 name: r.name || r.title || 'Unknown',
                 poster: r.poster_path ? `https://image.tmdb.org/t/p/w342${r.poster_path}` : undefined,
                 releaseInfo: (r.first_air_date || r.release_date || '').slice(0, 4),
               }));
             }
+            if (!enrichedMeta.gallery?.length && tmdb.images?.backdrops?.length) {
+              updates.gallery = (tmdb.images.backdrops as { file_path?: string }[])
+                .filter(image => image.file_path)
+                .slice(0, 18)
+                .map((image, index) => ({
+                  id: `tmdb-gallery-${index + 1}`,
+                  url: `https://image.tmdb.org/t/p/original${image.file_path}`,
+                }));
+            }
             if (Object.keys(updates).length) enrichedMeta = { ...enrichedMeta, ...updates };
           }
         }
-      } catch {}
+      } catch { /* TMDB is optional enrichment. */ }
 
+      const initialSeason = enrichedMeta.seasons?.[0] ?? null;
       return { meta: enrichedMeta, inLib, savedPosition, trailers, initialSeason, recentEp, epProgress };
     },
     staleTime: 60 * 60 * 1000,
@@ -158,6 +209,8 @@ export default function DetailPage() {
   const backdropSrc = detail?.background || detail?.poster;
   const ambient = useAmbientColors(backdropSrc);
   const activeSeason = selectedSeason ?? data?.initialSeason ?? null;
+  const firstTrailer = trailers[0];
+  const downloadLink = detail?.links?.find(link => link.category?.toLowerCase() === 'download');
 
   async function handleToggleLibrary() {
     if (!currentProfile || !detail) return;
@@ -308,6 +361,44 @@ export default function DetailPage() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M17.6 3.3c1.1.1 1.9 1.1 1.9 2.2V21L12 17.3 4.5 21V5.5c0-1.1.8-2.1 1.9-2.2a48.5 48.5 0 0 1 11.2 0Z" />
                 </svg>
               </button>
+              {downloadLink ? (
+                <a
+                  href={downloadLink.url}
+                  download
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Download"
+                  className="detail-icon-action"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+                  </svg>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  aria-label="Download"
+                  aria-disabled="true"
+                  disabled
+                  title="No downloadable source is available"
+                  className="detail-icon-action disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v12m0 0 4-4m-4 4-4-4M5 20h14" />
+                  </svg>
+                </button>
+              )}
+              {firstTrailer && (
+                <a
+                  href={`https://www.youtube.com/watch?v=${firstTrailer.youtubeId}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label="Watch trailer"
+                  className="detail-icon-action"
+                >
+                  <PlayIcon />
+                </a>
+              )}
               {!isSeries && (
                 <button type="button" onClick={() => loadStreams()} aria-label="Choose source" className="detail-icon-action">
                   <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path strokeLinecap="round" d="M4 7h16M4 12h16M4 17h16" /></svg>

@@ -4,24 +4,18 @@ import { useAuth } from '@/app/AuthProvider';
 import { usePlayer } from '@/app/PlayerProvider';
 import { HomeHero } from '@/components/HomeHero';
 import { FusionBackground } from '@/components/FusionBackground';
-import { MediaRow, type MediaRailVariant } from '@/components/MediaRow';
+import { MediaRow } from '@/components/MediaRow';
 import { CollectionRow } from '@/components/CollectionRow';
-import { FeaturedHomeItem, MetaDetail, WatchProgressEntry } from '@/lib/types';
+import { FeaturedHomeItem, WatchProgressEntry } from '@/lib/types';
 import { getWatchProgress, getSystemAddon } from '@/lib/services/api';
 import { fetchManifest, fetchMeta } from '@/lib/stremio';
 import { TMDB_API_KEY } from '@/lib/supabase';
 import { formatContinueWatchingTitle } from '@/lib/player-utils';
 import { pickFeaturedItems } from './home-data';
 import { useArtworkPreferences, useCatalogRowsData } from './catalog-data';
-
-function rowVariant(title: string, viewMode?: string, tileShape?: string): MediaRailVariant {
-  const hint = `${viewMode ?? ''} ${title}`.toLowerCase();
-  if (hint.includes('top 10') || hint.includes('top ten') || hint.includes('top10')) return 'top10';
-  if (hint.includes('cinematic') || hint.includes('carousel')) return 'carousel';
-  if (hint.includes('banner') || tileShape?.toLowerCase() === 'landscape') return 'banner';
-  if (hint.includes('stack')) return 'stack';
-  return 'standard';
-}
+import { catalogRailVariant } from './rail-variant';
+import { useFeaturedEnrichment } from './featured-enrichment';
+import type { HeroTransitionSource } from '@/lib/design/motion';
 
 function formatTimeRemaining(positionSec: number, durationSec: number): string {
   if (durationSec > 0) {
@@ -46,10 +40,9 @@ export default function HomePage() {
   const artworkPreferences = useArtworkPreferences(currentProfile?.id);
 
   // ── Progressive rows state ────────────────────────────────────────────────
-  const [featuredMetas, setFeaturedMetas] = useState<Record<string, MetaDetail | null>>({});
-  const [featuredBackdrops, setFeaturedBackdrops] = useState<Record<string, string>>({});
   const [featuredIndex, setFeaturedIndex] = useState(0);
   const [heroPaused, setHeroPaused] = useState(false);
+  const [heroTransitionSource, setHeroTransitionSource] = useState<HeroTransitionSource>('manual');
   const heroTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const heroPausedRef = useRef(false);
 
@@ -94,6 +87,11 @@ export default function HomePage() {
       }));
     return pickFeaturedItems(homeCatalogRows);
   }, [collectionRows]);
+  const {
+    metas: featuredMetas,
+    backdrops: featuredBackdrops,
+    awards: featuredAwards,
+  } = useFeaturedEnrichment(featuredItems, addons);
 
   useEffect(() => {
     if (
@@ -102,60 +100,12 @@ export default function HomePage() {
     ) return;
     heroTimerRef.current = setInterval(() => {
       if (!heroPausedRef.current && document.visibilityState !== 'hidden') {
+        setHeroTransitionSource('automatic');
         setFeaturedIndex(prev => (prev + 1) % featuredItems.length);
       }
     }, 60000);
     return () => { if (heroTimerRef.current) clearInterval(heroTimerRef.current); };
   }, [featuredItems.length]);
-
-  useEffect(() => {
-    if (featuredItems.length === 0) return;
-    let cancelled = false;
-    Promise.allSettled(
-      featuredItems.map(async fi => {
-        if (!fi.item.id.startsWith('tt')) return null;
-        const type = fi.item.type === 'series' ? 'tv' : 'movie';
-        const res = await fetch(
-          `https://api.themoviedb.org/3/find/${fi.item.id}?api_key=${TMDB_API_KEY}&external_source=imdb_id`
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
-        const hit = type === 'tv' ? data.tv_results?.[0] : data.movie_results?.[0];
-        if (!hit?.backdrop_path) return null;
-        return { id: fi.item.id, url: `https://image.tmdb.org/t/p/w1280${hit.backdrop_path}` };
-      })
-    ).then(results => {
-      if (cancelled) return;
-      const map: Record<string, string> = {};
-      for (const r of results) {
-        if (r.status === 'fulfilled' && r.value) map[r.value.id] = r.value.url;
-      }
-      setFeaturedBackdrops(map);
-    });
-    return () => { cancelled = true; };
-  }, [featuredItems]);
-
-  useEffect(() => {
-    if (!manifest?.transportUrl || featuredItems.length === 0) return;
-    const canFetchMeta = manifest.resources?.some(r => (typeof r === 'string' ? r : r.name) === 'meta');
-    if (!canFetchMeta) return;
-
-    const controller = new AbortController();
-    Promise.allSettled(
-      featuredItems.map(async fi => {
-        const meta = await fetchMeta(manifest.transportUrl!, fi.item.type, fi.item.id);
-        return { id: fi.item.id, meta };
-      })
-    ).then(results => {
-      if (controller.signal.aborted) return;
-      const metas: Record<string, MetaDetail | null> = {};
-      for (const r of results) {
-        if (r.status === 'fulfilled') metas[r.value.id] = r.value.meta;
-      }
-      setFeaturedMetas(metas);
-    });
-    return () => controller.abort();
-  }, [featuredItems, manifest?.transportUrl]);
 
   const continueWatching = (() => {
     const seenBase = new Set<string>();
@@ -225,7 +175,7 @@ export default function HomePage() {
               const meta = await fetchMeta(manifest.transportUrl, entry.media_type, baseId);
               if (meta) results[entry.media_id] = { name: meta.name, poster: meta.poster ?? meta.background ?? undefined };
             }
-          } catch {}
+          } catch { /* Continue Watching metadata is optional enrichment. */ }
         })
       );
       return results;
@@ -295,7 +245,12 @@ export default function HomePage() {
             activeIndex={activeFeaturedIndex}
             metas={featuredMetas}
             backdrops={featuredBackdrops}
-            onIndexChange={setFeaturedIndex}
+            awards={featuredAwards}
+            transitionSource={heroTransitionSource}
+            onIndexChange={(index, source = 'manual') => {
+              setHeroTransitionSource(source);
+              setFeaturedIndex(index);
+            }}
             isPaused={heroPaused}
             onPauseChange={paused => {
               heroPausedRef.current = paused;
@@ -378,7 +333,7 @@ export default function HomePage() {
               title={row.title}
               titleLogo={row.titleLogo}
               items={row.items}
-              variant={rowVariant(row.title, row.viewMode, row.tileShape)}
+              variant={catalogRailVariant(row)}
               artworkPreferences={artworkPreferences}
             />
           ))}

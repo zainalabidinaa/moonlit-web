@@ -1,5 +1,64 @@
-import { AddonManifest, MetaPreview, MetaDetail, StreamItem } from './types';
+import { AddonManifest, MetaPreview, MetaDetail, MetaVideo, Season, StreamItem } from './types';
 import { stremioFetch, subtitleTrackUrl } from './platform/net';
+
+interface RawCatalogMeta extends Omit<Partial<MetaPreview>, 'awards'> {
+  age_rating?: string;
+  certification?: string;
+  preview_video?: string;
+  behaviorHints?: { quality?: string; previewVideo?: string };
+  awards?: unknown;
+}
+
+interface RawMetaVideo extends Partial<MetaVideo> {
+  name?: string;
+  number?: number;
+  description?: string;
+  firstAired?: string;
+}
+
+interface RawCastMember {
+  id?: string;
+  name?: string;
+  photo?: string;
+}
+
+interface RawMetaDetail extends Omit<Partial<MetaDetail>, 'cast' | 'videos' | 'moreLikeThis' | 'gallery' | 'awards'> {
+  cast?: (string | RawCastMember)[];
+  videos?: RawMetaVideo[];
+  moreLikeThis?: Partial<MetaPreview>[];
+  moviedb_id?: string | number;
+  gallery?: unknown;
+  awards?: unknown;
+}
+
+interface RawSubtitle {
+  id?: string;
+  url?: string;
+  lang?: string;
+}
+
+function normalizeAwards(value: unknown): string[] {
+  if (typeof value === 'string' && value.trim()) return [value.trim()];
+  if (!Array.isArray(value)) return [];
+  return value.filter((entry): entry is string => typeof entry === 'string' && Boolean(entry.trim()));
+}
+
+function normalizeGallery(value: unknown): NonNullable<MetaDetail['gallery']> {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry, index) => {
+    if (typeof entry === 'string' && entry) {
+      return [{ id: `gallery-${index + 1}`, url: entry }];
+    }
+    if (!entry || typeof entry !== 'object') return [];
+    const image = entry as { id?: unknown; url?: unknown; caption?: unknown };
+    if (typeof image.url !== 'string' || !image.url) return [];
+    return [{
+      id: typeof image.id === 'string' && image.id ? image.id : `gallery-${index + 1}`,
+      url: image.url,
+      ...(typeof image.caption === 'string' && image.caption ? { caption: image.caption } : {}),
+    }];
+  });
+}
 
 export async function fetchManifest(url: string): Promise<AddonManifest> {
   const res = await stremioFetch('manifest', { url });
@@ -35,22 +94,28 @@ export async function fetchCatalog(
     params.set('extras', JSON.stringify(extras));
   }
   const res = await stremioFetch('catalog', { url: baseURL, type, id, extras });
-  const json = await res.json();
+  const json = await res.json() as { metas?: RawCatalogMeta[] };
 
-  return (json.metas || []).map((m: any) => ({
-    id: m.id,
-    type: m.type || type,
-    name: m.name || 'Unknown',
-    poster: m.poster,
-    banner: m.banner,
-    logo: m.logo,
-    posterShape: m.posterShape,
-    description: m.description,
-    releaseInfo: m.releaseInfo,
-    imdbRating: m.imdbRating,
-    genres: m.genres,
-    popularity: m.popularity
-  }));
+  return (json.metas || [])
+    .filter((m): m is RawCatalogMeta & Pick<MetaPreview, 'id'> => typeof m.id === 'string')
+    .map(m => ({
+      id: m.id,
+      type: m.type || type,
+      name: m.name || 'Unknown',
+      poster: m.poster,
+      banner: m.banner,
+      logo: m.logo,
+      posterShape: m.posterShape,
+      description: m.description,
+      releaseInfo: m.releaseInfo,
+      imdbRating: m.imdbRating,
+      genres: m.genres,
+      popularity: m.popularity,
+      quality: m.quality || m.behaviorHints?.quality,
+      ageRating: m.ageRating || m.age_rating || m.certification,
+      previewVideo: m.previewVideo || m.preview_video || m.behaviorHints?.previewVideo,
+      awards: normalizeAwards(m.awards)[0],
+    }));
 }
 
 export async function fetchMeta(
@@ -60,13 +125,13 @@ export async function fetchMeta(
 ): Promise<MetaDetail | null> {
   try {
     const res = await stremioFetch('meta', { url: baseURL, type, id });
-    const json = await res.json();
+    const json = await res.json() as { meta?: RawMetaDetail };
     const m = json.meta;
 
     if (!m) return null;
 
-    const videos = (m.videos || []).map((v: any) => ({
-      id: v.id,
+    const videos: MetaVideo[] = (m.videos || []).map(v => ({
+      id: v.id || `${id}:${v.season ?? 0}:${v.episode ?? v.number ?? 0}`,
       title: v.name || v.title || `Episode ${v.episode}`,
       season: v.season,
       episode: v.episode || v.number,
@@ -76,7 +141,7 @@ export async function fetchMeta(
     }));
 
     // Build seasons from videos if seasons not provided; filter out season 0 (specials)
-    let seasons = (m.seasons || null)?.filter((s: any) => s.number !== 0) ?? null;
+    let seasons: Season[] | undefined = m.seasons?.filter(s => s.number !== 0);
     if ((!seasons || seasons.length === 0) && videos.length > 0) {
       const seasonMap = new Map<number, typeof videos>();
       for (const v of videos) {
@@ -90,7 +155,7 @@ export async function fetchMeta(
           id: `${id}:${num}`,
           number: num,
           name: `Season ${num}`,
-          episodes: eps.sort((a: any, b: any) => (a.episode || 0) - (b.episode || 0)),
+          episodes: eps.sort((a, b) => (a.episode || 0) - (b.episode || 0)),
         }));
     }
 
@@ -108,20 +173,25 @@ export async function fetchMeta(
       runtime: m.runtime,
       genres: m.genres,
       director: m.director,
-      cast: (m.cast || []).map((c: any) =>
-        typeof c === 'string'
-          ? { id: c, name: c, photo: undefined }
-          : { id: c.id || c.name, name: c.name || String(c), photo: c.photo }
-      ).filter((c: any) => c.name),
+      cast: (m.cast || []).map(c => {
+        if (typeof c === 'string') return { id: c, name: c, photo: undefined };
+        const name = c.name || String(c);
+        return { id: c.id || name, name, photo: c.photo };
+      }).filter(c => c.name),
       trailers: m.trailers,
       links: m.links,
-      moreLikeThis: (m.moreLikeThis || []).map((r: any) => ({
+      moreLikeThis: (m.moreLikeThis || []).filter(
+        (recommendation): recommendation is Partial<MetaPreview> & Pick<MetaPreview, 'id' | 'name'> =>
+          typeof recommendation.id === 'string' && typeof recommendation.name === 'string',
+      ).map(r => ({
         id: r.id, type: r.type || type, name: r.name,
         poster: r.poster, releaseInfo: r.releaseInfo, imdbRating: r.imdbRating,
       })),
       videos,
       seasons,
       tmdbId: m.moviedb_id ? String(m.moviedb_id) : undefined,
+      gallery: normalizeGallery(m.gallery),
+      awards: normalizeAwards(m.awards),
     };
   } catch {
     return null;
@@ -135,7 +205,7 @@ export async function fetchStreams(
 ): Promise<StreamItem[]> {
   try {
     const res = await stremioFetch('stream', { url: baseURL, type, id });
-    const json = await res.json();
+    const json = await res.json() as { streams?: StreamItem[] };
     return json.streams || [];
   } catch {
     return [];
@@ -176,19 +246,21 @@ export interface SubtitleItem {
 async function fetchSubtitles(baseURL: string, type: string, id: string): Promise<SubtitleItem[]> {
   try {
     const res = await stremioFetch('subtitles', { url: baseURL, type, id });
-    const json = await res.json();
+    const json = await res.json() as { subtitles?: RawSubtitle[] };
     const langNames = new Intl.DisplayNames(['en'], { type: 'language' });
-    return (json.subtitles || []).map((s: any, i: number) => {
-      const lang = s.lang || 'und';
-      let displayName: string;
-      try { displayName = langNames.of(lang) || lang; } catch { displayName = lang; }
-      return {
-        id: s.id || s.url || String(i),
-        url: s.url ? subtitleTrackUrl(s.url) : s.url,
-        lang,
-        name: displayName,
-      };
-    });
+    return (json.subtitles || [])
+      .filter((subtitle): subtitle is RawSubtitle & { url: string } => Boolean(subtitle.url))
+      .map((s, i) => {
+        const lang = s.lang || 'und';
+        let displayName: string;
+        try { displayName = langNames.of(lang) || lang; } catch { displayName = lang; }
+        return {
+          id: s.id || s.url || String(i),
+          url: subtitleTrackUrl(s.url),
+          lang,
+          name: displayName,
+        };
+      });
   } catch {
     return [];
   }
@@ -238,8 +310,7 @@ export async function fetchStreamsFromAll(
   );
 
   return results
-    .filter((r): r is PromiseFulfilledResult<any[]> => r.status === 'fulfilled')
-    .flatMap(r => r.value) as StreamItem[];
+    .flatMap(result => result.status === 'fulfilled' ? result.value : []);
 }
 
 /**
@@ -299,6 +370,7 @@ export async function searchCatalogs(
 export async function fetchAllCatalogs(
   addons: AddonManifest[]
 ): Promise<{ id: string; title: string; items: MetaPreview[] }[]> {
+  type CatalogResult = { id: string; title: string; items: MetaPreview[] };
   const results = await Promise.allSettled(
     addons
       .filter(a => a.transportUrl && a.catalogs && hasResource(a, 'catalog'))
@@ -315,7 +387,7 @@ export async function fetchAllCatalogs(
   );
 
   return results
-    .filter((r): r is PromiseFulfilledResult<any> => r.status === 'fulfilled')
+    .filter((r): r is PromiseFulfilledResult<CatalogResult> => r.status === 'fulfilled')
     .map(r => r.value)
     .filter(row => row.items.length > 0);
 }
