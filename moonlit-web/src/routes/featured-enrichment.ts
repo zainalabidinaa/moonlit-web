@@ -53,8 +53,14 @@ export async function loadFeaturedEnrichment(
   addons: AddonManifest[],
 ): Promise<FeaturedEnrichment> {
   const settled = await Promise.allSettled(featuredItems.map(async featured => {
-    const meta = await loadFirstMeta(featured, addons);
-    const backdrop = featured.item.banner || meta?.background || await loadTmdbBackdrop(featured, meta);
+    const [metaResult] = await Promise.allSettled([loadFirstMeta(featured, addons)]);
+    const meta = metaResult.status === 'fulfilled' ? metaResult.value : null;
+    let backdrop = featured.item.banner || meta?.background || null;
+    if (!backdrop) {
+      const [tmdbResult] = await Promise.allSettled([loadTmdbBackdrop(featured, meta)]);
+      if (tmdbResult.status === 'fulfilled') backdrop = tmdbResult.value;
+    }
+    backdrop ||= meta?.poster || featured.item.poster || null;
     const awards = meta?.awards?.filter(Boolean).join(' · ') || featured.item.awards;
     return { id: featured.item.id, meta, backdrop, awards };
   }));
