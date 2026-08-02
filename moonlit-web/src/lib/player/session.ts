@@ -160,6 +160,7 @@ export class PlayerSession {
   seek(position: number) {
     if (!this.adapter?.capabilities.seek) return;
     this.preservedPosition = Math.max(0, position);
+    this.bufferingCount = 0;
     return this.adapter.seek(this.preservedPosition);
   }
   setVolume(volume: number) {

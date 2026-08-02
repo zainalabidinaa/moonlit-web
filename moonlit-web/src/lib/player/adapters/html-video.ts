@@ -25,7 +25,7 @@ interface HlsInstanceLike {
 interface HlsConstructorLike {
   new(config: Record<string, unknown>): HlsInstanceLike;
   isSupported(): boolean;
-  Events: { ERROR: string };
+  Events: { ERROR: string; MANIFEST_PARSED: string; AUDIO_TRACKS_UPDATED: string; AUDIO_TRACK_SWITCHED: string };
   ErrorTypes: { MEDIA_ERROR: string };
 }
 
@@ -183,6 +183,9 @@ export async function attachHtmlVideoPlayback(
       }
       dependencies.onError?.('HLS transport failed.');
     });
+    hls.on(Hls.Events.MANIFEST_PARSED, () => this.emitTracks());
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => this.emitTracks());
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => this.emitTracks());
     hls.loadSource(attempt.url);
     hls.attachMedia(video);
     return () => {
@@ -470,6 +473,8 @@ export class HtmlVideoAdapter implements PlayerAdapter {
       this.emit(this.snapshot(this.video.ended ? 'ended' : 'paused'));
     });
     on('waiting', () => this.emit(this.snapshot('buffering')));
+    on('seeking', () => this.emit(this.snapshot('buffering')));
+    on('seeked', () => this.emit(this.snapshot(this.video.paused ? 'paused' : 'playing')));
     on('stalled', () => this.emit(this.snapshot('buffering')));
     on('ended', () => this.emit(this.snapshot('ended')));
     on('timeupdate', () => this.emit(this.snapshot(this.state.phase)));

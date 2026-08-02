@@ -11,6 +11,7 @@ import { Link } from '@tanstack/react-router';
 import { useTileHalo } from '@/lib/design/artwork-color';
 import {
   DEFAULT_ARTWORK_PREFERENCES,
+  buildBttrrPosterUrl,
   type ArtworkPreferences,
 } from '@/lib/preferences/profile-preferences';
 import type { MetaPreview } from '@/lib/types';
@@ -90,7 +91,9 @@ export function MediaCard({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geometry = cardGeometry(variant, artworkPreferences.posterScale, index);
   const isLandscape = geometry.shape === 'landscape';
-  const artwork = (isLandscape ? item.banner || item.poster : item.poster || item.banner) ?? undefined;
+  const addonArtwork = (isLandscape ? item.banner || item.poster : item.poster || item.banner) ?? undefined;
+  const artwork = addonArtwork
+    || (item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, artworkPreferences.posterBadges) ?? undefined : undefined);
   const artworkKey = `${item.id}|${artwork ?? ''}`;
   const imageFailed = failedArtworkKey === artworkKey;
   const showPreview = previewItemId === item.id;
