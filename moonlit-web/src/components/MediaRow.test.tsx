@@ -82,6 +82,21 @@ describe('MediaRow parity variants', () => {
     expect(image).toHaveAttribute('src', item.banner);
   });
 
+  it('cascades to the addon poster, then banner, if bttrr.cc fails to load', () => {
+    render(<MediaRow title="Popular" items={[item]} variant="standard" />);
+    const link = screen.getByRole('link', { name: /Card Title/ });
+    const image = () => link.querySelector('img') as HTMLImageElement;
+
+    expect(image().src).toContain('btttr.cc');
+    fireEvent.error(image());
+    expect(image().src).toBe(item.poster);
+    fireEvent.error(image());
+    expect(image().src).toBe(item.banner);
+    fireEvent.error(image());
+    expect(link.querySelector('img')).not.toBeInTheDocument();
+    expect(screen.getByText('Card Title', { selector: '.media-card-placeholder' })).toBeInTheDocument();
+  });
+
   it.each<MediaRailVariant>(['standard', 'cinematic', 'banner', 'stack', 'carousel', 'top10', 'continue'])(
     'renders the %s rail as a labelled region',
     variant => {

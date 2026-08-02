@@ -94,7 +94,7 @@ export function MediaCard({
   // The rating pill is the only overlay badge: it substitutes for the rating
   // when bttrr.cc hasn't burned it into the poster art itself, never both at once.
   const showRatingBadge = badges?.rating ?? !posterBadges.rating;
-  const [failedArtworkKey, setFailedArtworkKey] = useState<string | null>(null);
+  const [artworkStageKey, setArtworkStageKey] = useState<{ key: string; stage: number } | null>(null);
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geometry = cardGeometry(variant, artworkPreferences.posterScale, index);
@@ -102,13 +102,19 @@ export function MediaCard({
   // Mirrors CatalogService.swift's mapResponse: bttrr.cc wins for portrait
   // IMDb-id art (native comment: "Prefer the btttr poster service for IMDb-id
   // items; fall back to the addon-proxied poster") — it is not a last resort,
-  // it's the primary source whenever the item has a usable tt-id.
+  // it's the primary source whenever the item has a usable tt-id. But unlike
+  // native (which caches aggressively and loads sequentially), a busy web page
+  // fires dozens of these requests to the same third-party host at once, so a
+  // transient rate limit/outage there must not blank out the whole page —
+  // cascade to the addon's own poster/banner instead of stopping at a failure.
   const bttrrPoster = item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, posterBadges) ?? undefined : undefined;
-  const artwork = isLandscape
-    ? (item.banner || bttrrPoster || item.poster) ?? undefined
-    : (bttrrPoster || item.poster || item.banner) ?? undefined;
-  const artworkKey = `${item.id}|${artwork ?? ''}`;
-  const imageFailed = failedArtworkKey === artworkKey;
+  const candidates = (isLandscape
+    ? [item.banner, bttrrPoster, item.poster]
+    : [bttrrPoster, item.poster, item.banner]
+  ).filter((url): url is string => Boolean(url));
+  const artworkKey = `${item.id}|${candidates.join(',')}`;
+  const stage = artworkStageKey?.key === artworkKey ? artworkStageKey.stage : 0;
+  const artwork = candidates[stage];
   const showPreview = previewItemId === item.id;
   const halo = useTileHalo(artworkPreferences.artworkHaloEnabled ? artwork : undefined);
   const previewAvailable = Boolean(
@@ -144,12 +150,12 @@ export function MediaCard({
   const content = (
     <>
       <span className="media-card-art">
-        {artwork && !imageFailed ? (
+        {artwork ? (
           <img
             src={artwork}
             alt=""
             loading="lazy"
-            onError={() => setFailedArtworkKey(artworkKey)}
+            onError={() => setArtworkStageKey({ key: artworkKey, stage: stage + 1 })}
           />
         ) : (
           <span className="media-card-placeholder">{item.name}</span>
