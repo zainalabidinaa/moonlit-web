@@ -420,7 +420,7 @@ describe('HtmlVideoAdapter', () => {
     expect(pending[1].signal?.aborted).toBe(true);
   });
 
-  it('cleans up a transport that resolves after its load was aborted', async () => {
+  it('destroys promptly when transport attach never settles and cleans a late result', async () => {
     const video = document.createElement('video');
     const cleanup = vi.fn();
     let resolveAttach: ((value: () => void) => void) | null = null;
@@ -443,13 +443,12 @@ describe('HtmlVideoAdapter', () => {
     let destroySettled = false;
     void destroy.then(() => { destroySettled = true; });
     await new Promise(resolve => setTimeout(resolve, 0));
-    expect(destroySettled).toBe(false);
+    expect(destroySettled).toBe(true);
+    expect(cleanup).not.toHaveBeenCalled();
     resolveAttach?.(cleanup);
     await load;
-    await destroy;
 
     expect(cleanup).toHaveBeenCalledTimes(1);
-    expect(destroySettled).toBe(true);
   });
 });
 

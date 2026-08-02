@@ -106,6 +106,8 @@ let defaultPipRestore: {
   size: { width: number; height: number };
 } | null = null;
 
+const bridgeOwners = new WeakMap<MpvAdapterBridge, object>();
+
 function tracks(
   state: MpvState,
   kind: 'audio' | 'subtitles',
@@ -169,14 +171,19 @@ export class MpvAdapter implements PlayerAdapter {
   private readonly addedSubtitleUrls = new Set<string>();
   private readonly appSubtitleNativeIds = new Map<string, number>();
   private readonly nativeSubtitleAppIds = new Map<number, string>();
+  private pendingAppSubtitleId: string | null = null;
   private loadGeneration = 0;
   private destroyPromise: Promise<void> | null = null;
+  private bridgeOwner: object | null = null;
 
   constructor(private readonly bridge: MpvAdapterBridge = defaultBridge) {}
 
   async load(request: PlayerAdapterLoadRequest): Promise<void> {
     const generation = this.loadGeneration + 1;
     this.loadGeneration = generation;
+    const bridgeOwner = {};
+    this.bridgeOwner = bridgeOwner;
+    bridgeOwners.set(this.bridge, bridgeOwner);
     const active = () => !request.signal.aborted && generation === this.loadGeneration;
     this.unlisten?.();
     this.geometryCleanup?.();
@@ -193,6 +200,7 @@ export class MpvAdapter implements PlayerAdapter {
     this.addedSubtitleUrls.clear();
     this.appSubtitleNativeIds.clear();
     this.nativeSubtitleAppIds.clear();
+    this.pendingAppSubtitleId = null;
     this.emit({ phase: 'loading', position: request.position });
     const unlisten = await this.bridge.listen(event => this.handleEvent(event));
     if (!active()) {
@@ -220,7 +228,7 @@ export class MpvAdapter implements PlayerAdapter {
       headers: request.attempt.requestHeaders,
     });
     if (!active()) {
-      await this.bridge.stop();
+      if (bridgeOwners.get(this.bridge) === bridgeOwner) await this.bridge.stop();
       return;
     }
     const requestedAudioId = mpvTrackId(request.tracks.audioId);
@@ -231,12 +239,9 @@ export class MpvAdapter implements PlayerAdapter {
     if (request.tracks.subtitleId === 'off') {
       await this.bridge.setProp('sid', 'no');
       if (!active()) return;
-    } else {
-      const requestedSubtitleId = mpvTrackId(request.tracks.subtitleId);
-      if (requestedSubtitleId !== null) {
-        await this.bridge.setProp('sid', requestedSubtitleId);
-        if (!active()) return;
-      }
+    } else if (typeof request.tracks.subtitleId === 'number') {
+      await this.bridge.setProp('sid', request.tracks.subtitleId);
+      if (!active()) return;
     }
     if (!await this.applySubtitlePreferences(loadSubtitlePreferences(), active)) return;
     if (!active()) return;
@@ -276,9 +281,21 @@ export class MpvAdapter implements PlayerAdapter {
   }
   selectAudioTrack(id: string | number) { return this.bridge.setProp('aid', id); }
   async selectSubtitleTrack(id: string | number | 'off') {
-    if (id === 'off') return this.bridge.setProp('sid', 'no');
-    const nativeId = typeof id === 'number' ? id : mpvTrackId(id) ?? this.appSubtitleNativeIds.get(id) ?? null;
-    if (nativeId === null) return;
+    if (id === 'off') {
+      this.pendingAppSubtitleId = null;
+      return this.bridge.setProp('sid', 'no');
+    }
+    if (typeof id === 'string') {
+      const mapped = this.appSubtitleNativeIds.get(id);
+      if (mapped === undefined) {
+        this.pendingAppSubtitleId = id;
+        return;
+      }
+      this.pendingAppSubtitleId = null;
+      return this.bridge.setProp('sid', mapped);
+    }
+    this.pendingAppSubtitleId = null;
+    const nativeId = id;
     return this.bridge.setProp('sid', nativeId);
   }
 
@@ -315,7 +332,7 @@ export class MpvAdapter implements PlayerAdapter {
       this.subtitlePreferenceCleanup = null;
       await this.bridge.setPictureInPicture(false).catch(() => undefined);
       await this.bridge.setFullscreen(false).catch(() => undefined);
-      await this.bridge.stop();
+      if (this.bridgeOwner && bridgeOwners.get(this.bridge) === this.bridgeOwner) await this.bridge.stop();
       this.listeners.clear();
     })();
     return this.destroyPromise;
@@ -402,6 +419,11 @@ export class MpvAdapter implements PlayerAdapter {
       if (nativeTrack) {
         this.appSubtitleNativeIds.set(subtitle.id, nativeTrack.id);
         this.nativeSubtitleAppIds.set(nativeTrack.id, subtitle.id);
+        if (this.pendingAppSubtitleId === subtitle.id) {
+          this.pendingAppSubtitleId = null;
+          await this.bridge.setProp('sid', nativeTrack.id);
+          if (!active()) return;
+        }
       }
       this.addedSubtitleUrls.add(url);
       this.handleEvent({ event: 'property-change', name: 'track-list', data: rawTrackList });
@@ -424,7 +446,7 @@ export class MpvAdapter implements PlayerAdapter {
     if (
       !this.restoredSubtitleLanguage
       && this.requestedTracks.subtitleId !== 'off'
-      && mpvTrackId(this.requestedTracks.subtitleId) === null
+      && typeof this.requestedTracks.subtitleId !== 'number'
       && (this.requestedTracks.subtitleIdentity || this.requestedTracks.subtitleLanguage)
     ) {
       const normalized = tracks(this.mpvState, 'subtitles', this.nativeSubtitleAppIds);

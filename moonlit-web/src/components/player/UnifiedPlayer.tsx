@@ -112,13 +112,17 @@ function chromeState(
     error: sessionState?.error ?? (plan && plan.outcome !== 'play-here' ? plan.detail : null),
     routeLabel: sessionState?.attempt?.method ?? plan?.label ?? 'Checking',
     routeDetail: plan?.detail ?? 'Finding the best playable source.',
+    previewSourceId: sessionState?.attempt?.id ?? plan?.attempts[0]?.id ?? plan?.externalUrl ?? plan?.label ?? 'none',
   };
 }
 
 function playbackHandoff(
+  session: PlayerSession | null,
   sessionState: PlayerSessionState | null,
   launch: NormalizedPlayerLaunch,
 ): PlaybackHandoff {
+  const preserved = session?.getPlaybackHandoff();
+  if (preserved) return preserved;
   const current = sessionState?.adapterState;
   const audioTrack = current?.audioTracks.find(track => track.id === current.selectedAudioId);
   const subtitleTrack = current?.subtitleTracks.find(track => track.id === current.selectedSubtitleId);
@@ -245,7 +249,7 @@ export function UnifiedPlayer({
     if (sessionState?.plan !== plan) return;
     if (sessionState?.phase !== 'error' || !sessionState.error || errorRef.current === sessionState.error) return;
     errorRef.current = sessionState.error;
-    onError?.(sessionState.error, playbackHandoff(stateRef.current, launch));
+    onError?.(sessionState.error, playbackHandoff(sessionRef.current, stateRef.current, launch));
   }, [launch, onError, plan, sessionState?.error, sessionState?.phase, sessionState?.plan]);
 
   useEffect(() => {
@@ -329,7 +333,7 @@ export function UnifiedPlayer({
         subtitles={subtitles}
         resumePosition={launch.startPosition}
         onBack={onBack}
-        onSwitchStream={stream => onSwitchStream(stream, playbackHandoff(stateRef.current, launch))}
+        onSwitchStream={stream => onSwitchStream(stream, playbackHandoff(sessionRef.current, stateRef.current, launch))}
         upNextContent={upNextContent}
         skipIntro={intro?.showButton && introActive ? { to: intro.end } : null}
         externalUrl={plan?.externalUrl}

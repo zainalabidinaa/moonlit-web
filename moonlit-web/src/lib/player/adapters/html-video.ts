@@ -426,7 +426,6 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     if (this.destroyPromise) return this.destroyPromise;
     this.loadGeneration += 1;
     this.destroyPromise = (async () => {
-      try { await this.pendingAttachment; } catch { /* Load owns transport errors. */ }
       await this.cleanupTransport();
       this.eventCleanups.splice(0).forEach(cleanup => cleanup());
       this.subtitleElements.forEach(element => element.remove());

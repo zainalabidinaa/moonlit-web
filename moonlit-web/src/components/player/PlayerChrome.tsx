@@ -54,6 +54,7 @@ export interface PlayerChromeState {
   error: string | null;
   routeLabel: string;
   routeDetail: string;
+  previewSourceId: string;
 }
 
 export interface PlayerChromeController {
@@ -169,7 +170,8 @@ function PanelFrame({
       return;
     }
     if (event.key !== 'Tab') return;
-    const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex="0"]') ?? [])];
+    const focusable = [...(dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), [href], input:not(:disabled), [tabindex]') ?? [])]
+      .filter(element => element.tabIndex >= 0);
     if (focusable.length === 0) return;
     const first = focusable[0];
     const last = focusable[focusable.length - 1];
@@ -272,7 +274,7 @@ export function PlayerChrome({
   const [visible, setVisible] = useState(true);
   const [panel, setPanel] = useState<Panel>(null);
   const [chromeFocused, setChromeFocused] = useState(false);
-  const [seekPreview, setSeekPreview] = useState<(PlayerSeekPreview & { percent: number }) | null>(null);
+  const [seekPreview, setSeekPreview] = useState<(PlayerSeekPreview & { percent: number; sourceScope: string }) | null>(null);
   const seekPreviewGeneration = useRef(0);
   const seekPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seekPreviewAbort = useRef<AbortController | null>(null);
@@ -280,6 +282,7 @@ export function PlayerChrome({
   const [showResume, setShowResume] = useState(resumePosition >= 10);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
+  const previewSourceScope = `${state.previewSourceId}|${currentStream.url ?? currentStream.externalUrl ?? currentStream.infoHash ?? currentStream.behaviorHints?.filename ?? currentStream.title ?? currentStream.name ?? ''}`;
 
   useEffect(() => {
     stateRef.current = state;
@@ -414,7 +417,7 @@ export function PlayerChrome({
     if (seekPreviewTimer.current) clearTimeout(seekPreviewTimer.current);
     const cached = seekPreviewCache.current.get(position);
     if (cached) {
-      setSeekPreview({ ...cached, percent });
+      setSeekPreview({ ...cached, percent, sourceScope: previewSourceScope });
       return;
     }
     seekPreviewTimer.current = setTimeout(() => {
@@ -426,10 +429,19 @@ export function PlayerChrome({
         if (abortController.signal.aborted || generation !== seekPreviewGeneration.current || !result) return;
         seekPreviewCache.current.set(position, result);
         if (seekPreviewCache.current.size > 60) seekPreviewCache.current.delete(seekPreviewCache.current.keys().next().value as number);
-        setSeekPreview({ ...result, percent });
+        setSeekPreview({ ...result, percent, sourceScope: previewSourceScope });
       });
     }, PLAYER_SEEK_PREVIEW_DEBOUNCE_MS);
   };
+
+  useEffect(() => {
+    seekPreviewGeneration.current += 1;
+    if (seekPreviewTimer.current) clearTimeout(seekPreviewTimer.current);
+    seekPreviewTimer.current = null;
+    seekPreviewAbort.current?.abort();
+    seekPreviewAbort.current = null;
+    seekPreviewCache.current.clear();
+  }, [previewSourceScope]);
 
   useEffect(() => () => {
     if (seekPreviewTimer.current) clearTimeout(seekPreviewTimer.current);
@@ -446,6 +458,7 @@ export function PlayerChrome({
   const controlsVisible = !isLoading && !isError && (
     visible || chromeFocused || state.phase !== 'playing' || state.paused || panel !== null
   );
+  const activeSeekPreview = seekPreview?.sourceScope === previewSourceScope ? seekPreview : null;
 
   return (
     <div
@@ -577,10 +590,10 @@ export function PlayerChrome({
               <div
                 data-testid="seek-preview"
                 className="pointer-events-none absolute bottom-full hidden h-[144px] w-[256px] -translate-x-1/2 place-items-center overflow-hidden rounded-[7px] border border-white/10 bg-player-surface text-xs text-player-ink-muted shadow-ml-panel group-hover:grid"
-                style={{ left: `${seekPreview ? seekPreview.percent * 100 : 50}%` }}
+                style={{ left: `${activeSeekPreview ? activeSeekPreview.percent * 100 : 50}%` }}
               >
-                {seekPreview
-                  ? <img src={seekPreview.imageUrl} alt={`Preview at ${fmt(seekPreview.position)}`} className="h-full w-full object-cover" />
+                {activeSeekPreview
+                  ? <img src={activeSeekPreview.imageUrl} alt={`Preview at ${fmt(activeSeekPreview.position)}`} className="h-full w-full object-cover" />
                   : state.capabilities.seekPreview ? 'Move to preview' : 'Preview unavailable'}
               </div>
             </div>
@@ -725,8 +738,14 @@ export function PlayerChrome({
       {!isLoading && !isError && panel === 'speed' && (
         <PanelFrame title="Playback speed" width="w-[220px]" onClose={() => setPanel(null)}>
           <div role="listbox" aria-label="Playback speeds">
-            {[0.5, 0.75, 1, 1.25, 1.5, 2].map(rate => (
-              <TrackRow key={rate} selected={rate === state.playbackRate} label={rate === 1 ? 'Normal' : `${rate}×`} onClick={() => { setPanel(null); void controller.setPlaybackRate(rate); }} />
+            {[0.5, 0.75, 1, 1.25, 1.5, 2].map((rate, index, rates) => (
+              <TrackRow
+                key={rate}
+                selected={rate === state.playbackRate}
+                tabStop={rate === state.playbackRate || (!rates.includes(state.playbackRate) && index === 0)}
+                label={rate === 1 ? 'Normal' : `${rate}×`}
+                onClick={() => { setPanel(null); void controller.setPlaybackRate(rate); }}
+              />
             ))}
           </div>
         </PanelFrame>

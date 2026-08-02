@@ -1,9 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  findPlayerTrackByIdentity,
   normalizeAdapterState,
   normalizePlayerLaunch,
+  playerTrackIdentity,
   type PlayerLaunch,
+  type PlayerTrack,
 } from './contracts';
 
 describe('normalizePlayerLaunch', () => {
@@ -101,5 +104,29 @@ describe('normalizeAdapterState', () => {
       audioTracks: [],
       subtitleTracks: [],
     });
+  });
+});
+
+describe('renderer-neutral track identity', () => {
+  it('uses ordinal before fuzzy matching for same-language same-label duplicates', () => {
+    const tracks: PlayerTrack[] = [
+      { id: 4, kind: 'audio', label: 'English', language: 'en', selected: false },
+      { id: 9, kind: 'audio', label: 'English', language: 'en', selected: true },
+    ];
+
+    const identity = playerTrackIdentity(tracks[1], tracks);
+
+    expect(findPlayerTrackByIdentity(tracks, identity)?.id).toBe(9);
+  });
+
+  it('uses ordinal before fuzzy matching for language-less duplicate subtitles', () => {
+    const tracks: PlayerTrack[] = [
+      { id: 'embedded-a', kind: 'subtitles', label: 'Signs', selected: false },
+      { id: 'embedded-b', kind: 'subtitles', label: 'Signs', selected: true },
+    ];
+
+    const identity = playerTrackIdentity(tracks[1], tracks);
+
+    expect(findPlayerTrackByIdentity(tracks, identity)?.id).toBe('embedded-b');
   });
 });

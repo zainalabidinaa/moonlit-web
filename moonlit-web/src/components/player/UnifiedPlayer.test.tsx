@@ -238,6 +238,54 @@ describe('UnifiedPlayer', () => {
     });
   });
 
+  it('hands off the synchronous MPV selection before its adapter acknowledgement', async () => {
+    const adapter = new FakeAdapter('mpv');
+    const onSwitchStream = vi.fn();
+    const backup = { url: 'https://cdn.example/backup.mp4', title: 'Backup 1080p' };
+    render(
+      <UnifiedPlayer
+        launch={launch}
+        plan={{ ...plan, attempts: [playbackAttempt('mpv', 'mpv')] }}
+        currentStream={stream}
+        streams={[stream, backup]}
+        subtitles={[]}
+        createAdapter={() => adapter}
+        onBack={vi.fn()}
+        onSwitchStream={onSwitchStream}
+      />,
+    );
+    await vi.waitFor(() => expect(adapter.loads).toHaveLength(1));
+    act(() => adapter.emit({
+      phase: 'playing',
+      position: 61,
+      duration: 100,
+      paused: false,
+      hasVideo: true,
+      selectedSubtitleId: 11,
+      subtitleTracks: [
+        { id: 11, kind: 'subtitles', label: 'Signs', language: 'en', selected: true },
+        { id: 22, kind: 'subtitles', label: 'Signs', language: 'en', selected: false },
+      ],
+    }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Subtitles' }));
+    fireEvent.click(screen.getAllByRole('option', { name: /Signs/ })[1]);
+    fireEvent.click(screen.getByRole('button', { name: 'Sources' }));
+    fireEvent.click(screen.getByRole('option', { name: /Backup 1080p/ }));
+
+    expect(onSwitchStream).toHaveBeenCalledWith(backup, {
+      position: 61,
+      tracks: {
+        audioId: null,
+        subtitleId: null,
+        audioLanguage: null,
+        subtitleLanguage: 'en',
+        audioIdentity: null,
+        subtitleIdentity: { kind: 'subtitles', language: 'en', label: 'Signs', ordinal: 1 },
+      },
+    });
+  });
+
   it('uses the same shared loading surface while a stream plan is still resolving', () => {
     render(
       <UnifiedPlayer

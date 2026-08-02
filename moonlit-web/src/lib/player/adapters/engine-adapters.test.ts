@@ -197,6 +197,59 @@ describe('WebCodecsAdapter', () => {
     expect(engine.play).not.toHaveBeenCalled();
   });
 
+  it('re-cleans resources created by a late load without clobbering a replacement on the shared canvas', async () => {
+    const canvas = document.createElement('canvas');
+    canvas.width = 300;
+    canvas.height = 150;
+    let resolveOldLoad: (() => void) | null = null;
+    let oldResourceOpen = false;
+    const oldDestroy = vi.fn(() => { oldResourceOpen = false; });
+    const oldEngine: WebCodecsEngineLike = {
+      subscribe: () => () => undefined,
+      load: vi.fn(async (_url, target) => {
+        await new Promise<void>(resolve => { resolveOldLoad = resolve; });
+        oldResourceOpen = true;
+        target.width = 1920;
+        target.height = 1080;
+      }),
+      seekTo: vi.fn(async () => undefined),
+      seek: vi.fn(async () => undefined),
+      play: vi.fn(),
+      pause: vi.fn(),
+      destroy: oldDestroy,
+    };
+    const replacementEngine: WebCodecsEngineLike = {
+      subscribe: () => () => undefined,
+      load: vi.fn(async (_url, target) => {
+        target.width = 640;
+        target.height = 360;
+      }),
+      seekTo: vi.fn(async () => undefined),
+      seek: vi.fn(async () => undefined),
+      play: vi.fn(),
+      pause: vi.fn(),
+      destroy: vi.fn(),
+    };
+    const oldAdapter = new WebCodecsAdapter(canvas, canvas, () => oldEngine);
+    const oldLoad = oldAdapter.load(request(attempt('webcodecs', 'webcodecs')));
+    await vi.waitFor(() => expect(oldEngine.load).toHaveBeenCalledTimes(1));
+
+    await oldAdapter.destroy();
+    const replacement = new WebCodecsAdapter(canvas, canvas, () => replacementEngine);
+    await replacement.load({
+      ...request(attempt('webcodecs', 'webcodecs')),
+      attempt: { ...attempt('webcodecs', 'webcodecs'), url: 'https://cdn.example/replacement.mkv' },
+    });
+    expect([canvas.width, canvas.height]).toEqual([640, 360]);
+
+    resolveOldLoad?.();
+    await oldLoad;
+
+    expect(oldDestroy).toHaveBeenCalledTimes(2);
+    expect(oldResourceOpen).toBe(false);
+    expect([canvas.width, canvas.height]).toEqual([640, 360]);
+  });
+
   it('does not play WebCodecs after cancellation during resume seeking', async () => {
     let resolveSeek: (() => void) | null = null;
     const engine: WebCodecsEngineLike = {
@@ -252,7 +305,7 @@ describe('MpvAdapter', () => {
     expect(windowListener).toBeNull();
   });
 
-  it('maps a late app subtitle to its native sid and never forwards the app string id', async () => {
+  it('maps a digit-only late app subtitle id before interpreting native sid values', async () => {
     let trackList: unknown[] = [];
     const setProp = vi.fn(async () => undefined);
     const bridge: MpvAdapterBridge = {
@@ -263,7 +316,7 @@ describe('MpvAdapter', () => {
       command: vi.fn(async () => undefined),
       subAdd: vi.fn(async (url, options) => {
         trackList = [{
-          id: 17,
+          id: 42,
           type: 'sub',
           title: options?.title,
           lang: options?.lang,
@@ -281,14 +334,53 @@ describe('MpvAdapter', () => {
     await adapter.load({ ...request(attempt('mpv', 'mpv')), tracks: { ...request(attempt('mpv', 'mpv')).tracks, subtitleId: 'off' } });
 
     await adapter.updateSubtitles?.(
-      [{ id: 'late-en', lang: 'en', name: 'English signs', url: 'https://subs.example/signs.vtt' }],
-      { audioId: null, subtitleId: 'late-en', audioLanguage: null, subtitleLanguage: 'en' },
+      [{ id: '17', lang: 'en', name: 'English signs', url: 'https://subs.example/signs.vtt' }],
+      { audioId: null, subtitleId: '17', audioLanguage: null, subtitleLanguage: 'en' },
     );
-    await adapter.selectSubtitleTrack('late-en');
+    await adapter.selectSubtitleTrack('17');
 
-    expect(setProp).toHaveBeenCalledWith('sid', 17);
-    expect(setProp).not.toHaveBeenCalledWith('sid', 'late-en');
-    expect(subtitleIds).toContain('late-en');
+    expect(setProp).toHaveBeenCalledWith('sid', 42);
+    expect(setProp).not.toHaveBeenCalledWith('sid', 17);
+    expect(subtitleIds).toContain('17');
+  });
+
+  it('applies a subtitle click made before app-to-native reconciliation completes', async () => {
+    let resolveSubAdd: (() => void) | null = null;
+    const setProp = vi.fn(async () => undefined);
+    const bridge: MpvAdapterBridge = {
+      start: vi.fn(async () => undefined),
+      stop: vi.fn(async () => undefined),
+      setProp,
+      getProp: vi.fn(async name => name === 'track-list' ? [{
+        id: 29,
+        type: 'sub',
+        title: 'Late signs',
+        external: true,
+        'external-filename': 'https://subs.example/late-signs.vtt',
+      }] : undefined),
+      command: vi.fn(async () => undefined),
+      subAdd: vi.fn(() => new Promise<void>(resolve => { resolveSubAdd = resolve; })),
+      listen: vi.fn(async () => () => undefined),
+      setFullscreen: vi.fn(async () => undefined),
+      setPictureInPicture: vi.fn(async () => undefined),
+    };
+    const adapter = new MpvAdapter(bridge);
+    await adapter.load({
+      ...request(attempt('mpv', 'mpv')),
+      tracks: { audioId: null, subtitleId: 'off', audioLanguage: null, subtitleLanguage: null },
+    });
+    const update = adapter.updateSubtitles?.(
+      [{ id: 'late-signs', lang: '', name: 'Late signs', url: 'https://subs.example/late-signs.vtt' }],
+      { audioId: null, subtitleId: null, audioLanguage: null, subtitleLanguage: null },
+    );
+    await vi.waitFor(() => expect(bridge.subAdd).toHaveBeenCalledTimes(1));
+
+    await adapter.selectSubtitleTrack('late-signs');
+    expect(setProp).not.toHaveBeenCalledWith('sid', 29);
+    resolveSubAdd?.();
+    await update;
+
+    expect(setProp).toHaveBeenCalledWith('sid', 29);
   });
 
   it('normalizes Tauri IPC events and preserves launch headers and position', async () => {
@@ -430,6 +522,49 @@ describe('MpvAdapter', () => {
     await destroy;
 
     expect(bridge.stop).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not let an old late start stop a replacement on the shared MPV bridge', async () => {
+    let resolveOldStart: (() => void) | null = null;
+    let activeUrl: string | null = null;
+    let startCount = 0;
+    const bridge: MpvAdapterBridge = {
+      start: vi.fn(async ({ url }) => {
+        startCount += 1;
+        activeUrl = url;
+        if (startCount === 1) await new Promise<void>(resolve => { resolveOldStart = resolve; });
+      }),
+      stop: vi.fn(async () => { activeUrl = null; }),
+      setProp: vi.fn(async () => undefined),
+      getProp: vi.fn(async () => []),
+      command: vi.fn(async () => undefined),
+      subAdd: vi.fn(async () => undefined),
+      listen: vi.fn(async () => () => undefined),
+      setFullscreen: vi.fn(async () => undefined),
+      setPictureInPicture: vi.fn(async () => undefined),
+    };
+    const oldAdapter = new MpvAdapter(bridge);
+    const oldController = new AbortController();
+    const oldLoad = oldAdapter.load({
+      ...request(attempt('mpv', 'mpv')),
+      attempt: { ...attempt('mpv', 'mpv'), url: 'https://cdn.example/old.mkv' },
+      signal: oldController.signal,
+    });
+    await vi.waitFor(() => expect(activeUrl).toBe('https://cdn.example/old.mkv'));
+
+    oldController.abort();
+    await oldAdapter.destroy();
+    const replacement = new MpvAdapter(bridge);
+    await replacement.load({
+      ...request(attempt('mpv', 'mpv')),
+      attempt: { ...attempt('mpv', 'mpv'), url: 'https://cdn.example/new.mkv' },
+    });
+    expect(activeUrl).toBe('https://cdn.example/new.mkv');
+
+    resolveOldStart?.();
+    await oldLoad;
+
+    expect(activeUrl).toBe('https://cdn.example/new.mkv');
   });
 
   it('does not continue MPV setup after cancellation during track restoration', async () => {

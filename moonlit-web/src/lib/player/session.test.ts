@@ -188,6 +188,16 @@ describe('PlayerSession', () => {
     });
 
     session.selectAudioTrack(2);
+    adapters[0].emit({
+      phase: 'playing',
+      position: 20,
+      duration: 100,
+      selectedAudioId: 1,
+      audioTracks: [
+        { id: 1, kind: 'audio', label: 'Spanish commentary', language: 'es', selected: true },
+        { id: 2, kind: 'audio', label: 'Spanish stereo', language: 'es', selected: false },
+      ],
+    });
     adapters[0].emit({ phase: 'error', position: 20, error: 'native switch failed' });
 
     await vi.waitFor(() => expect(adapters).toHaveLength(2));

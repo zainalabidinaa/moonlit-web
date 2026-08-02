@@ -71,6 +71,8 @@ export class PlayerSession {
     audioLanguage: null,
     subtitleLanguage: null,
   };
+  private pendingAudioSelection: string | number | null = null;
+  private pendingSubtitleSelection: string | number | 'off' | null = null;
   private bufferingCount = 0;
   private lastAdapterPhase: PlayerAdapterState['phase'] = 'idle';
   private fallingBack = false;
@@ -96,6 +98,20 @@ export class PlayerSession {
 
   getState(): PlayerSessionState {
     return this.state;
+  }
+
+  getPlaybackHandoff(): { position: number; tracks: PlayerTrackSelection } {
+    return {
+      position: this.preservedPosition,
+      tracks: {
+        audioId: null,
+        subtitleId: this.preservedTracks.subtitleId === 'off' ? 'off' : null,
+        audioLanguage: this.preservedTracks.audioLanguage,
+        subtitleLanguage: this.preservedTracks.subtitleLanguage,
+        audioIdentity: this.preservedTracks.audioIdentity ?? null,
+        subtitleIdentity: this.preservedTracks.subtitleIdentity ?? null,
+      },
+    };
   }
 
   subscribe(listener: Listener): () => void {
@@ -179,6 +195,7 @@ export class PlayerSession {
   selectAudioTrack(id: string | number) {
     if (!this.adapter?.capabilities.audioTracks) return;
     this.preservedTracks.audioId = id;
+    this.pendingAudioSelection = id;
     const tracks = this.state.adapterState?.audioTracks ?? [];
     const track = tracks.find(item => item.id === id);
     if (track) {
@@ -190,6 +207,7 @@ export class PlayerSession {
   selectSubtitleTrack(id: string | number | 'off') {
     if (!this.adapter?.capabilities.subtitleTracks) return;
     this.preservedTracks.subtitleId = id;
+    this.pendingSubtitleSelection = id;
     if (id === 'off') {
       this.preservedTracks.subtitleIdentity = null;
     } else {
@@ -249,6 +267,8 @@ export class PlayerSession {
 
     const adapter = this.createAdapter(attempt);
     this.adapter = adapter;
+    this.pendingAudioSelection = null;
+    this.pendingSubtitleSelection = null;
     const isFirstAdapter = this.state.attemptIndex === -1;
     this.bufferingCount = 0;
     this.lastAdapterPhase = 'idle';
@@ -296,7 +316,10 @@ export class PlayerSession {
     if (this.adapter !== adapter || this.state.attemptIndex !== index) return;
 
     if (next.position > 0) this.preservedPosition = next.position;
-    if (next.audioTracks.length > 0 && next.selectedAudioId !== null) {
+    const audioAcknowledged = this.pendingAudioSelection === null
+      || String(next.selectedAudioId) === String(this.pendingAudioSelection);
+    if (this.pendingAudioSelection !== null && audioAcknowledged) this.pendingAudioSelection = null;
+    if (audioAcknowledged && next.audioTracks.length > 0 && next.selectedAudioId !== null) {
       this.preservedTracks.audioId = next.selectedAudioId;
       const track = next.audioTracks.find(item => item.id === next.selectedAudioId);
       if (track) {
@@ -304,7 +327,10 @@ export class PlayerSession {
         this.preservedTracks.audioIdentity = playerTrackIdentity(track, next.audioTracks);
       }
     }
-    if (next.subtitleTracks.length > 0 && next.selectedSubtitleId !== null) {
+    const subtitleAcknowledged = this.pendingSubtitleSelection === null
+      || String(next.selectedSubtitleId) === String(this.pendingSubtitleSelection);
+    if (this.pendingSubtitleSelection !== null && subtitleAcknowledged) this.pendingSubtitleSelection = null;
+    if (subtitleAcknowledged && next.subtitleTracks.length > 0 && next.selectedSubtitleId !== null) {
       this.preservedTracks.subtitleId = next.selectedSubtitleId;
       const track = next.subtitleTracks.find(item => item.id === next.selectedSubtitleId);
       if (track) {

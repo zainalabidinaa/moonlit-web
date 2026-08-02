@@ -17,6 +17,13 @@ export interface WebCodecsEngineLike {
   destroy(): void;
 }
 
+interface CanvasOwnership {
+  width: number;
+  height: number;
+}
+
+const canvasOwners = new WeakMap<HTMLCanvasElement, CanvasOwnership>();
+
 export class WebCodecsAdapter implements PlayerAdapter {
   readonly kind = 'webcodecs' as const;
   readonly capabilities: PlayerAdapterCapabilities;
@@ -28,6 +35,11 @@ export class WebCodecsAdapter implements PlayerAdapter {
   private fullscreen = false;
   private destroyPromise: Promise<void> | null = null;
   private readonly disposedEngines = new WeakSet<WebCodecsEngineLike>();
+  private readonly canvasOwnership = new WeakMap<WebCodecsEngineLike, {
+    owner: CanvasOwnership;
+    initialWidth: number;
+    initialHeight: number;
+  }>();
   private readonly onFullscreenChange: () => void;
 
   constructor(
@@ -61,14 +73,23 @@ export class WebCodecsAdapter implements PlayerAdapter {
     this.unsubscribeEngine?.();
     this.disposeEngine(this.engine);
     const engine = this.createEngine();
+    const owner = { width: this.canvas.width, height: this.canvas.height };
+    this.canvasOwnership.set(engine, {
+      owner,
+      initialWidth: this.canvas.width,
+      initialHeight: this.canvas.height,
+    });
+    canvasOwners.set(this.canvas, owner);
     this.engine = engine;
     this.emit({ phase: 'loading', position: request.position });
-    this.unsubscribeEngine = engine.subscribe(state => this.handleEngineState(state));
+    this.unsubscribeEngine = engine.subscribe(state => this.handleEngineState(state, engine));
     await engine.load(request.attempt.url, this.canvas);
     if (request.signal.aborted || generation !== this.loadGeneration || this.engine !== engine) {
-      this.disposeEngine(engine);
+      this.disposeEngine(engine, true);
+      this.restoreCanvasAfterLateLoad(engine);
       return;
     }
+    this.recordCanvasOwnership(engine);
     if (request.position > 0) await engine.seekTo(request.position);
     if (request.signal.aborted || generation !== this.loadGeneration || this.engine !== engine) {
       this.disposeEngine(engine);
@@ -105,7 +126,10 @@ export class WebCodecsAdapter implements PlayerAdapter {
     this.destroyPromise = Promise.resolve().then(() => {
       this.unsubscribeEngine?.();
       this.unsubscribeEngine = null;
-      this.disposeEngine(this.engine);
+      const engine = this.engine;
+      this.disposeEngine(engine);
+      this.restoreCanvasAfterLateLoad(engine);
+      this.releaseCanvasOwnership(engine);
       this.engine = null;
       document.removeEventListener('fullscreenchange', this.onFullscreenChange);
       this.listeners.clear();
@@ -113,13 +137,38 @@ export class WebCodecsAdapter implements PlayerAdapter {
     return this.destroyPromise;
   }
 
-  private disposeEngine(engine: WebCodecsEngineLike | null): void {
-    if (!engine || this.disposedEngines.has(engine)) return;
-    this.disposedEngines.add(engine);
+  private disposeEngine(engine: WebCodecsEngineLike | null, afterLateLoad = false): void {
+    if (!engine || (!afterLateLoad && this.disposedEngines.has(engine))) return;
+    if (!this.disposedEngines.has(engine)) this.disposedEngines.add(engine);
     engine.destroy();
   }
 
-  private handleEngineState(next: WebCodecsPlayerState): void {
+  private recordCanvasOwnership(engine: WebCodecsEngineLike): void {
+    const ownership = this.canvasOwnership.get(engine)?.owner;
+    if (!ownership || canvasOwners.get(this.canvas) !== ownership) return;
+    ownership.width = this.canvas.width;
+    ownership.height = this.canvas.height;
+  }
+
+  private restoreCanvasAfterLateLoad(engine: WebCodecsEngineLike | null): void {
+    if (!engine) return;
+    const claim = this.canvasOwnership.get(engine);
+    if (!claim) return;
+    const currentOwner = canvasOwners.get(this.canvas);
+    const width = currentOwner && currentOwner !== claim.owner ? currentOwner.width : claim.initialWidth;
+    const height = currentOwner && currentOwner !== claim.owner ? currentOwner.height : claim.initialHeight;
+    if (this.canvas.width !== width) this.canvas.width = width;
+    if (this.canvas.height !== height) this.canvas.height = height;
+  }
+
+  private releaseCanvasOwnership(engine: WebCodecsEngineLike | null): void {
+    if (!engine) return;
+    const ownership = this.canvasOwnership.get(engine)?.owner;
+    if (ownership && canvasOwners.get(this.canvas) === ownership) canvasOwners.delete(this.canvas);
+  }
+
+  private handleEngineState(next: WebCodecsPlayerState, engine: WebCodecsEngineLike): void {
+    this.recordCanvasOwnership(engine);
     const phase = next.error
       ? 'error'
       : next.ended

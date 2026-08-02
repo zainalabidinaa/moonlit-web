@@ -148,3 +148,33 @@ Review findings in `task-3-rereview-round1.md` were addressed with witnessed RED
 - Task 3 scoped ESLint: PASS.
 - Production build: PASS — `npm run build` (only the existing chunk-size advisory).
 - Generated Playwright `test-results/.last-run.json` was restored to its pre-task bytes and excluded from the commit.
+
+## Fix Round 3 (2026-08-02)
+
+The six Important groups from `task-3-rereview-round2.md` were addressed with focused RED/GREEN regressions. Both Critical security fixes and every previously closed Important remain preserved. The unbounded HTML preview-cache Minor, optimistic HTML audio-capability Minor, and the other previously documented Minors remain deferred as requested.
+
+### Cancellation and shared-host ownership
+
+- HTML destruction no longer waits on a transport attachment that may ignore cancellation forever. It invalidates the attachment generation, tears down listeners immediately, and retains late-result cleanup so a transport that eventually resolves cannot attach to or mutate a replacement host.
+- MPV bridge ownership is now explicit per active load. An old adapter still stops its own late start after cancellation, but only while it remains the process-global bridge owner; a late old continuation cannot stop a newer replacement session.
+- WebCodecs permits a second cleanup after a previously disposed engine's asynchronous load settles, closing resources created after the first destroy. Per-engine canvas ownership preserves the dimensions claimed by a replacement using the shared host, so stale cleanup cannot restore the retired renderer's canvas state.
+
+### Subtitle races and neutral track handoff
+
+- MPV resolves mapped app subtitle IDs before considering native numeric IDs, so digit-only Stremio IDs cannot be misrouted as native `sid` values. A click made before `sub-add` mapping completes is queued and applied when the map is published.
+- Neutral track lookup now prioritizes source URL and same-kind ordinal before fuzzy language/label matching, restoring the correct member of otherwise identical audio and subtitle rows.
+- `PlayerSession` records user track selection synchronously and ignores stale adapter selection events until the requested selection is acknowledged. `UnifiedPlayer` reads the live session handoff for immediate source switches, including MPV selections made before native acknowledgement.
+
+### Modal focus and preview isolation
+
+- Modal Tab containment now considers only enabled controls with `tabIndex >= 0`, preserving the roving listbox tab stop in both directions. The speed panel assigns its first preset as the fallback tab stop when playback reports a non-preset rate.
+- Seek-preview state is scoped to both active attempt and current stream identity. A scope change advances the result generation, aborts pending capture, clears the timestamp cache, and makes an already rendered frame ineligible immediately; the same timestamp on a replacement source requests a fresh image.
+
+### Fix-round-3 verification
+
+- Full Vitest suite: PASS — 47 files, 281 tests.
+- Chromium Playwright media suite: PASS — 6 tests.
+- TypeScript: PASS — `npm run typecheck`.
+- Task 3 scoped ESLint: PASS.
+- Production build: PASS — `npm run build` (only the existing chunk-size advisory).
+- Whitespace validation: PASS — `git diff --check`.

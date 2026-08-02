@@ -46,6 +46,7 @@ const playingState: PlayerChromeState = {
   error: null,
   routeLabel: 'Direct',
   routeDetail: 'HLS · H.264 · E-AC-3 supported',
+  previewSourceId: 'native:https://cdn.example/master.m3u8',
 };
 
 function controller(): PlayerChromeController {
@@ -211,6 +212,53 @@ describe('PlayerChrome', () => {
     expect(controls.requestSeekPreview).toHaveBeenCalledTimes(2);
   });
 
+  it('clears the cached seek frame when the same timestamp belongs to a new source attempt', async () => {
+    vi.useFakeTimers();
+    let imageUrl = 'data:image/jpeg;base64,source-a';
+    const controls = controller();
+    controls.requestSeekPreview = vi.fn(async position => ({ position, imageUrl }));
+    const view = renderChrome({
+      controller: controls,
+      state: { ...playingState, duration: 100 },
+      currentStream: { url: 'https://cdn.example/source-a.mp4' },
+    });
+    let timeline = screen.getByTestId('seek-preview-timeline');
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue({
+      left: 0, width: 100, right: 100, top: 0, bottom: 44, height: 44, x: 0, y: 0, toJSON: () => ({}),
+    });
+
+    fireEvent.mouseMove(timeline, { clientX: 40 });
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+    expect(screen.getByRole('img', { name: 'Preview at 0:40' })).toHaveAttribute('src', imageUrl);
+
+    imageUrl = 'data:image/jpeg;base64,source-b';
+    view.rerender(
+      <PlayerChrome
+        state={{ ...playingState, duration: 100 }}
+        controller={controls}
+        metadata={{ mediaId: 'tt111', mediaType: 'movie', title: 'Movie' }}
+        mediaId="tt111"
+        mediaType="movie"
+        currentStream={{ url: 'https://cdn.example/source-b.mp4' }}
+        streams={[]}
+        subtitles={[]}
+        onBack={vi.fn()}
+        onSwitchStream={vi.fn()}
+      />,
+    );
+    expect(screen.queryByRole('img', { name: 'Preview at 0:40' })).not.toBeInTheDocument();
+
+    timeline = screen.getByTestId('seek-preview-timeline');
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue({
+      left: 0, width: 100, right: 100, top: 0, bottom: 44, height: 44, x: 0, y: 0, toJSON: () => ({}),
+    });
+    fireEvent.mouseMove(timeline, { clientX: 40 });
+    await act(async () => vi.advanceTimersByTimeAsync(100));
+
+    expect(controls.requestSeekPreview).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('img', { name: 'Preview at 0:40' })).toHaveAttribute('src', imageUrl);
+  });
+
   it('opens audio, subtitles, and Up Next in the approved panel widths', async () => {
     const { controls } = renderChrome({
       upNextContent: close => <button type="button" onClick={close}>Play next episode</button>,
@@ -307,6 +355,25 @@ describe('PlayerChrome', () => {
     expect(controls.pause).not.toHaveBeenCalled();
   });
 
+  it('wraps Tab in both directions using only the current roving tab stop', async () => {
+    renderChrome();
+    fireEvent.click(screen.getByRole('button', { name: 'Sources' }));
+
+    const close = await screen.findByRole('button', { name: 'Close Sources' });
+    const options = screen.getAllByRole('option');
+    expect(options[0]).toHaveAttribute('tabindex', '0');
+    expect(options[1]).toHaveAttribute('tabindex', '-1');
+
+    act(() => {
+      options[0].focus();
+      fireEvent.keyDown(options[0], { key: 'Tab' });
+    });
+    expect(close).toHaveFocus();
+
+    act(() => fireEvent.keyDown(close, { key: 'Tab', shiftKey: true }));
+    expect(options[0]).toHaveFocus();
+  });
+
   it('gives an unselected list one roving Tab stop', () => {
     renderChrome({
       state: {
@@ -316,6 +383,15 @@ describe('PlayerChrome', () => {
       },
     });
     fireEvent.click(screen.getByRole('button', { name: 'Audio tracks' }));
+
+    const options = screen.getAllByRole('option');
+    expect(options.filter(option => option.tabIndex === 0)).toHaveLength(1);
+    expect(options[0]).toHaveAttribute('tabindex', '0');
+  });
+
+  it('gives nonpreset playback speed a fallback roving Tab stop', () => {
+    renderChrome({ state: { ...playingState, playbackRate: 1.1 } });
+    fireEvent.click(screen.getByRole('button', { name: 'Playback speed' }));
 
     const options = screen.getAllByRole('option');
     expect(options.filter(option => option.tabIndex === 0)).toHaveLength(1);

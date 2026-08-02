@@ -145,12 +145,14 @@ export function findPlayerTrackByIdentity<T extends PlayerTrack>(
     const sourceMatch = tracks.find(track => track.kind === identity.kind && track.sourceUrl === identity.sourceUrl);
     if (sourceMatch) return sourceMatch;
   }
+  const ordinal = tracks[identity.ordinal];
+  if (ordinal?.kind === identity.kind
+    && (ordinal.language?.toLowerCase() ?? null) === identity.language
+    && ordinal.label === identity.label) return ordinal;
   const exact = tracks.find(track => track.kind === identity.kind
     && (track.language?.toLowerCase() ?? null) === identity.language
     && track.label === identity.label);
   if (exact) return exact;
-  const ordinal = tracks[identity.ordinal];
-  if (ordinal?.kind === identity.kind && (ordinal.language?.toLowerCase() ?? null) === identity.language) return ordinal;
   return tracks.find(track => track.kind === identity.kind
     && (track.language?.toLowerCase() ?? null) === identity.language);
 }
