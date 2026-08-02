@@ -4,7 +4,7 @@ import { prepareStreamForPlayback, prepareStreamForPlaybackAsync } from './Playe
 import type { StreamItem } from '@/lib/types';
 
 describe('prepareStreamForPlayback', () => {
-  it('routes AIOStreams elfmagic playback through the media proxy as HLS', () => {
+  it('routes AIOStreams elfmagic playback as direct HLS', () => {
     const stream: StreamItem = {
       url: 'https://aiostreams.elfhosted.com/playback/token/elfmagic/file',
       title: 'From S01E06 H.264 AAC',
@@ -17,11 +17,11 @@ describe('prepareStreamForPlayback', () => {
       playerType: 'vidstack',
       shouldPreflight: true,
     });
-    expect(prepared?.playbackUrl).toBe(`/api/media-proxy?url=${encodeURIComponent(stream.url)}`);
+    expect(prepared?.playbackUrl).toBe(stream.url);
     expect(prepared?.playbackStream.behaviorHints?.webPlayableType).toBe('application/x-mpegurl');
   });
 
-  it('routes non-elfmagic AIOStreams playback through the media proxy as MP4', () => {
+  it('routes non-elfmagic AIOStreams playback as direct MP4', () => {
     const stream: StreamItem = {
       url: 'https://aiostreams.elfhosted.com/playback/token/movie.mp4',
       title: 'Movie 1080p H.264 AAC',
@@ -34,7 +34,7 @@ describe('prepareStreamForPlayback', () => {
       playerType: 'vidstack',
       shouldPreflight: true,
     });
-    expect(prepared?.playbackUrl).toBe(`/api/media-proxy?url=${encodeURIComponent(stream.url)}`);
+    expect(prepared?.playbackUrl).toBe(stream.url);
     expect(prepared?.playbackStream.behaviorHints?.webPlayableType).toBe('video/mp4');
   });
 
@@ -105,7 +105,7 @@ describe('prepareStreamForPlayback', () => {
     });
   });
 
-  it('keeps opaque AIOStreams 4K on Vidstack proxy even when Mediabunny can probe it', async () => {
+  it('keeps opaque AIOStreams 4K on Vidstack direct when Mediabunny can probe it', async () => {
     const stream: StreamItem = {
       url: 'https://aiostreams.elfhosted.com/playback/token/movie.mp4',
       title: 'Movie 2160p 4K H.264 AAC',
@@ -115,7 +115,7 @@ describe('prepareStreamForPlayback', () => {
       serverUrl: '',
       probeMediabunny: async (url) => ({
         playable: true,
-        transport: url.startsWith('/api/media-proxy') ? 'proxy' : 'direct',
+        transport: 'direct',
       }),
     });
 
@@ -125,10 +125,10 @@ describe('prepareStreamForPlayback', () => {
       routeReason: 'vidstack-proxy',
       shouldPreflight: true,
     });
-    expect(prepared?.playbackUrl).toBe(`/api/media-proxy?url=${encodeURIComponent(stream.url)}`);
+    expect(prepared?.playbackUrl).toBe(stream.url);
   });
 
-  it('keeps AIOStreams on Vidstack proxy even when metadata looks like MKV', async () => {
+  it('keeps AIOStreams on Vidstack direct even when metadata looks like MKV', async () => {
     const stream: StreamItem = {
       url: 'https://aiostreams.elfhosted.com/playback/token/movie',
       title: 'Movie 2160p 4K H.264 AAC.mkv',
@@ -136,7 +136,7 @@ describe('prepareStreamForPlayback', () => {
 
     const prepared = await prepareStreamForPlaybackAsync(stream, {
       serverUrl: '',
-      probeMediabunny: async () => ({ playable: true, transport: 'proxy' }),
+      probeMediabunny: async () => ({ playable: true, transport: 'direct' }),
     });
 
     expect(prepared).toMatchObject({
@@ -145,10 +145,10 @@ describe('prepareStreamForPlayback', () => {
       routeReason: 'vidstack-proxy',
       shouldPreflight: true,
     });
-    expect(prepared?.playbackUrl).toBe(`/api/media-proxy?url=${encodeURIComponent(stream.url)}`);
+    expect(prepared?.playbackUrl).toBe(stream.url);
   });
 
-  it('routes AIOStreams through Vidstack proxy before sync MKV player selection', () => {
+  it('routes AIOStreams through Vidstack direct before sync MKV player selection', () => {
     const stream: StreamItem = {
       url: 'https://aiostreams.elfhosted.com/playback/token/movie',
       title: 'Movie 2160p 4K H.264 AAC.mkv',
@@ -162,10 +162,10 @@ describe('prepareStreamForPlayback', () => {
       routeReason: 'vidstack-proxy',
       shouldPreflight: true,
     });
-    expect(prepared?.playbackUrl).toBe(`/api/media-proxy?url=${encodeURIComponent(stream.url)}`);
+    expect(prepared?.playbackUrl).toBe(stream.url);
   });
 
-  it('falls back to Vidstack proxy for non-4K AIOStreams when Mediabunny probing fails', async () => {
+  it('falls back to Vidstack direct for non-4K AIOStreams when Mediabunny probing fails', async () => {
     const stream: StreamItem = {
       url: 'https://aiostreams.elfhosted.com/playback/token/movie.mp4',
       title: 'Movie 1080p H.264 AAC',
@@ -182,7 +182,7 @@ describe('prepareStreamForPlayback', () => {
       routeReason: 'vidstack-proxy',
       shouldPreflight: true,
     });
-    expect(prepared?.playbackUrl).toBe(`/api/media-proxy?url=${encodeURIComponent(stream.url)}`);
+    expect(prepared?.playbackUrl).toBe(stream.url);
   });
 
 

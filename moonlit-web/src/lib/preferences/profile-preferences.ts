@@ -112,7 +112,7 @@ export const DEFAULT_PLAYER_PREFERENCES: PlayerPreferences = {
   autoplayPreviews: true,
   playPreviewSound: false,
   anime4KEnabled: false,
-  showOnlyCompatibleFormats: false,
+  showOnlyCompatibleFormats: true,
   usePerTypePlayers: false,
   moviePlayer: 'auto',
   seriesPlayer: 'auto',
