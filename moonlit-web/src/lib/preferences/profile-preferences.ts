@@ -14,13 +14,40 @@ export interface HomePreferences {
   hiddenFolderIds: string[];
 }
 
+export interface PosterBadgePreferences {
+  trend: boolean;
+  genre: boolean;
+  rating: boolean;
+  quality: boolean;
+  age: boolean;
+}
+
 export interface ArtworkPreferences {
   posterScale: number;
   posterRadius: number;
   artworkHaloEnabled: boolean;
   hoverPreviewEnabled: boolean;
   hoverPreviewDelaySeconds: number;
+  posterBadges: PosterBadgePreferences;
 }
+
+export function buildBttrrPosterUrl(imdbId: string, badges: PosterBadgePreferences): string | null {
+  if (!imdbId || !imdbId.startsWith('tt')) return null;
+  const suffix = badges.genre
+    ? (badges.rating ? '' : 'g')
+    : (badges.rating ? 'r' : 'n');
+  const flags = `poster${suffix ? `-${suffix}` : ''}${badges.quality ? 'q' : ''}${badges.age ? 'a' : ''}`;
+  const tag = badges.trend ? 'auto' : 'none';
+  return `https://btttr.cc/${flags}/imdb/poster-default/${imdbId}.jpg?tag=${tag}&rs=IM`;
+}
+
+export const DEFAULT_POSTER_BADGE_PREFERENCES: PosterBadgePreferences = {
+  trend: true,
+  genre: true,
+  rating: true,
+  quality: false,
+  age: false,
+};
 
 export type PlayerEnginePreference = 'auto' | 'native' | 'mpv';
 export type PlayerCacheMode = 'memory' | 'disk' | 'off';
@@ -97,6 +124,7 @@ export const DEFAULT_ARTWORK_PREFERENCES: ArtworkPreferences = {
   artworkHaloEnabled: true,
   hoverPreviewEnabled: true,
   hoverPreviewDelaySeconds: 0.7,
+  posterBadges: DEFAULT_POSTER_BADGE_PREFERENCES,
 };
 
 export const DEFAULT_PLAYER_PREFERENCES: PlayerPreferences = {
@@ -195,12 +223,20 @@ export function normalizeHomePreferences(value: unknown): HomePreferences {
 
 export function normalizeArtworkPreferences(value: unknown): ArtworkPreferences {
   const input = record(value);
+  const badgeInput = record(input.posterBadges);
   return {
     posterScale: boundedNumber(input.posterScale, DEFAULT_ARTWORK_PREFERENCES.posterScale, 0.6, 2),
     posterRadius: boundedInteger(input.posterRadius, DEFAULT_ARTWORK_PREFERENCES.posterRadius, 0, 40),
     artworkHaloEnabled: bool(input.artworkHaloEnabled, DEFAULT_ARTWORK_PREFERENCES.artworkHaloEnabled),
     hoverPreviewEnabled: bool(input.hoverPreviewEnabled, DEFAULT_ARTWORK_PREFERENCES.hoverPreviewEnabled),
     hoverPreviewDelaySeconds: boundedNumber(input.hoverPreviewDelaySeconds, DEFAULT_ARTWORK_PREFERENCES.hoverPreviewDelaySeconds, 0.2, 2),
+    posterBadges: {
+      trend: bool(badgeInput.trend, DEFAULT_POSTER_BADGE_PREFERENCES.trend),
+      genre: bool(badgeInput.genre, DEFAULT_POSTER_BADGE_PREFERENCES.genre),
+      rating: bool(badgeInput.rating, DEFAULT_POSTER_BADGE_PREFERENCES.rating),
+      quality: bool(badgeInput.quality, DEFAULT_POSTER_BADGE_PREFERENCES.quality),
+      age: bool(badgeInput.age, DEFAULT_POSTER_BADGE_PREFERENCES.age),
+    },
   };
 }
 

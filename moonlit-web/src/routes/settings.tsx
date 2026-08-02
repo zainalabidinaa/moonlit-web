@@ -641,6 +641,20 @@ export default function SettingsPage() {
               <SliderSetting label="Preview delay" value={artworkPrefs.hoverPreviewDelaySeconds} min={0.1} max={2} step={0.1}
                 onChange={v => setArtworkPrefs(p => ({ ...p, hoverPreviewDelaySeconds: v }))} unit="s" />
             )}
+            <div className="px-4 pt-2 pb-1">
+              <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Poster Badges</p>
+              <p className="text-[11px] text-white/30 mt-0.5">bttrr.cc overlays</p>
+            </div>
+            <Toggle checked={artworkPrefs.posterBadges.trend}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterBadges: { ...p.posterBadges, trend: v } }))} label="Trend" />
+            <Toggle checked={artworkPrefs.posterBadges.genre}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterBadges: { ...p.posterBadges, genre: v } }))} label="Genre" />
+            <Toggle checked={artworkPrefs.posterBadges.rating}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterBadges: { ...p.posterBadges, rating: v } }))} label="Rating" />
+            <Toggle checked={artworkPrefs.posterBadges.quality}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterBadges: { ...p.posterBadges, quality: v } }))} label="Quality" />
+            <Toggle checked={artworkPrefs.posterBadges.age}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterBadges: { ...p.posterBadges, age: v } }))} label="Age rating" />
             <div className="flex justify-end px-4 py-2">
               <button onClick={() => resetSection('artwork', setArtworkPrefs)}
                 className="text-xs text-white/40 hover:text-white mr-2">Reset</button>
