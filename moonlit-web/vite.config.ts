@@ -99,13 +99,100 @@ function mediaProxyDevProxy() {
   return {
     name: 'media-dev-proxy',
     configureServer(server: any) {
-      server.middlewares.use((req: any, res: any, next: any) => {
+      server.middlewares.use(async (req: any, res: any, next: any) => {
         if (!req.url?.startsWith('/api/media-proxy')) return next();
-        res.writeHead(410, {
-          'Cache-Control': 'no-store',
-          'Content-Type': 'text/plain; charset=utf-8',
-        });
-        res.end('Media proxy disabled');
+
+        const url = new URL(req.url, `http://${req.headers.host ?? 'localhost'}`);
+
+        if (req.method === 'POST' && url.pathname.endsWith('/session')) {
+          const chunks: Buffer[] = [];
+          req.on('data', (c: Buffer) => chunks.push(c));
+          req.on('end', async () => {
+            try {
+              let body: any = {};
+              try { body = JSON.parse(Buffer.concat(chunks).toString()); } catch { /* keep default */ }
+              if (!body.target || typeof body.target !== 'string') {
+                res.writeHead(400); res.end('Missing target URL'); return;
+              }
+              let targetUrl: URL;
+              try { targetUrl = new URL(body.target); } catch {
+                res.writeHead(400); res.end('Invalid target URL'); return;
+              }
+              if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
+                res.writeHead(400); res.end('Only http(s) targets allowed'); return;
+              }
+              if (targetUrl.hostname === 'localhost' || targetUrl.hostname === '127.0.0.1' || targetUrl.hostname === '::1' || targetUrl.hostname === '169.254.169.254') {
+                res.writeHead(403); res.end('Target blocked'); return;
+              }
+              const sessionId = crypto.randomUUID();
+              res.writeHead(201, {'Content-Type': 'application/json', 'Cache-Control': 'no-store'});
+              res.end(JSON.stringify({ session: sessionId }));
+            } catch {
+              res.writeHead(500); res.end('Proxy error');
+            }
+          });
+          return;
+        }
+
+        const target = url.searchParams.get('url');
+        if (!target) {
+          res.writeHead(400, {'Cache-Control': 'no-store'});
+          res.end('Missing url parameter');
+          return;
+        }
+
+        let targetUrl: URL;
+        try { targetUrl = new URL(target); } catch {
+          res.writeHead(400, {'Cache-Control': 'no-store'});
+          res.end('Invalid target URL');
+          return;
+        }
+        if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
+          res.writeHead(400, {'Cache-Control': 'no-store'});
+          res.end('Only http(s) targets allowed');
+          return;
+        }
+
+        try {
+          const targetResp = await fetch(targetUrl.href, {
+            headers: { 'User-Agent': req.headers['user-agent'] ?? 'VLC/3.0.20 LibVLC/3.0.20' },
+            redirect: 'manual',
+          });
+          if ([301,302,303,307,308].includes(targetResp.status)) {
+            res.writeHead(502, {'Cache-Control': 'no-store'});
+            res.end('Redirects not allowed');
+            return;
+          }
+          const respHeaders: Record<string, string> = {
+            'Cache-Control': 'no-store',
+            'Access-Control-Allow-Origin': '*',
+            'X-Content-Type-Options': 'nosniff',
+          };
+          const ct = targetResp.headers.get('content-type');
+          if (ct) respHeaders['Content-Type'] = ct;
+          const cl = targetResp.headers.get('content-length');
+          if (cl) respHeaders['Content-Length'] = cl;
+          const cr = targetResp.headers.get('content-range');
+          if (cr) respHeaders['Content-Range'] = cr;
+
+          res.writeHead(targetResp.status, respHeaders);
+          if (targetResp.body) {
+            const reader = targetResp.body.getReader();
+            const pump = async () => {
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) { res.end(); return; }
+                res.write(value);
+              }
+            };
+            pump().catch(() => { try { res.end(); } catch { /* already closed */ } });
+          } else {
+            res.end();
+          }
+        } catch (err: any) {
+          res.writeHead(502, {'Cache-Control': 'no-store'});
+          res.end(err.message ?? 'Proxy error');
+        }
       });
     },
   };

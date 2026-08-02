@@ -47,7 +47,7 @@ function isAioStreamsPlaybackUrl(url: string): boolean {
 }
 
 function buildMediaProxyUrl(url: string): string {
-  return url;
+  return `/api/media-proxy?url=${encodeURIComponent(url)}`;
 }
 
 function streamSearchText(stream: StreamItem): string {
