@@ -102,6 +102,7 @@ function parseStreamMeta(s: StreamItem): StreamMeta {
   else if (t.includes('premiumize') || t.includes('[pm]') || t.includes('(pm)')) debrid = 'PM';
   else if (t.includes('alldebrid') || t.includes('[ad]') || t.includes('(ad)')) debrid = 'AD';
   else if (t.includes('debrid-link') || t.includes('[dl]') || t.includes('(dl)')) debrid = 'DL';
+  else if (t.includes('bttrr') || t.includes('[btr]') || t.includes('(btr)')) debrid = 'BTR';
 
   const indexers = ['knaben', 'yts', 'yify', '1337x', 'nyaa', 'rutor', 'rarbg', 'eztv', 'thepiratebay', 'tpb', 'zooqle'];
   const indexer = indexers.find(i => t.includes(i)) ?? null;

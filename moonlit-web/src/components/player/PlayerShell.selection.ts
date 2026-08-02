@@ -40,5 +40,5 @@ export function selectStreamPlayback(
     if (plan.outcome === 'unsupported' && !firstUnsupported) firstUnsupported = selection;
   }
 
-  return firstExternal ?? (options.showOnlyCompatibleFormats ? null : firstUnsupported);
+  return options.showOnlyCompatibleFormats ? null : (firstExternal ?? firstUnsupported);
 }
