@@ -13,6 +13,35 @@ interface BuilderOptions {
   tmdbApiKey?: string;
 }
 
+// Native fills out a Home row with more than one addon page during initial
+// load (CatalogRepository.swift's loadMore, opportunistically triggered while
+// rows are still being appended on a tall viewport) — web had no equivalent at
+// all, so every row capped at whatever a single addon page returned. Fetching
+// a fixed extra page upfront is a deterministic stand-in: most addons paginate
+// at 100 items, so a second page below that size is cheap and comes back empty.
+const HOME_ROW_PAGE_SIZE = 100;
+const HOME_ROW_PAGE_COUNT = 2;
+
+async function fetchCatalogWithPagination(
+  baseURL: string,
+  type: string,
+  id: string,
+  extras?: Record<string, string>,
+): Promise<{ items: MetaPreview[]; hasMore: boolean }> {
+  const pages = await Promise.all(
+    Array.from({ length: HOME_ROW_PAGE_COUNT }, (_, page) => fetchCatalog({
+      baseURL,
+      type,
+      id,
+      extras: page === 0 ? extras : { ...extras, skip: String(page * HOME_ROW_PAGE_SIZE) },
+    })),
+  );
+  return {
+    items: deduplicateItems(pages.flat()),
+    hasMore: (pages[pages.length - 1]?.length ?? 0) >= HOME_ROW_PAGE_SIZE,
+  };
+}
+
 export async function buildCollectionRows(options: BuilderOptions): Promise<CatalogRow[]> {
   const { organized, prefs, addons, tmdbApiKey } = options;
   const rows: CatalogRow[] = [];
@@ -69,6 +98,7 @@ export async function buildCollectionRows(options: BuilderOptions): Promise<Cata
         const folderSources = organized.folderSources.filter(s => s.folderId === folder.id);
 
         let allItems: MetaPreview[] = [];
+        let rowHasMore = false;
 
         // Fetch addon catalog sources. Prefer an addon that lists this catalog
         // in its manifest, but fall back to any catalog-capable addon — addons
@@ -85,13 +115,9 @@ export async function buildCollectionRows(options: BuilderOptions): Promise<Cata
 
           const mediaTypes = cat.mediaType === 'all' ? ['movie', 'series'] : [cat.mediaType || 'movie'];
           for (const mt of mediaTypes) {
-            const items = await fetchCatalog({
-              baseURL,
-              type: mt,
-              id: cat.catalogId,
-              extras: cat.extras,
-            });
+            const { items, hasMore } = await fetchCatalogWithPagination(baseURL, mt, cat.catalogId, cat.extras);
             allItems = deduplicateItems([...allItems, ...items]);
+            rowHasMore = rowHasMore || hasMore;
           }
         }
 
@@ -105,8 +131,8 @@ export async function buildCollectionRows(options: BuilderOptions): Promise<Cata
           id: `folder-${folder.id}`,
           title: folder.hideTitle ? '' : folder.name,
           items: allItems,
-          page: 0,
-          hasMore: false,
+          page: HOME_ROW_PAGE_COUNT - 1,
+          hasMore: rowHasMore,
           tileShape: folder.tileShape || 'poster',
           coverImage: folder.coverImage,
           focusGif: folder.focusGif,
