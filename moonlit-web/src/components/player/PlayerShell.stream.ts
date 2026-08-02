@@ -50,6 +50,15 @@ function buildMediaProxyUrl(url: string): string {
   return `/api/media-proxy?url=${encodeURIComponent(url)}`;
 }
 
+function isDebridCdn(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname;
+    return /real-debrid\.com|alldebrid\.com|bttrr\.cc|torbox\.app|premiumize\.me|debrid-link\.com|aiostreams/i.test(hostname);
+  } catch {
+    return false;
+  }
+}
+
 function streamSearchText(stream: StreamItem): string {
   return `${stream.name ?? ''} ${stream.title ?? ''} ${stream.description ?? ''} ${stream.behaviorHints?.filename ?? ''}`.toLowerCase();
 }
@@ -170,6 +179,18 @@ export function prepareStreamForPlayback(
 
   if (needsServer) {
     return makeServerPreparedStream(stream, rawUrl, serverUrl, tier);
+  }
+
+  const needsProxy = !!(stream.behaviorHints?.proxyHeaders?.request) || isDebridCdn(rawUrl);
+  if (needsProxy) {
+    return {
+      rawUrl,
+      playbackUrl: buildMediaProxyUrl(rawUrl),
+      playbackStream: stream,
+      playerType,
+      shouldPreflight: true,
+      routeReason: 'vidstack-proxy',
+    };
   }
 
   return {

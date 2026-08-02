@@ -53,13 +53,14 @@ export default async function handler(req: Request): Promise<Response> {
   const target = url.searchParams.get('url');
 
   if (req.method === 'HEAD' || req.method === 'GET') {
-    if (!session || !target) {
-      return new Response('Missing session or url parameter', {
-        status: 400,
-        headers: { 'Cache-Control': 'no-store' },
-      });
+    if (target) {
+      if (session) return proxyGet(req, target, session);
+      return proxyDirect(req, target);
     }
-    return proxyGet(req, target, session);
+    return new Response('Missing url parameter', {
+      status: 400,
+      headers: { 'Cache-Control': 'no-store' },
+    });
   }
 
   if (req.method === 'POST' && url.pathname.endsWith('/session')) {
@@ -167,8 +168,11 @@ async function proxyGet(req: Request, target: string, sessionId: string): Promis
     return new Response('Target blocked', { status: 403, headers: { 'Cache-Control': 'no-store' } });
   }
 
-  const headers = new Headers(sessionData.headers);
+  const sessionHeaders = new Headers(sessionData.headers);
   const reqHeaders = new Headers();
+  for (const [name, value] of sessionHeaders.entries()) {
+    reqHeaders.set(name, value);
+  }
   const range = req.headers.get('Range');
   if (range) reqHeaders.set('Range', range);
   reqHeaders.set('User-Agent', 'VLC/3.0.20 LibVLC/3.0.20');
@@ -197,6 +201,76 @@ async function proxyGet(req: Request, target: string, sessionId: string): Promis
       return new Response('Redirects not allowed', { status: 502, headers: { 'Cache-Control': 'no-store' } });
     }
     if (range && (proxyResp.status === 206 || proxyResp.status === 200)) {
+      const cr = proxyResp.headers.get('Content-Range');
+      if (cr) respHeaders.set('Content-Range', cr);
+      respHeaders.set('Accept-Ranges', proxyResp.headers.get('Accept-Ranges') || 'bytes');
+    }
+    const contentLength = proxyResp.headers.get('Content-Length');
+    if (contentLength) respHeaders.set('Content-Length', contentLength);
+
+    return new Response(proxyResp.body, {
+      status: proxyResp.status,
+      headers: respHeaders,
+    });
+  } catch (err) {
+    return new Response(err instanceof Error ? err.message : 'Proxy error', {
+      status: 502,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function proxyDirect(req: Request, target: string): Promise<Response> {
+  const clientIp = req.headers.get('cf-connecting-ip') || req.headers.get('x-forwarded-for') || 'unknown';
+  if (!rateLimit(clientIp)) {
+    return new Response('Rate limit exceeded', {
+      status: 429,
+      headers: { 'Cache-Control': 'no-store', 'Retry-After': '60' },
+    });
+  }
+
+  let targetUrl: URL;
+  try { targetUrl = new URL(target); } catch {
+    return new Response('Invalid target URL', { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (targetUrl.protocol !== 'http:' && targetUrl.protocol !== 'https:') {
+    return new Response('Only http(s) targets allowed', { status: 400, headers: { 'Cache-Control': 'no-store' } });
+  }
+  if (isBlockedHost(targetUrl.hostname)) {
+    return new Response('Target blocked', { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  }
+
+  const reqHeaders = new Headers();
+  const range = req.headers.get('Range');
+  if (range) reqHeaders.set('Range', range);
+  reqHeaders.set('User-Agent', 'VLC/3.0.20 LibVLC/3.0.20');
+  reqHeaders.set('Accept', '*/*');
+
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 30_000);
+
+  try {
+    const proxyResp = await fetch(targetUrl.href, {
+      method: 'GET',
+      headers: reqHeaders,
+      redirect: 'manual',
+      signal: controller.signal,
+    });
+
+    const respHeaders = new Headers();
+    respHeaders.set('Cache-Control', 'no-store');
+    respHeaders.set('Access-Control-Allow-Origin', '*');
+    respHeaders.set('Access-Control-Expose-Headers', 'Content-Type, Content-Length, Content-Range, Accept-Ranges');
+    respHeaders.set('X-Content-Type-Options', 'nosniff');
+
+    const contentType = proxyResp.headers.get('Content-Type') || '';
+    if (contentType) respHeaders.set('Content-Type', contentType);
+    if ([301, 302, 303, 307, 308].includes(proxyResp.status)) {
+      return new Response('Redirects not allowed', { status: 502, headers: { 'Cache-Control': 'no-store' } });
+    }
+    if (range) {
       const cr = proxyResp.headers.get('Content-Range');
       if (cr) respHeaders.set('Content-Range', cr);
       respHeaders.set('Accept-Ranges', proxyResp.headers.get('Accept-Ranges') || 'bytes');
