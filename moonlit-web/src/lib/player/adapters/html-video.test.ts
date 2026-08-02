@@ -192,15 +192,23 @@ describe('HtmlVideoAdapter', () => {
     class FakeHls {
       static instance: FakeHls | null = null;
       static isSupported() { return true; }
-      static Events = { ERROR: 'error' };
+      static Events = { ERROR: 'error', MANIFEST_PARSED: 'manifestParsed', AUDIO_TRACKS_UPDATED: 'audioTracksUpdated', AUDIO_TRACK_SWITCHED: 'audioTrackSwitched' };
       static ErrorTypes = { MEDIA_ERROR: 'mediaError' };
       audioTracks = [
         { id: 10, name: 'English', lang: 'en', audioCodec: 'mp4a.40.2' },
         { id: 20, name: 'Japanese', lang: 'ja', audioCodec: 'mp4a.40.2' },
       ];
       audioTrack = 0;
+      private listeners = new Map<string, Array<(...args: unknown[]) => void>>();
       constructor() { FakeHls.instance = this; }
-      on() {}
+      on(event: string, handler: (...args: unknown[]) => void) {
+        const handlers = this.listeners.get(event) ?? [];
+        handlers.push(handler);
+        this.listeners.set(event, handlers);
+      }
+      trigger(event: string) {
+        for (const handler of this.listeners.get(event) ?? []) handler();
+      }
       loadSource() {}
       attachMedia() {}
       recoverMediaError() {}
@@ -220,7 +228,9 @@ describe('HtmlVideoAdapter', () => {
       subtitles: [],
       signal: new AbortController().signal,
     });
-    adapter.probeAudioTracks?.();
+    // Simulate hls.js firing its real lifecycle event instead of calling probeAudioTracks
+    // directly — this is what let the broken `this.emitTracks()` callback ship unnoticed.
+    FakeHls.instance?.trigger('manifestParsed');
 
     expect(adapter.capabilities.audioTracks).toBe(true);
     expect(latestTracks).toEqual([

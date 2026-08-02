@@ -155,8 +155,14 @@ export class PlayerSession {
     return this.destroyPromise;
   }
 
-  play() { return this.adapter?.play(); }
-  pause() { return this.adapter?.pause(); }
+  play() {
+    this.bufferingCount = 0;
+    return this.adapter?.play();
+  }
+  pause() {
+    this.bufferingCount = 0;
+    return this.adapter?.pause();
+  }
   seek(position: number) {
     if (!this.adapter?.capabilities.seek) return;
     this.preservedPosition = Math.max(0, position);

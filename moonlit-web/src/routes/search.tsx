@@ -5,6 +5,8 @@ import { MetaPreview } from '@/lib/types';
 import { searchCatalogs, fetchManifest, fetchCatalog } from '@/lib/stremio';
 import { getSystemAddon } from '@/lib/services/api';
 import { Link, useNavigate } from '@tanstack/react-router';
+import { resolvePosterArt } from '@/lib/preferences/profile-preferences';
+import { useArtworkPreferences } from './catalog-data';
 
 const RECENT_KEY = 'moonlit_recent_searches';
 function getRecent(): string[] {
@@ -21,7 +23,8 @@ function removeRecent(q: string) {
 type Filter = 'all' | 'movie' | 'series';
 
 export default function SearchPage() {
-  const { addons } = useAuth();
+  const { addons, currentProfile } = useAuth();
+  const artworkPreferences = useArtworkPreferences(currentProfile?.id);
   const navigate = useNavigate();
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -125,7 +128,10 @@ export default function SearchPage() {
                   {suggestions.map(item => (
                     <button key={item.id} onMouseDown={() => handleSuggestionClick(item)}
                       className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-white/5 text-left transition-colors">
-                      {item.poster ? <img src={item.poster} alt="" className="w-8 h-12 object-cover rounded shrink-0" /> : <div className="w-8 h-12 bg-white/5 rounded shrink-0" />}
+                      {(() => {
+                        const art = resolvePosterArt(item, artworkPreferences.posterBadges);
+                        return art ? <img src={art} alt="" className="w-8 h-12 object-cover rounded shrink-0" /> : <div className="w-8 h-12 bg-white/5 rounded shrink-0" />;
+                      })()}
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-white/90 truncate">{item.name}</p>
                         <p className="text-xs text-white/40 mt-0.5">
@@ -172,10 +178,12 @@ export default function SearchPage() {
               <section className="mt-8">
                 <p className="text-xs font-bold text-white/40 uppercase tracking-wider mb-4">Trending Now</p>
                 <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(155px, 1fr))' }}>
-                  {trending.map(item => (
+                  {trending.map(item => {
+                    const art = resolvePosterArt(item, artworkPreferences.posterBadges);
+                    return (
                     <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }} className="group cursor-pointer">
                       <div className="relative aspect-[2/3] rounded overflow-hidden bg-[#2a2a2a] mb-2 border border-white/[0.06]">
-                        {item.poster ? <img src={item.poster} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center text-white/15 text-xs text-center px-2">{item.name}</div>}
+                        {art ? <img src={art} alt={item.name} className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" loading="lazy" /> : <div className="absolute inset-0 flex items-center justify-center text-white/15 text-xs text-center px-2">{item.name}</div>}
                         <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
                           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
                             <svg viewBox="0 0 24 24" fill="white" className="w-4 h-4 ml-0.5"><polygon points="6,4 20,12 6,20"/></svg>
@@ -185,7 +193,8 @@ export default function SearchPage() {
                       <p className="text-xs font-medium text-[#b3b3b3] truncate">{item.name}</p>
                       {item.releaseInfo && <p className="text-[10px] text-white/35 mt-0.5">{item.releaseInfo}</p>}
                     </Link>
-                  ))}
+                    );
+                  })}
                 </div>
               </section>
             )}
@@ -211,11 +220,13 @@ export default function SearchPage() {
             </div>
             {filtered.length > 0 ? (
               <div className="flex flex-col gap-1.5 max-w-2xl">
-                {filtered.map(item => (
+                {filtered.map(item => {
+                  const art = resolvePosterArt(item, artworkPreferences.posterBadges);
+                  return (
                   <Link key={item.id} to="/browse/$type/$id" params={{ type: item.type, id: item.id }}
                     className="group flex items-center gap-3 p-2 rounded hover:bg-white/5 transition-colors">
-                    {item.poster
-                      ? <img src={item.poster} alt={item.name} loading="lazy" className="w-[52px] h-[78px] object-cover rounded shrink-0 bg-[#2a2a2a]" />
+                    {art
+                      ? <img src={art} alt={item.name} loading="lazy" className="w-[52px] h-[78px] object-cover rounded shrink-0 bg-[#2a2a2a]" />
                       : <div className="w-[52px] h-[78px] rounded bg-[#2a2a2a] shrink-0 flex items-center justify-center text-white/15 text-[10px] text-center px-1">{item.name}</div>}
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-white truncate">{item.name}</p>
@@ -227,7 +238,8 @@ export default function SearchPage() {
                     </div>
                     <svg className="w-4 h-4 text-white/20 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 18l6-6-6-6"/></svg>
                   </Link>
-                ))}
+                  );
+                })}
               </div>
             ) : (
               <div className="flex flex-col items-center justify-center py-24 gap-4">

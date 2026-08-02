@@ -11,6 +11,7 @@ import { Link } from '@tanstack/react-router';
 import { useTileHalo } from '@/lib/design/artwork-color';
 import {
   DEFAULT_ARTWORK_PREFERENCES,
+  DEFAULT_POSTER_BADGE_PREFERENCES,
   buildBttrrPosterUrl,
   type ArtworkPreferences,
 } from '@/lib/preferences/profile-preferences';
@@ -80,12 +81,13 @@ export function MediaCard({
   index = 0,
   variant = 'standard',
   artworkPreferences = DEFAULT_ARTWORK_PREFERENCES,
-  badges = { rating: true, quality: true, age: true },
+  badges,
   progress,
   onActivate,
   onRemove,
   removeFromLabel = 'watchlist',
 }: MediaCardProps) {
+  const effectiveBadges = badges ?? artworkPreferences.posterBadges ?? DEFAULT_POSTER_BADGE_PREFERENCES;
   const [failedArtworkKey, setFailedArtworkKey] = useState<string | null>(null);
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -93,7 +95,7 @@ export function MediaCard({
   const isLandscape = geometry.shape === 'landscape';
   const addonArtwork = (isLandscape ? item.banner || item.poster : item.poster || item.banner) ?? undefined;
   const artwork = addonArtwork
-    || (item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, artworkPreferences.posterBadges) ?? undefined : undefined);
+    || (item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, effectiveBadges) ?? undefined : undefined);
   const artworkKey = `${item.id}|${artwork ?? ''}`;
   const imageFailed = failedArtworkKey === artworkKey;
   const showPreview = previewItemId === item.id;
@@ -153,11 +155,11 @@ export function MediaCard({
           />
         )}
         <span className="media-card-badges">
-          {badges.trend && <span className="media-badge media-badge-trend">#{index + 1}</span>}
-          {badges.quality && item.quality && <span className="media-badge">{item.quality}</span>}
-          {badges.genre && item.genres?.[0] && <span className="media-badge">{item.genres[0]}</span>}
-          {badges.rating && item.imdbRating && <span className="media-badge media-badge-rating">★ {item.imdbRating}</span>}
-          {badges.age && item.ageRating && <span className="media-badge">{item.ageRating}</span>}
+          {effectiveBadges.trend && <span className="media-badge media-badge-trend">#{index + 1}</span>}
+          {effectiveBadges.quality && item.quality && <span className="media-badge">{item.quality}</span>}
+          {effectiveBadges.genre && item.genres?.[0] && <span className="media-badge">{item.genres[0]}</span>}
+          {effectiveBadges.rating && item.imdbRating && <span className="media-badge media-badge-rating">★ {item.imdbRating}</span>}
+          {effectiveBadges.age && item.ageRating && <span className="media-badge">{item.ageRating}</span>}
         </span>
         {variant === 'top10' && <span className="media-top-rank">{index + 1}</span>}
         {progress && (

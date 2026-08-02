@@ -10,11 +10,14 @@ import { TMDB_API_KEY } from '@/lib/supabase';
 import { resolveFolderFromOrganizer, getCurrentOrganized, loadCollections } from '@/lib/collections/repository';
 import { resolveRawSource, deduplicateItems } from '@/lib/collections/builder';
 import { fetchCatalog as fetchCollectionCatalog } from '@/lib/collections/fetcher';
+import { resolvePosterArt } from '@/lib/preferences/profile-preferences';
 import { useState } from 'react';
+import { useArtworkPreferences } from './catalog-data';
 
 export default function FolderDetailPage() {
   const { folderId } = useParams({ strict: false }) as AnyRouteParams;
-  const { addons } = useAuth();
+  const { addons, currentProfile } = useAuth();
+  const artworkPreferences = useArtworkPreferences(currentProfile?.id);
   const [imgError, setImgError] = useState<Record<string, boolean>>({});
 
   const { data, isLoading, isError } = useQuery({
@@ -195,6 +198,9 @@ export default function FolderDetailPage() {
               const isFolderItem = item.type === 'folder';
               const showLandscape = isLandscapeFolder || isFolderItem;
               const aspectRatio = showLandscape ? '16/9' : '2/3';
+              const art = isFolderItem
+                ? (item.banner || item.poster)
+                : resolvePosterArt(item, artworkPreferences.posterBadges);
 
               return (
                 <Link
@@ -206,9 +212,9 @@ export default function FolderDetailPage() {
                   <div className="relative rounded-ml-card overflow-hidden bg-moonlit-elevated mb-1.5 transition-shadow duration-300 group-hover:shadow-lg group-hover:shadow-black/30 group-hover:ring-1 group-hover:ring-white/10"
                     style={{ aspectRatio }}
                   >
-                    {(isFolderItem ? (item.banner || item.poster) : item.poster) && !imgError[item.id] ? (
+                    {art && !imgError[item.id] ? (
                       <img
-                        src={isFolderItem ? (item.banner || item.poster) : item.poster}
+                        src={art}
                         alt={item.name}
                         className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-[1.025]"
                         loading="lazy"

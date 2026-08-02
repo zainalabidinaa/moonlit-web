@@ -180,7 +180,6 @@ export default function LibraryPage() {
               title="Saved titles"
               items={visibleItems.map(asPreview)}
               artworkPreferences={artworkPreferences}
-              badges={{ rating: true, genre: true, quality: true, age: true }}
               onRemove={preview => {
                 const item = watchlist.find(saved => saved.media_id === preview.id);
                 if (item) {

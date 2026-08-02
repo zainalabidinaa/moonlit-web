@@ -275,6 +275,36 @@ describe('PlayerSession', () => {
     expect(session.getState().fallbackReason).toBe('Repeated buffering');
   });
 
+  it('does not fall back when buffering recurs around user-initiated pause/resume', async () => {
+    const adapters: FakeAdapter[] = [];
+    const session = new PlayerSession(playbackPlan(), {
+      repeatedBufferingLimit: 3,
+      createAdapter: () => {
+        const adapter = new FakeAdapter();
+        adapters.push(adapter);
+        return adapter;
+      },
+    });
+    await session.start({ position: 0, tracks: initialTracks, subtitles: [] });
+
+    // Buffer/pause/resume cycles are common around live/HLS buffer drift while
+    // paused; none of them should count toward the repeated-buffering fallback
+    // because they follow a user-initiated pause() or play() call.
+    adapters[0].emit({ phase: 'buffering', position: 10, duration: 100 });
+    adapters[0].emit({ phase: 'paused', position: 10, duration: 100 });
+    session.pause();
+    adapters[0].emit({ phase: 'buffering', position: 10, duration: 100 });
+    adapters[0].emit({ phase: 'paused', position: 10, duration: 100 });
+    session.play();
+    adapters[0].emit({ phase: 'buffering', position: 10, duration: 100 });
+    adapters[0].emit({ phase: 'playing', position: 10, duration: 100 });
+    session.pause();
+    adapters[0].emit({ phase: 'buffering', position: 10, duration: 100 });
+
+    expect(adapters).toHaveLength(1);
+    expect(session.getState().phase).not.toBe('loading');
+  });
+
   it('falls back when startup exceeds the configured timeout', async () => {
     vi.useFakeTimers();
     const adapters: FakeAdapter[] = [];

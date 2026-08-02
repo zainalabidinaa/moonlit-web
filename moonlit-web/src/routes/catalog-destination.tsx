@@ -206,7 +206,6 @@ export function CatalogDestination({ mediaType, title }: { mediaType: 'movie' | 
             variant="continue"
             artworkPreferences={artworkPreferences}
             progressById={progressById}
-            badges={{}}
             onItemActivate={item => {
               const entry = continueEntries.find(candidate => candidate.media_id === item.id);
               if (!entry) return;

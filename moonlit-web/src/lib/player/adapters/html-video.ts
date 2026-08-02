@@ -52,6 +52,7 @@ export interface HtmlVideoPlaybackDependencies {
   detectBlackFrame?: (video: HTMLVideoElement) => boolean | Promise<boolean>;
   signal?: AbortSignal;
   onHlsAttached?: (hls: HlsInstanceLike | null) => void;
+  onAudioTracksChanged?: () => void;
   createSeekPreview?: (url: string, position: number, signal?: AbortSignal) => Promise<PlayerSeekPreview | null>;
   attachPlayback?: (
     video: HTMLVideoElement,
@@ -183,9 +184,9 @@ export async function attachHtmlVideoPlayback(
       }
       dependencies.onError?.('HLS transport failed.');
     });
-    hls.on(Hls.Events.MANIFEST_PARSED, () => this.emitTracks());
-    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => this.emitTracks());
-    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => this.emitTracks());
+    hls.on(Hls.Events.MANIFEST_PARSED, () => dependencies.onAudioTracksChanged?.());
+    hls.on(Hls.Events.AUDIO_TRACKS_UPDATED, () => dependencies.onAudioTracksChanged?.());
+    hls.on(Hls.Events.AUDIO_TRACK_SWITCHED, () => dependencies.onAudioTracksChanged?.());
     hls.loadSource(attempt.url);
     hls.attachMedia(video);
     return () => {
@@ -327,6 +328,7 @@ export class HtmlVideoAdapter implements PlayerAdapter {
         signal: request.signal,
         onHlsAttached: hls => { this.hlsTransport = hls; },
         onError: message => this.emit({ phase: 'error', error: message }),
+        onAudioTracksChanged: () => this.emitTracks(),
       });
       if (request.signal.aborted || generation !== this.loadGeneration) {
         await cleanup();

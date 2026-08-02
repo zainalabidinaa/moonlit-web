@@ -41,6 +41,13 @@ export function buildBttrrPosterUrl(imdbId: string, badges: PosterBadgePreferenc
   return `https://btttr.cc/${flags}/imdb/poster-default/${imdbId}.jpg?tag=${tag}&rs=IM`;
 }
 
+export function resolvePosterArt(
+  item: { id: string; poster?: string | null; banner?: string | null },
+  badges: PosterBadgePreferences,
+): string | undefined {
+  return item.poster || item.banner || buildBttrrPosterUrl(item.id, badges) || undefined;
+}
+
 export const DEFAULT_POSTER_BADGE_PREFERENCES: PosterBadgePreferences = {
   trend: true,
   genre: true,
