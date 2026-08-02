@@ -4,14 +4,28 @@ import { parseOrganizerJSON } from './parser';
 import { mergeOrganizedCollections } from './merge';
 import { buildCollectionRows } from './builder';
 import { CollectionDisplayPreferencesStore } from './preferences';
+import { supabaseAnonKey } from '@/lib/supabase';
 
 const BUNDLED_JSON_PATH = '/home-organizer.json';
 const CACHE_KEY = 'moonlit.organizedCollections';
 export const ORGANIZER_FUNCTION_URL = 'https://hvfsntdyowapjxobtyli.supabase.co/functions/v1/home-organizer';
 
+/**
+ * The Supabase edge function rejects unauthenticated requests (HTTP 401) — a
+ * bug native already hit and documented in CollectionOrganizerStore.swift's
+ * remoteRequest(): "All remote organizer fetches must carry the anon key
+ * headers." Web never carried them, so every "live" fetch silently 401'd and
+ * fell back to the bundled/cached snapshot forever, regardless of what the
+ * portal actually configured in Supabase.
+ */
 export async function fetchLiveOrganizer(): Promise<OrganizedCollections | null> {
   try {
-    const res = await fetch(ORGANIZER_FUNCTION_URL);
+    const res = await fetch(ORGANIZER_FUNCTION_URL, {
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+      },
+    });
     if (!res.ok) return null;
     const json = await res.json();
     return parseOrganizerJSON(json);
