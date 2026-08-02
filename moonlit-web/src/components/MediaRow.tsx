@@ -99,9 +99,14 @@ export function MediaCard({
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geometry = cardGeometry(variant, artworkPreferences.posterScale, index);
   const isLandscape = geometry.shape === 'landscape';
-  const addonArtwork = (isLandscape ? item.banner || item.poster : item.poster || item.banner) ?? undefined;
-  const artwork = addonArtwork
-    || (item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, posterBadges) ?? undefined : undefined);
+  // Mirrors CatalogService.swift's mapResponse: bttrr.cc wins for portrait
+  // IMDb-id art (native comment: "Prefer the btttr poster service for IMDb-id
+  // items; fall back to the addon-proxied poster") — it is not a last resort,
+  // it's the primary source whenever the item has a usable tt-id.
+  const bttrrPoster = item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, posterBadges) ?? undefined : undefined;
+  const artwork = isLandscape
+    ? (item.banner || bttrrPoster || item.poster) ?? undefined
+    : (bttrrPoster || item.poster || item.banner) ?? undefined;
   const artworkKey = `${item.id}|${artwork ?? ''}`;
   const imageFailed = failedArtworkKey === artworkKey;
   const showPreview = previewItemId === item.id;

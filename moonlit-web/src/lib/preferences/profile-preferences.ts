@@ -45,7 +45,9 @@ export function resolvePosterArt(
   item: { id: string; poster?: string | null; banner?: string | null },
   badges: PosterBadgePreferences,
 ): string | undefined {
-  return item.poster || item.banner || buildBttrrPosterUrl(item.id, badges) || undefined;
+  // bttrr.cc is the primary source for IMDb-id portrait art, not a fallback —
+  // matches CatalogService.swift's mapResponse precedence.
+  return buildBttrrPosterUrl(item.id, badges) || item.poster || item.banner || undefined;
 }
 
 export const DEFAULT_POSTER_BADGE_PREFERENCES: PosterBadgePreferences = {

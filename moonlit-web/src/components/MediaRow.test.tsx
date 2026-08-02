@@ -69,6 +69,19 @@ describe('MediaRow parity variants', () => {
     expect(screen.getByText('★ 8.8')).toBeInTheDocument();
   });
 
+  it('prefers the bttrr.cc badge poster over addon art for portrait tt-id tiles', () => {
+    render(<MediaRow title="Popular" items={[item]} variant="standard" />);
+    const image = screen.getByRole('link', { name: /Card Title/ }).querySelector('img');
+    expect(image).toHaveAttribute('src', expect.stringContaining('btttr.cc'));
+    expect(image?.getAttribute('src')).not.toBe(item.poster);
+  });
+
+  it('keeps the addon banner for landscape tiles, since bttrr.cc only serves portrait art', () => {
+    render(<MediaRow title="Popular" items={[item]} variant="cinematic" />);
+    const image = screen.getByRole('link', { name: /Card Title/ }).querySelector('img');
+    expect(image).toHaveAttribute('src', item.banner);
+  });
+
   it.each<MediaRailVariant>(['standard', 'cinematic', 'banner', 'stack', 'carousel', 'top10', 'continue'])(
     'renders the %s rail as a labelled region',
     variant => {

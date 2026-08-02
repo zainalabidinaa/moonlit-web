@@ -4,6 +4,7 @@ import {
   DEFAULT_ARTWORK_PREFERENCES,
   DEFAULT_HOME_PREFERENCES,
   DEFAULT_PLAYER_PREFERENCES,
+  DEFAULT_POSTER_BADGE_PREFERENCES,
   DEFAULT_SUBTITLE_PREFERENCES,
   PREFERENCE_SCHEMA_VERSIONS,
   ProfilePreferencesRepository,
@@ -11,6 +12,7 @@ import {
   normalizeHomePreferences,
   normalizePlayerPreferences,
   normalizeSubtitlePreferences,
+  resolvePosterArt,
   type PreferenceCloudStore,
   type ProfilePreferenceRow,
   type StorageLike,
@@ -30,6 +32,29 @@ class FakeCloud implements PreferenceCloudStore {
   read = this.reads;
   upsert = this.upserts;
 }
+
+describe('resolvePosterArt', () => {
+  it('prefers the bttrr.cc badge poster over addon-provided art for tt-ids, matching CatalogService.swift', () => {
+    const art = resolvePosterArt(
+      { id: 'tt1234567', poster: 'https://addon.example/poster.jpg', banner: 'https://addon.example/banner.jpg' },
+      DEFAULT_POSTER_BADGE_PREFERENCES,
+    );
+    expect(art).toContain('btttr.cc');
+    expect(art).not.toBe('https://addon.example/poster.jpg');
+  });
+
+  it('falls back to addon poster, then banner, for non-IMDb ids', () => {
+    expect(resolvePosterArt(
+      { id: 'tmdb:42', poster: 'https://addon.example/poster.jpg', banner: 'https://addon.example/banner.jpg' },
+      DEFAULT_POSTER_BADGE_PREFERENCES,
+    )).toBe('https://addon.example/poster.jpg');
+
+    expect(resolvePosterArt(
+      { id: 'tmdb:42', banner: 'https://addon.example/banner.jpg' },
+      DEFAULT_POSTER_BADGE_PREFERENCES,
+    )).toBe('https://addon.example/banner.jpg');
+  });
+});
 
 describe('preference normalization', () => {
   it('normalizes home lists and falls back for malformed fields', () => {
