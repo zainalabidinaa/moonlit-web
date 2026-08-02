@@ -262,6 +262,19 @@ export async function getInstalledAddons(profileId: string): Promise<string[]> {
   return (data || []).map((a: any) => a.addon_url);
 }
 
+/**
+ * Admin-curated addons inherited via the get_shared_addons() RPC — mirrors
+ * AddonRepository.swift's pullSharedAddons(). Callers must strip the `stream`
+ * resource before use: the RPC can return any addon the admin has installed,
+ * and only catalog/metadata/subtitle addons are meant to propagate to other
+ * users (see supabase/migrations/20260719_shared_addons_rpc.sql).
+ */
+export async function getSharedAddons(): Promise<string[]> {
+  const { data, error } = await supabase.rpc('get_shared_addons');
+  if (error || !data) return [];
+  return (data as { addon_url: string }[]).map(row => row.addon_url);
+}
+
 export async function saveInstalledAddons(profileId: string, urls: string[]) {
   await supabase.from('installed_addons').delete().eq('profile_id', profileId);
   if (urls.length > 0) {

@@ -1,8 +1,8 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { supabase } from '@/lib/supabase';
 import { MoonlitProfile, AddonManifest } from '@/lib/types';
-import { getProfiles, getInstalledAddons } from '@/lib/services/api';
-import { fetchManifest } from '@/lib/stremio';
+import { getProfiles, getInstalledAddons, getSharedAddons } from '@/lib/services/api';
+import { fetchManifest, stripStreamResource } from '@/lib/stremio';
 import { DEFAULT_ADDONS } from '@/lib/supabase';
 import { activateSubtitlePreferences } from '@/lib/subtitle-preferences';
 
@@ -74,25 +74,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (p.length > 0 && !currentProfile) {
       void activateSubtitlePreferences(p[0].id);
       setCurrentProfile(p[0]);
-      await loadAddons(p[0].id);
+      await loadAddons(p[0]);
     }
     setIsLoading(false);
   }
 
-  async function loadAddons(profileId: string) {
+  async function loadAddons(profile: MoonlitProfile) {
     try {
-      const urls = await getInstalledAddons(profileId);
+      const urls = await getInstalledAddons(profile.id);
       // Always merge with DEFAULT_ADDONS so core addons (streams, metadata) are present
       const merged = [...new Set([...DEFAULT_ADDONS, ...urls])];
-      const targetUrls = merged;
-      const manifests = await Promise.allSettled(
-        targetUrls.map(u => fetchManifest(u))
-      );
-      setAddons(
-        manifests
+
+      // Admin-curated addons inherited via get_shared_addons() (mirrors
+      // AddonRepository.swift's pullSharedAddons()) — the admin's own installed
+      // catalog/metadata/subtitle addons propagate to other signed-in users.
+      // The admin doesn't inherit their own list, and this never runs for guests.
+      const sharedUrls = profile.role !== 'admin'
+        ? (await getSharedAddons()).filter(url => !merged.includes(url))
+        : [];
+
+      const [ownManifests, sharedManifests] = await Promise.all([
+        Promise.allSettled(merged.map(u => fetchManifest(u))),
+        Promise.allSettled(sharedUrls.map(u => fetchManifest(u))),
+      ]);
+      const fulfilled = (results: PromiseSettledResult<AddonManifest>[]) =>
+        results
           .filter((r): r is PromiseFulfilledResult<AddonManifest> => r.status === 'fulfilled')
-          .map(r => r.value)
-      );
+          .map(r => r.value);
+
+      setAddons([
+        ...fulfilled(ownManifests),
+        // Stream-guarded: the backend must never deliver a playable source to
+        // other users through this channel.
+        ...fulfilled(sharedManifests).map(stripStreamResource),
+      ]);
     } catch {
       setAddons([]);
     }
@@ -150,7 +165,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (profile) void activateSubtitlePreferences(profile.id);
     setCurrentProfile(profile);
     setAddons([]);
-    if (profile) loadAddons(profile.id);
+    if (profile) loadAddons(profile);
   }
 
   async function handleCreateProfile(name: string) {
@@ -192,7 +207,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       createProfile: handleCreateProfile,
       deleteProfile: handleDeleteProfile,
       refreshProfiles: () => user ? loadProfiles(user.id) : Promise.resolve(),
-      refreshAddons: () => currentProfile ? loadAddons(currentProfile.id) : Promise.resolve()
+      refreshAddons: () => currentProfile ? loadAddons(currentProfile) : Promise.resolve()
     }}>
       {children}
     </AuthContext.Provider>

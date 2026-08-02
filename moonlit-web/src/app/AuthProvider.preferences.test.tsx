@@ -53,6 +53,7 @@ vi.mock('@/lib/supabase', () => {
 vi.mock('@/lib/services/api', () => ({
   getProfiles: vi.fn(async () => authMocks.profiles),
   getInstalledAddons: vi.fn(async () => []),
+  getSharedAddons: vi.fn(async () => []),
 }));
 
 vi.mock('@/lib/stremio', () => ({

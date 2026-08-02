@@ -83,6 +83,21 @@ export async function fetchManifest(url: string): Promise<AddonManifest> {
   };
 }
 
+/**
+ * Strips the `stream` resource from a manifest — used for admin-curated addons
+ * inherited via get_shared_addons(), so the backend can propagate catalog/
+ * metadata/subtitle addons to other users without ever handing them a stream
+ * source through that channel. Mirrors AddonManifest.strippingStreamResource()
+ * in native (Packages/MoonlitCore).
+ */
+export function stripStreamResource(manifest: AddonManifest): AddonManifest {
+  if (!manifest.resources) return manifest;
+  const resources = manifest.resources.filter(resource =>
+    (typeof resource === 'string' ? resource : resource.name) !== 'stream',
+  );
+  return { ...manifest, resources };
+}
+
 export async function fetchCatalog(
   baseURL: string,
   type: string,
