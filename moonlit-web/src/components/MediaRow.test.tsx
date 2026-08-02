@@ -18,7 +18,7 @@ vi.mock('@tanstack/react-router', () => ({
 }));
 
 const item: MetaPreview = {
-  id: 'tt-card',
+  id: 'tt1234567',
   type: 'movie',
   name: 'Card Title',
   poster: 'https://example.com/poster.jpg',
@@ -69,10 +69,10 @@ describe('MediaRow parity variants', () => {
     expect(screen.getByText('★ 8.8')).toBeInTheDocument();
   });
 
-  it('prefers the bttrr.cc badge poster over addon art for portrait tt-id tiles', () => {
+  it('prefers the bttrr.cc badge poster (via our own proxy) over addon art for portrait tt-id tiles', () => {
     render(<MediaRow title="Popular" items={[item]} variant="standard" />);
     const image = screen.getByRole('link', { name: /Card Title/ }).querySelector('img');
-    expect(image).toHaveAttribute('src', expect.stringContaining('btttr.cc'));
+    expect(image).toHaveAttribute('src', expect.stringContaining('/api/poster-proxy?id=tt1234567'));
     expect(image?.getAttribute('src')).not.toBe(item.poster);
   });
 
@@ -82,12 +82,12 @@ describe('MediaRow parity variants', () => {
     expect(image).toHaveAttribute('src', item.banner);
   });
 
-  it('cascades to the addon poster, then banner, if bttrr.cc fails to load', () => {
+  it('cascades to the addon poster, then banner, if the poster proxy fails to load', () => {
     render(<MediaRow title="Popular" items={[item]} variant="standard" />);
     const link = screen.getByRole('link', { name: /Card Title/ });
     const image = () => link.querySelector('img') as HTMLImageElement;
 
-    expect(image().src).toContain('btttr.cc');
+    expect(image().src).toContain('/api/poster-proxy');
     fireEvent.error(image());
     expect(image().src).toBe(item.poster);
     fireEvent.error(image());

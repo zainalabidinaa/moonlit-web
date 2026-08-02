@@ -39,8 +39,18 @@ describe('resolvePosterArt', () => {
       { id: 'tt1234567', poster: 'https://addon.example/poster.jpg', banner: 'https://addon.example/banner.jpg' },
       DEFAULT_POSTER_BADGE_PREFERENCES,
     );
-    expect(art).toContain('btttr.cc');
+    expect(art).toContain('/api/poster-proxy?id=tt1234567');
     expect(art).not.toBe('https://addon.example/poster.jpg');
+  });
+
+  it('resolves an episode-composite id to its root series poster, matching PosterService.swift', () => {
+    const art = resolvePosterArt({ id: 'tt1234567:1:2' }, DEFAULT_POSTER_BADGE_PREFERENCES);
+    expect(art).toContain('id=tt1234567');
+  });
+
+  it('rejects malformed ids that merely start with "tt"', () => {
+    expect(resolvePosterArt({ id: 'tt-not-a-real-id', poster: 'https://addon.example/poster.jpg' }, DEFAULT_POSTER_BADGE_PREFERENCES))
+      .toBe('https://addon.example/poster.jpg');
   });
 
   it('falls back to addon poster, then banner, for non-IMDb ids', () => {

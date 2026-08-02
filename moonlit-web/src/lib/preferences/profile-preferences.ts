@@ -32,13 +32,21 @@ export interface ArtworkPreferences {
 }
 
 export function buildBttrrPosterUrl(imdbId: string, badges: PosterBadgePreferences): string | null {
-  if (!imdbId || !imdbId.startsWith('tt')) return null;
+  // Episode-composite ids ("tt1234567:1:2") share their root series/movie poster —
+  // mirrors PosterService.swift's `id.split(separator: ":").first`. The digit check
+  // matches its `rootId.dropFirst(2).allSatisfy(\.isNumber)` guard.
+  const rootId = imdbId?.split(':')[0] ?? '';
+  if (!/^tt\d+$/.test(rootId)) return null;
   const suffix = badges.genre
     ? (badges.rating ? '' : 'g')
     : (badges.rating ? 'r' : 'n');
   const flags = `poster${suffix ? `-${suffix}` : ''}${badges.quality ? 'q' : ''}${badges.age ? 'a' : ''}`;
   const tag = badges.trend ? 'auto' : 'none';
-  return `https://btttr.cc/${flags}/imdb/poster-default/${imdbId}.jpg?tag=${tag}&rs=IM`;
+  // Routed through our own /api/poster-proxy rather than btttr.cc directly: a
+  // same-origin request can't be blocked by an ad-blocker/privacy extension
+  // treating the third-party poster-badge domain as a tracker, and lets our own
+  // CDN cache the image instead of re-hitting btttr.cc on every page load.
+  return `/api/poster-proxy?id=${rootId}&flags=${encodeURIComponent(flags)}&tag=${tag}`;
 }
 
 export function resolvePosterArt(
