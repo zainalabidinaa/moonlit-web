@@ -494,6 +494,23 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     this.eventCleanups.push(() => document.removeEventListener('fullscreenchange', onFullscreen));
     on('enterpictureinpicture', () => this.emit(this.snapshot(this.state.phase)));
     on('leavepictureinpicture', () => this.emit(this.snapshot(this.state.phase)));
+
+    // The native AudioTrackList (used for native/native-hls playback, e.g. Safari's
+    // built-in HLS engine) is its own EventTarget and does not bubble through the
+    // <video> element's events above — without this, alternate audio renditions that
+    // WebKit enumerates asynchronously after playback starts are never re-snapshotted.
+    const nativeAudioTracks = (this.video as VideoWithTracks).audioTracks as unknown as EventTarget | undefined;
+    if (nativeAudioTracks?.addEventListener) {
+      const onNativeAudioTracksChanged = () => this.emitTracks();
+      nativeAudioTracks.addEventListener('addtrack', onNativeAudioTracksChanged);
+      nativeAudioTracks.addEventListener('removetrack', onNativeAudioTracksChanged);
+      nativeAudioTracks.addEventListener('change', onNativeAudioTracksChanged);
+      this.eventCleanups.push(() => {
+        nativeAudioTracks.removeEventListener('addtrack', onNativeAudioTracksChanged);
+        nativeAudioTracks.removeEventListener('removetrack', onNativeAudioTracksChanged);
+        nativeAudioTracks.removeEventListener('change', onNativeAudioTracksChanged);
+      });
+    }
   }
 
   private snapshot(phase: PlayerAdapterState['phase']): Partial<PlayerAdapterState> & Pick<PlayerAdapterState, 'phase'> {

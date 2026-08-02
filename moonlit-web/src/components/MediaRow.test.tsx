@@ -32,7 +32,7 @@ const item: MetaPreview = {
 };
 
 describe('MediaRow parity variants', () => {
-  it('applies the 154×231 baseline, artwork settings, halo, and optional badges', () => {
+  it('applies the 154×231 baseline, artwork settings, and halo', () => {
     render(
       <MediaRow
         title="Popular"
@@ -44,7 +44,7 @@ describe('MediaRow parity variants', () => {
           hoverPreviewEnabled: false,
           hoverPreviewDelaySeconds: 0.7,
         }}
-        badges={{ trend: true, quality: true, genre: true, rating: true, age: true }}
+        badges={{ rating: true }}
       />,
     );
 
@@ -56,9 +56,17 @@ describe('MediaRow parity variants', () => {
       '--media-card-radius': '18px',
     });
     expect(card).toHaveClass('artwork-halo');
-    for (const badge of ['#1', '4K', 'Science Fiction', '★ 8.8', '16+']) {
-      expect(screen.getByText(badge)).toBeInTheDocument();
-    }
+    expect(screen.getByText('★ 8.8')).toBeInTheDocument();
+  });
+
+  it('shows the rating pill only as a fallback for when bttrr.cc has not burned it into the poster', () => {
+    const { rerender } = render(
+      <MediaRow title="Popular" items={[item]} badges={{ rating: false }} />,
+    );
+    expect(screen.queryByText('★ 8.8')).not.toBeInTheDocument();
+
+    rerender(<MediaRow title="Popular" items={[item]} badges={{ rating: true }} />);
+    expect(screen.getByText('★ 8.8')).toBeInTheDocument();
   });
 
   it.each<MediaRailVariant>(['standard', 'cinematic', 'banner', 'stack', 'carousel', 'top10', 'continue'])(

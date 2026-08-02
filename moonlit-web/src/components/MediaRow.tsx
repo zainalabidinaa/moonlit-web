@@ -27,11 +27,14 @@ export type MediaRailVariant =
   | 'continue';
 
 export interface MediaBadgeVisibility {
-  trend?: boolean;
-  quality?: boolean;
-  genre?: boolean;
+  /**
+   * Fallback IMDb rating pill, shown only when the poster art itself doesn't
+   * already have the rating burned in by bttrr.cc — mirrors the native
+   * `posterHasRating`/`!posterRating` rule in ContentCard.swift/MediaCard.swift.
+   * Trend/genre/quality/age have no overlay equivalent: those are baked into
+   * the bttrr.cc image itself and never duplicated as a separate badge.
+   */
   rating?: boolean;
-  age?: boolean;
 }
 
 export interface MediaProgress {
@@ -87,7 +90,10 @@ export function MediaCard({
   onRemove,
   removeFromLabel = 'watchlist',
 }: MediaCardProps) {
-  const effectiveBadges = badges ?? artworkPreferences.posterBadges ?? DEFAULT_POSTER_BADGE_PREFERENCES;
+  const posterBadges = artworkPreferences.posterBadges ?? DEFAULT_POSTER_BADGE_PREFERENCES;
+  // The rating pill is the only overlay badge: it substitutes for the rating
+  // when bttrr.cc hasn't burned it into the poster art itself, never both at once.
+  const showRatingBadge = badges?.rating ?? !posterBadges.rating;
   const [failedArtworkKey, setFailedArtworkKey] = useState<string | null>(null);
   const [previewItemId, setPreviewItemId] = useState<string | null>(null);
   const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -95,7 +101,7 @@ export function MediaCard({
   const isLandscape = geometry.shape === 'landscape';
   const addonArtwork = (isLandscape ? item.banner || item.poster : item.poster || item.banner) ?? undefined;
   const artwork = addonArtwork
-    || (item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, effectiveBadges) ?? undefined : undefined);
+    || (item.id.startsWith('tt') ? buildBttrrPosterUrl(item.id, posterBadges) ?? undefined : undefined);
   const artworkKey = `${item.id}|${artwork ?? ''}`;
   const imageFailed = failedArtworkKey === artworkKey;
   const showPreview = previewItemId === item.id;
@@ -155,11 +161,7 @@ export function MediaCard({
           />
         )}
         <span className="media-card-badges">
-          {effectiveBadges.trend && <span className="media-badge media-badge-trend">#{index + 1}</span>}
-          {effectiveBadges.quality && item.quality && <span className="media-badge">{item.quality}</span>}
-          {effectiveBadges.genre && item.genres?.[0] && <span className="media-badge">{item.genres[0]}</span>}
-          {effectiveBadges.rating && item.imdbRating && <span className="media-badge media-badge-rating">★ {item.imdbRating}</span>}
-          {effectiveBadges.age && item.ageRating && <span className="media-badge">{item.ageRating}</span>}
+          {showRatingBadge && item.imdbRating && <span className="media-badge media-badge-rating">★ {item.imdbRating}</span>}
         </span>
         {variant === 'top10' && <span className="media-top-rank">{index + 1}</span>}
         {progress && (

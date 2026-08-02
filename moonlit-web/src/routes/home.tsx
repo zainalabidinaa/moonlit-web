@@ -266,6 +266,7 @@ export default function HomePage() {
             title="Continue Watching"
             variant="continue"
             artworkPreferences={artworkPreferences}
+            badges={{ rating: false }}
             items={continueWatching.map(item => {
               const fallback = cwMetas?.[item.media_id];
               const poster = item.media_type === 'series' && item.media_id.includes(':')

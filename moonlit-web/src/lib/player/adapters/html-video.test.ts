@@ -241,6 +241,41 @@ describe('HtmlVideoAdapter', () => {
     expect(FakeHls.instance?.audioTrack).toBe(1);
   });
 
+  it('re-snapshots when the native AudioTrackList enumerates renditions asynchronously', async () => {
+    const video = document.createElement('video');
+    class FakeAudioTrackList extends EventTarget {
+      private tracks: Array<{ id: string; label: string; language: string; enabled: boolean }> = [];
+      get length() { return this.tracks.length; }
+      [index: number]: { id: string; label: string; language: string; enabled: boolean };
+      push(track: { id: string; label: string; language: string; enabled: boolean }) {
+        this.tracks.push(track);
+        (this as unknown as Record<number, unknown>)[this.tracks.length - 1] = track;
+        this.dispatchEvent(new Event('addtrack'));
+      }
+    }
+    const nativeList = new FakeAudioTrackList();
+    Object.defineProperty(video, 'audioTracks', { configurable: true, get: () => nativeList });
+
+    const adapter = new HtmlVideoAdapter(video, video, { attachPlayback: async () => () => undefined });
+    let latestTracks: Array<{ id: string | number; language?: string }> = [];
+    adapter.subscribe(state => { latestTracks = state.audioTracks; });
+
+    await adapter.load({
+      attempt: attempt('native-hls', 'https://cdn.example/master.m3u8'),
+      position: 0,
+      tracks: { audioId: null, subtitleId: 'off', audioLanguage: null, subtitleLanguage: null },
+      subtitles: [],
+      signal: new AbortController().signal,
+    });
+    expect(latestTracks).toEqual([]);
+
+    // WebKit enumerates native HLS audio renditions asynchronously, well after load()
+    // resolves — nothing about a regular <video> media event fires alongside this.
+    nativeList.push({ id: 'eng', label: 'English', language: 'en', enabled: true });
+
+    expect(latestTracks).toEqual([expect.objectContaining({ id: 'eng', language: 'en' })]);
+  });
+
   it('normalizes media events and restores the requested position', async () => {
     const video = document.createElement('video');
     Object.defineProperties(video, {
