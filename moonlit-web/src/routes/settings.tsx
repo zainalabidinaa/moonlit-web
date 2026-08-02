@@ -15,6 +15,7 @@ import {
   DEFAULT_ARTWORK_PREFERENCES,
   DEFAULT_PLAYER_PREFERENCES,
   DEFAULT_SUBTITLE_PREFERENCES,
+  buildBttrrPosterUrl,
   normalizeSubtitlePreferences,
   type HomePreferences,
   type ArtworkPreferences,
@@ -644,6 +645,17 @@ export default function SettingsPage() {
             <div className="px-4 pt-2 pb-1">
               <p className="text-xs font-bold text-white/40 uppercase tracking-wider">Poster Badges</p>
               <p className="text-[11px] text-white/30 mt-0.5">bttrr.cc overlays</p>
+            </div>
+            <div className="flex justify-center py-3 bg-[#111] mx-4 rounded border border-white/5">
+              <img
+                src={buildBttrrPosterUrl('tt14688458', artworkPrefs.posterBadges) ?? ''}
+                alt="Poster badge preview (Dune)"
+                className="rounded"
+                style={{ width: '120px', height: '180px', objectFit: 'cover' }}
+                onError={e => {
+                  (e.target as HTMLImageElement).style.display = 'none';
+                }}
+              />
             </div>
             <Toggle checked={artworkPrefs.posterBadges.trend}
               onChange={v => setArtworkPrefs(p => ({ ...p, posterBadges: { ...p.posterBadges, trend: v } }))} label="Trend" />

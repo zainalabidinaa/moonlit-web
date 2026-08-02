@@ -56,8 +56,10 @@ export function stremioUpstreamUrl(
 }
 
 /**
- * Fetch a Stremio addon resource. Desktop: direct native call.
- * Browser: through the `/api/stremio/*` proxy.
+ * Fetch a Stremio addon resource.
+ * Desktop: Tauri native HTTP. Browser: direct CORS call.
+ * Calling addons directly ensures debrid links are locked to the caller's IP
+ * rather than a server proxy IP. Stremio addons are required to support CORS.
  */
 export async function stremioFetch(
   route: StremioRoute,
@@ -66,11 +68,7 @@ export async function stremioFetch(
   if (isDesktop()) {
     return platformFetch(stremioUpstreamUrl(route, p));
   }
-  const params = new URLSearchParams({ url: p.url });
-  if (p.type) params.set('type', p.type);
-  if (p.id) params.set('id', p.id);
-  if (p.extras && Object.keys(p.extras).length > 0) params.set('extras', JSON.stringify(p.extras));
-  return fetch(`/api/stremio/${route}?${params}`);
+  return platformFetch(stremioUpstreamUrl(route, p));
 }
 
 /** Subtitle URL for the WEB player (<track> needs VTT). Desktop mpv uses raw URLs. */
