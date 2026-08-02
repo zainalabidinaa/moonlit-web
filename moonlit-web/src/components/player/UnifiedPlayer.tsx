@@ -10,6 +10,7 @@ import type {
   PlayerAdapterCapabilities,
   PlayerTrackSelection,
 } from '@/lib/player/contracts';
+import { playerTrackIdentity } from '@/lib/player/contracts';
 import { PlayerSession, type PlayerSessionState } from '@/lib/player/session';
 import { HtmlVideoAdapter } from '@/lib/player/adapters/html-video';
 import { MediabunnyAdapter } from '@/lib/player/adapters/mediabunny';
@@ -128,6 +129,8 @@ function playbackHandoff(
       subtitleId: current?.selectedSubtitleId === 'off' ? 'off' : null,
       audioLanguage: audioTrack?.language ?? launch.preferredTracks.audioLanguage,
       subtitleLanguage: subtitleTrack?.language ?? launch.preferredTracks.subtitleLanguage,
+      audioIdentity: audioTrack ? playerTrackIdentity(audioTrack, current?.audioTracks ?? []) : launch.preferredTracks.audioIdentity ?? null,
+      subtitleIdentity: subtitleTrack ? playerTrackIdentity(subtitleTrack, current?.subtitleTracks ?? []) : launch.preferredTracks.subtitleIdentity ?? null,
     },
   };
 }
@@ -288,7 +291,7 @@ export function UnifiedPlayer({
     setFullscreen: fullscreen => sessionRef.current?.setFullscreen(fullscreen),
     setPictureInPicture: enabled => sessionRef.current?.setPictureInPicture(enabled),
     requestRemotePlayback: () => sessionRef.current?.requestRemotePlayback(),
-    requestSeekPreview: position => sessionRef.current?.requestSeekPreview(position) ?? null,
+    requestSeekPreview: (position, signal) => sessionRef.current?.requestSeekPreview(position, signal) ?? null,
     selectAudioTrack: id => sessionRef.current?.selectAudioTrack(id),
     selectSubtitleTrack: id => sessionRef.current?.selectSubtitleTrack(id),
     openAudioPanel: () => sessionRef.current?.openAudioPanel(),

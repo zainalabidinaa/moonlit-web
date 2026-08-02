@@ -20,6 +20,7 @@ export interface MpvTrack {
   label: string;
   selected: boolean;
   external?: boolean;
+  sourceUrl?: string;
 }
 
 export interface MpvState {
@@ -58,6 +59,7 @@ export function parseTrackList(raw: unknown): MpvState['tracks'] {
     const lang = typeof t.lang === 'string' ? t.lang : undefined;
     const title = typeof t.title === 'string' ? t.title : undefined;
     const codec = typeof t.codec === 'string' ? t.codec : undefined;
+    const sourceUrl = typeof t['external-filename'] === 'string' ? t['external-filename'] : undefined;
     const parts = [title ?? lang ?? `Track ${t.id}`, codec?.toUpperCase()].filter(Boolean);
     return {
       id: Number(t.id),
@@ -65,6 +67,7 @@ export function parseTrackList(raw: unknown): MpvState['tracks'] {
       label: parts.join(' \u00b7 '),
       selected: t.selected === true,
       external: t.external === true,
+      sourceUrl,
     };
   };
   const items = raw as RawTrack[];

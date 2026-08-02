@@ -33,6 +33,7 @@ import type {
 
 export const PLAYER_AUTO_HIDE_MS = 2_400;
 export const PLAYER_CHROME_FADE_MS = 180;
+export const PLAYER_SEEK_PREVIEW_DEBOUNCE_MS = 100;
 
 export interface PlayerChromeState {
   phase: 'idle' | 'resolving' | 'loading' | 'ready' | 'playing' | 'paused' | 'buffering' | 'ended' | 'error' | 'external' | 'unsupported';
@@ -68,7 +69,7 @@ export interface PlayerChromeController {
   selectAudioTrack(id: string | number): void | Promise<void>;
   selectSubtitleTrack(id: string | number | 'off'): void | Promise<void>;
   openAudioPanel(): void | Promise<void>;
-  requestSeekPreview?(position: number): PlayerSeekPreview | null | Promise<PlayerSeekPreview | null>;
+  requestSeekPreview?(position: number, signal?: AbortSignal): PlayerSeekPreview | null | Promise<PlayerSeekPreview | null>;
   retry(): void | Promise<void>;
 }
 
@@ -206,8 +207,9 @@ function PanelFrame({
   );
 }
 
-function TrackRow({ selected, label, detail, onClick }: {
+function TrackRow({ selected, tabStop = selected, label, detail, onClick }: {
   selected: boolean;
+  tabStop?: boolean;
   label: string;
   detail?: string;
   onClick: () => void;
@@ -217,7 +219,7 @@ function TrackRow({ selected, label, detail, onClick }: {
       type="button"
       role="option"
       aria-selected={selected}
-      tabIndex={selected ? 0 : -1}
+      tabIndex={tabStop ? 0 : -1}
       onClick={onClick}
       onKeyDown={event => {
         if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
@@ -231,7 +233,11 @@ function TrackRow({ selected, label, detail, onClick }: {
           : event.key === 'End'
             ? options.length - 1
             : (current + (event.key === 'ArrowDown' ? 1 : -1) + options.length) % options.length;
-        options[next]?.focus();
+        options.forEach(option => { option.tabIndex = -1; });
+        if (options[next]) {
+          options[next].tabIndex = 0;
+          options[next].focus();
+        }
       }}
       className={`flex min-h-11 w-full items-center gap-3 rounded-ml-ctl px-3 py-2 text-start transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-white ${selected ? 'bg-player-elevated font-semibold text-player-ink' : 'text-player-ink-muted hover:bg-white/5 hover:text-player-ink'}`}
     >
@@ -268,6 +274,9 @@ export function PlayerChrome({
   const [chromeFocused, setChromeFocused] = useState(false);
   const [seekPreview, setSeekPreview] = useState<(PlayerSeekPreview & { percent: number }) | null>(null);
   const seekPreviewGeneration = useRef(0);
+  const seekPreviewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const seekPreviewAbort = useRef<AbortController | null>(null);
+  const seekPreviewCache = useRef(new Map<number, PlayerSeekPreview>());
   const [showResume, setShowResume] = useState(resumePosition >= 10);
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stateRef = useRef(state);
@@ -399,21 +408,41 @@ export function PlayerChrome({
     const bounds = event.currentTarget.getBoundingClientRect();
     if (bounds.width <= 0) return;
     const percent = Math.max(0, Math.min(1, (event.clientX - bounds.left) / bounds.width));
-    const position = percent * state.duration;
+    const position = Math.round(percent * state.duration);
     const generation = seekPreviewGeneration.current + 1;
     seekPreviewGeneration.current = generation;
-    void Promise.resolve(controller.requestSeekPreview(position)).then(result => {
-      if (generation === seekPreviewGeneration.current && result) setSeekPreview({ ...result, percent });
-    });
+    if (seekPreviewTimer.current) clearTimeout(seekPreviewTimer.current);
+    const cached = seekPreviewCache.current.get(position);
+    if (cached) {
+      setSeekPreview({ ...cached, percent });
+      return;
+    }
+    seekPreviewTimer.current = setTimeout(() => {
+      seekPreviewTimer.current = null;
+      seekPreviewAbort.current?.abort();
+      const abortController = new AbortController();
+      seekPreviewAbort.current = abortController;
+      void Promise.resolve(controller.requestSeekPreview?.(position, abortController.signal)).then(result => {
+        if (abortController.signal.aborted || generation !== seekPreviewGeneration.current || !result) return;
+        seekPreviewCache.current.set(position, result);
+        if (seekPreviewCache.current.size > 60) seekPreviewCache.current.delete(seekPreviewCache.current.keys().next().value as number);
+        setSeekPreview({ ...result, percent });
+      });
+    }, PLAYER_SEEK_PREVIEW_DEBOUNCE_MS);
   };
+
+  useEffect(() => () => {
+    if (seekPreviewTimer.current) clearTimeout(seekPreviewTimer.current);
+    seekPreviewAbort.current?.abort();
+  }, []);
 
   const isLoading = state.phase === 'idle' || state.phase === 'resolving' || state.phase === 'loading';
   const isError = state.phase === 'error' || state.phase === 'external' || state.phase === 'unsupported';
   useEffect(() => {
-    if (!isLoading && !isError) return;
+    if (!isLoading && (!isError || panel === 'sources')) return;
     const timer = setTimeout(() => setPanel(null), 0);
     return () => clearTimeout(timer);
-  }, [isError, isLoading]);
+  }, [isError, isLoading, panel]);
   const controlsVisible = !isLoading && !isError && (
     visible || chromeFocused || state.phase !== 'playing' || state.paused || panel !== null
   );
@@ -527,6 +556,10 @@ export function PlayerChrome({
               onMouseMove={updateSeekPreview}
               onMouseLeave={() => {
                 seekPreviewGeneration.current += 1;
+                if (seekPreviewTimer.current) clearTimeout(seekPreviewTimer.current);
+                seekPreviewTimer.current = null;
+                seekPreviewAbort.current?.abort();
+                seekPreviewAbort.current = null;
                 setSeekPreview(null);
               }}
             >
@@ -621,13 +654,14 @@ export function PlayerChrome({
         </footer>
       </div>
 
-      {!isLoading && !isError && panel === 'sources' && (
+      {!isLoading && panel === 'sources' && (
         <PanelFrame title="Sources" width="w-[440px]" onClose={() => setPanel(null)} fullHeight>
           <div className="space-y-2 px-3 pb-5" role="listbox" aria-label="Playback sources">
             {streams.map((stream, index) => (
               <TrackRow
                 key={`${stream.url || stream.externalUrl || index}`}
                 selected={index === sourceIndex}
+                tabStop={index === sourceIndex || (sourceIndex < 0 && index === 0)}
                 label={streamLabel(stream, index)}
                 detail={stream.addonName}
                 onClick={() => { setPanel(null); onSwitchStream(stream); }}
@@ -641,10 +675,12 @@ export function PlayerChrome({
       {!isLoading && !isError && panel === 'audio' && (
         <PanelFrame title="Audio" width="w-[360px]" onClose={() => setPanel(null)}>
           <div role="listbox" aria-label="Audio tracks" className="max-h-[260px] space-y-1 overflow-y-auto">
-            {state.audioTracks.map(track => (
+            {state.audioTracks.map((track, index) => (
               <TrackRow
                 key={track.id}
                 selected={track.id === state.selectedAudioId || track.selected}
+                tabStop={(track.id === state.selectedAudioId || track.selected)
+                  || (!state.audioTracks.some(item => item.id === state.selectedAudioId || item.selected) && index === 0)}
                 label={track.label}
                 detail={[track.codec, track.channels].filter(Boolean).join(' · ')}
                 onClick={() => { setPanel(null); void controller.selectAudioTrack(track.id); }}
@@ -665,7 +701,13 @@ export function PlayerChrome({
               <p className="px-3 py-2">External · {subtitleRows.filter(track => !track.embedded).length}</p>
             </div>
             <div role="listbox" aria-label="Subtitle tracks" className="max-h-[300px] space-y-1 overflow-y-auto">
-              <TrackRow selected={state.selectedSubtitleId === 'off'} label="Off" onClick={() => { setPanel(null); void controller.selectSubtitleTrack('off'); }} />
+              <TrackRow
+                selected={state.selectedSubtitleId === 'off'}
+                tabStop={state.selectedSubtitleId === 'off'
+                  || !subtitleRows.some(track => track.id === state.selectedSubtitleId || track.selected)}
+                label="Off"
+                onClick={() => { setPanel(null); void controller.selectSubtitleTrack('off'); }}
+              />
               {subtitleRows.map(track => (
                 <TrackRow
                   key={track.id}

@@ -146,6 +146,7 @@ describe('PlayerChrome', () => {
   });
 
   it('requests and renders a time-following seek thumbnail from the active renderer', async () => {
+    vi.useFakeTimers();
     const controls = controller();
     controls.requestSeekPreview = vi.fn(async position => ({
       position,
@@ -166,13 +167,48 @@ describe('PlayerChrome', () => {
     });
 
     fireEvent.mouseMove(timeline, { clientX: 300 });
+    await act(async () => vi.advanceTimersByTimeAsync(120));
 
-    expect(controls.requestSeekPreview).toHaveBeenCalledWith(1564);
-    expect(await screen.findByRole('img', { name: 'Preview at 26:04' })).toHaveAttribute(
+    expect(controls.requestSeekPreview).toHaveBeenCalledWith(1564, expect.any(AbortSignal));
+    expect(screen.getByRole('img', { name: 'Preview at 26:04' })).toHaveAttribute(
       'src',
       'data:image/jpeg;base64,preview-frame',
     );
     expect(screen.getByTestId('seek-preview')).toHaveStyle({ left: '50%' });
+  });
+
+  it('debounces hover previews, aborts stale work, and caches completed timestamps', async () => {
+    vi.useFakeTimers();
+    const pending: Array<{ position: number; signal?: AbortSignal; resolve: (value: { position: number; imageUrl: string }) => void }> = [];
+    const controls = controller();
+    controls.requestSeekPreview = vi.fn((position, signal) => new Promise(resolve => {
+      pending.push({ position, signal, resolve });
+    }));
+    renderChrome({ controller: controls, state: { ...playingState, duration: 100 } });
+    const timeline = screen.getByTestId('seek-preview-timeline');
+    vi.spyOn(timeline, 'getBoundingClientRect').mockReturnValue({
+      left: 0, width: 100, right: 100, top: 0, bottom: 44, height: 44, x: 0, y: 0, toJSON: () => ({}),
+    });
+
+    fireEvent.mouseMove(timeline, { clientX: 10 });
+    fireEvent.mouseMove(timeline, { clientX: 20 });
+    fireEvent.mouseMove(timeline, { clientX: 30 });
+    act(() => vi.advanceTimersByTime(99));
+    expect(controls.requestSeekPreview).not.toHaveBeenCalled();
+    act(() => vi.advanceTimersByTime(1));
+    expect(controls.requestSeekPreview).toHaveBeenCalledTimes(1);
+    expect(pending[0].position).toBe(30);
+
+    fireEvent.mouseMove(timeline, { clientX: 40 });
+    act(() => vi.advanceTimersByTime(100));
+    expect(pending[0].signal?.aborted).toBe(true);
+    expect(controls.requestSeekPreview).toHaveBeenCalledTimes(2);
+    await act(async () => pending[1].resolve({ position: 40, imageUrl: 'data:image/jpeg;base64,forty' }));
+    expect(screen.getByRole('img', { name: 'Preview at 0:40' })).toHaveAttribute('src', 'data:image/jpeg;base64,forty');
+
+    fireEvent.mouseMove(timeline, { clientX: 40 });
+    act(() => vi.advanceTimersByTime(100));
+    expect(controls.requestSeekPreview).toHaveBeenCalledTimes(2);
   });
 
   it('opens audio, subtitles, and Up Next in the approved panel widths', async () => {
@@ -197,8 +233,8 @@ describe('PlayerChrome', () => {
 
   it('closes an open panel when playback leaves an interactive phase', () => {
     const view = renderChrome();
-    fireEvent.click(screen.getByRole('button', { name: 'Sources' }));
-    expect(screen.getByRole('dialog', { name: 'Sources' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Audio tracks' }));
+    expect(screen.getByRole('dialog', { name: 'Audio' })).toBeInTheDocument();
 
     view.rerender(
       <PlayerChrome
@@ -215,7 +251,7 @@ describe('PlayerChrome', () => {
       />,
     );
 
-    expect(screen.queryByRole('dialog', { name: 'Sources' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: 'Audio' })).not.toBeInTheDocument();
   });
 
   it('normalizes player hotkeys while ignoring modified shortcuts and form input', () => {
@@ -260,6 +296,8 @@ describe('PlayerChrome', () => {
     options[0].focus();
     fireEvent.keyDown(options[0], { key: 'ArrowDown' });
     expect(options[1]).toHaveFocus();
+    expect(options[0]).toHaveAttribute('tabindex', '-1');
+    expect(options[1]).toHaveAttribute('tabindex', '0');
     expect(controls.seek).not.toHaveBeenCalled();
 
     fireEvent.keyDown(dialog, { key: 'Escape' });
@@ -267,6 +305,21 @@ describe('PlayerChrome', () => {
     expect(sourcesButton).toHaveFocus();
     fireEvent.keyDown(sourcesButton, { key: ' ' });
     expect(controls.pause).not.toHaveBeenCalled();
+  });
+
+  it('gives an unselected list one roving Tab stop', () => {
+    renderChrome({
+      state: {
+        ...playingState,
+        selectedAudioId: null,
+        audioTracks: audioTracks.map(track => ({ ...track, selected: false })),
+      },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Audio tracks' }));
+
+    const options = screen.getAllByRole('option');
+    expect(options.filter(option => option.tabIndex === 0)).toHaveLength(1);
+    expect(options[0]).toHaveAttribute('tabindex', '0');
   });
 
   it('keeps keyboard-focused controls visible while playback continues', () => {
@@ -369,5 +422,17 @@ describe('PlayerChrome', () => {
     fireEvent.click(screen.getByRole('option', { name: /1080p H\.264 AAC/ }));
 
     expect(onSwitchStream).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://cdn.example/backup.mp4' }));
+  });
+
+  it('opens and uses source recovery from the terminal error surface', () => {
+    const onSwitchStream = vi.fn();
+    renderChrome({ state: { ...playingState, phase: 'error', error: 'All routes failed' }, onSwitchStream });
+
+    fireEvent.click(screen.getByRole('button', { name: 'Choose source' }));
+    expect(screen.getByRole('dialog', { name: 'Sources' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('option', { name: /1080p H\.264 AAC/ }));
+
+    expect(onSwitchStream).toHaveBeenCalledWith(expect.objectContaining({ url: 'https://cdn.example/backup.mp4' }));
+    expect(screen.queryByRole('dialog', { name: 'Sources' })).not.toBeInTheDocument();
   });
 });

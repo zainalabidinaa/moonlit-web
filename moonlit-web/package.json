@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest",
+    "test:e2e:player": "playwright test -c playwright.player.config.ts",
     "tauri": "tauri",
     "typecheck": "tsc -b",
     "setup:desktop": "node scripts/fetch-libmpv.mjs"
@@ -35,6 +36,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.62.1",
     "@tauri-apps/cli": "^2.11.4",
     "@testing-library/dom": "^10.4.1",
     "@testing-library/jest-dom": "^6.9.1",

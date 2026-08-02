@@ -232,6 +232,8 @@ describe('UnifiedPlayer', () => {
         subtitleId: null,
         audioLanguage: 'es',
         subtitleLanguage: 'en',
+        audioIdentity: { kind: 'audio', language: 'es', label: 'Spanish', ordinal: 0 },
+        subtitleIdentity: { kind: 'subtitles', language: 'en', label: 'English', ordinal: 0 },
       },
     });
   });

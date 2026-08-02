@@ -26,6 +26,9 @@ export class WebCodecsAdapter implements PlayerAdapter {
   private readonly listeners = new Set<(state: PlayerAdapterState) => void>();
   private loadGeneration = 0;
   private fullscreen = false;
+  private destroyPromise: Promise<void> | null = null;
+  private readonly disposedEngines = new WeakSet<WebCodecsEngineLike>();
+  private readonly onFullscreenChange: () => void;
 
   constructor(
     private readonly canvas: HTMLCanvasElement,
@@ -45,23 +48,32 @@ export class WebCodecsAdapter implements PlayerAdapter {
       screenshot: false,
       anime4k: false,
     };
+    this.onFullscreenChange = () => {
+      this.fullscreen = document.fullscreenElement === this.fullscreenRoot;
+      this.emit({ phase: this.state.phase, fullscreen: this.fullscreen });
+    };
+    document.addEventListener('fullscreenchange', this.onFullscreenChange);
   }
 
   async load(request: PlayerAdapterLoadRequest): Promise<void> {
     const generation = this.loadGeneration + 1;
     this.loadGeneration = generation;
     this.unsubscribeEngine?.();
-    this.engine?.destroy();
+    this.disposeEngine(this.engine);
     const engine = this.createEngine();
     this.engine = engine;
     this.emit({ phase: 'loading', position: request.position });
     this.unsubscribeEngine = engine.subscribe(state => this.handleEngineState(state));
     await engine.load(request.attempt.url, this.canvas);
     if (request.signal.aborted || generation !== this.loadGeneration || this.engine !== engine) {
-      engine.destroy();
+      this.disposeEngine(engine);
       return;
     }
     if (request.position > 0) await engine.seekTo(request.position);
+    if (request.signal.aborted || generation !== this.loadGeneration || this.engine !== engine) {
+      this.disposeEngine(engine);
+      return;
+    }
     engine.play();
   }
 
@@ -87,13 +99,24 @@ export class WebCodecsAdapter implements PlayerAdapter {
     return () => this.listeners.delete(listener);
   }
 
-  destroy(): void {
+  destroy(): Promise<void> {
+    if (this.destroyPromise) return this.destroyPromise;
     this.loadGeneration += 1;
-    this.unsubscribeEngine?.();
-    this.unsubscribeEngine = null;
-    this.engine?.destroy();
-    this.engine = null;
-    this.listeners.clear();
+    this.destroyPromise = Promise.resolve().then(() => {
+      this.unsubscribeEngine?.();
+      this.unsubscribeEngine = null;
+      this.disposeEngine(this.engine);
+      this.engine = null;
+      document.removeEventListener('fullscreenchange', this.onFullscreenChange);
+      this.listeners.clear();
+    });
+    return this.destroyPromise;
+  }
+
+  private disposeEngine(engine: WebCodecsEngineLike | null): void {
+    if (!engine || this.disposedEngines.has(engine)) return;
+    this.disposedEngines.add(engine);
+    engine.destroy();
   }
 
   private handleEngineState(next: WebCodecsPlayerState): void {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { PlaybackAttempt } from '@/lib/player/contracts';
+import type { PlaybackAttempt, PlayerAdapterState } from '@/lib/player/contracts';
 import {
   HtmlVideoAdapter,
   attachHtmlVideoPlayback,
@@ -161,6 +161,32 @@ describe('attachHtmlVideoPlayback', () => {
 });
 
 describe('HtmlVideoAdapter', () => {
+  it('reflects native fullscreen and picture-in-picture exits in adapter state', () => {
+    const video = document.createElement('video');
+    const root = document.createElement('div');
+    let fullscreenElement: Element | null = root;
+    let pictureInPictureElement: Element | null = video;
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreenElement });
+    Object.defineProperty(document, 'pictureInPictureElement', { configurable: true, get: () => pictureInPictureElement });
+    const adapter = new HtmlVideoAdapter(video, root, { attachPlayback: async () => () => undefined });
+    let latest: PlayerAdapterState | null = null;
+    adapter.subscribe(state => { latest = state; });
+
+    document.dispatchEvent(new Event('fullscreenchange'));
+    video.dispatchEvent(new Event('enterpictureinpicture'));
+    expect(latest?.fullscreen).toBe(true);
+    expect(latest?.pictureInPicture).toBe(true);
+
+    fullscreenElement = null;
+    pictureInPictureElement = null;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    video.dispatchEvent(new Event('leavepictureinpicture'));
+    expect(latest?.fullscreen).toBe(false);
+    expect(latest?.pictureInPicture).toBe(false);
+    delete (document as Document & { fullscreenElement?: Element | null }).fullscreenElement;
+    delete (document as Document & { pictureInPictureElement?: Element | null }).pictureInPictureElement;
+  });
+
   it('lazily exposes and selects HLS.js audio renditions when native audioTracks are absent', async () => {
     const video = document.createElement('video');
     class FakeHls {
@@ -364,6 +390,36 @@ describe('HtmlVideoAdapter', () => {
     expect(video.querySelector('track')).toHaveAttribute('src', '/late-sv.vtt');
   });
 
+  it('bounds direct-media preview work to one request and caches completed frames', async () => {
+    const pending: Array<{ signal?: AbortSignal; resolve: (value: { position: number; imageUrl: string }) => void }> = [];
+    const createSeekPreview = vi.fn((_url: string, _position: number, signal?: AbortSignal) => new Promise(resolve => {
+      pending.push({ signal, resolve });
+    }));
+    const video = document.createElement('video');
+    const adapter = new HtmlVideoAdapter(video, video, {
+      attachPlayback: async () => () => undefined,
+      createSeekPreview,
+    });
+    await adapter.load({
+      attempt: { ...attempt('native'), requestHeaders: undefined },
+      position: 0,
+      tracks: { audioId: null, subtitleId: 'off', audioLanguage: null, subtitleLanguage: null },
+      subtitles: [],
+      signal: new AbortController().signal,
+    });
+
+    void adapter.requestSeekPreview(10);
+    const second = adapter.requestSeekPreview(20);
+    expect(pending[0].signal?.aborted).toBe(true);
+    pending[1].resolve({ position: 20, imageUrl: 'data:image/jpeg;base64,twenty' });
+    await second;
+    await adapter.requestSeekPreview(20);
+
+    expect(createSeekPreview).toHaveBeenCalledTimes(2);
+    await adapter.destroy();
+    expect(pending[1].signal?.aborted).toBe(true);
+  });
+
   it('cleans up a transport that resolves after its load was aborted', async () => {
     const video = document.createElement('video');
     const cleanup = vi.fn();
@@ -384,11 +440,16 @@ describe('HtmlVideoAdapter', () => {
 
     controller.abort();
     const destroy = adapter.destroy();
+    let destroySettled = false;
+    void destroy.then(() => { destroySettled = true; });
+    await new Promise(resolve => setTimeout(resolve, 0));
+    expect(destroySettled).toBe(false);
     resolveAttach?.(cleanup);
     await load;
     await destroy;
 
     expect(cleanup).toHaveBeenCalledTimes(1);
+    expect(destroySettled).toBe(true);
   });
 });
 

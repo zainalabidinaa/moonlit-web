@@ -63,6 +63,8 @@ describe('normalizePlayerLaunch', () => {
       subtitleId: 'sub-4',
       audioLanguage: 'en',
       subtitleLanguage: 'sv',
+      audioIdentity: null,
+      subtitleIdentity: null,
     });
     expect(normalized.metadata.secondaryTitle).toBe('Live');
   });

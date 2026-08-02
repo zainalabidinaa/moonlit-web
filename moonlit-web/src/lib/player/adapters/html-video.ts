@@ -9,6 +9,7 @@ import type {
   PlayerTrackSelection,
 } from '../contracts';
 import { normalizeAdapterState } from '../contracts';
+import { findPlayerTrackByIdentity } from '../contracts';
 import { headersForExactOrigin } from '../media-proxy';
 
 interface HlsInstanceLike {
@@ -51,7 +52,7 @@ export interface HtmlVideoPlaybackDependencies {
   detectBlackFrame?: (video: HTMLVideoElement) => boolean | Promise<boolean>;
   signal?: AbortSignal;
   onHlsAttached?: (hls: HlsInstanceLike | null) => void;
-  createSeekPreview?: (url: string, position: number) => Promise<PlayerSeekPreview | null>;
+  createSeekPreview?: (url: string, position: number, signal?: AbortSignal) => Promise<PlayerSeekPreview | null>;
   attachPlayback?: (
     video: HTMLVideoElement,
     attempt: PlaybackAttempt,
@@ -95,18 +96,26 @@ function detectBlackVideoFrame(video: HTMLVideoElement): boolean {
   }
 }
 
-async function captureSeekPreview(url: string, position: number): Promise<PlayerSeekPreview | null> {
+async function captureSeekPreview(url: string, position: number, signal?: AbortSignal): Promise<PlayerSeekPreview | null> {
+  if (signal?.aborted) return null;
   const preview = document.createElement('video');
   preview.preload = 'auto';
   preview.muted = true;
   preview.crossOrigin = 'anonymous';
   return new Promise(resolve => {
+    let settled = false;
     const finish = (result: PlayerSeekPreview | null) => {
+      if (settled) return;
+      settled = true;
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       preview.removeAttribute('src');
+      try { preview.load(); } catch { /* Detached preview cleanup can be unsupported. */ }
       resolve(result);
     };
+    const onAbort = () => finish(null);
     const timer = setTimeout(() => finish(null), 2_500);
+    signal?.addEventListener('abort', onAbort, { once: true });
     preview.addEventListener('error', () => finish(null), { once: true });
     preview.addEventListener('loadedmetadata', () => {
       preview.currentTime = Math.min(Math.max(0, position), preview.duration || position);
@@ -248,10 +257,14 @@ export class HtmlVideoAdapter implements PlayerAdapter {
   private readonly listeners = new Set<(state: PlayerAdapterState) => void>();
   private readonly eventCleanups: (() => void)[] = [];
   private transportCleanup: (() => void) | null = null;
+  private pendingAttachment: Promise<void> | null = null;
+  private destroyPromise: Promise<void> | null = null;
   private hlsTransport: HlsInstanceLike | null = null;
   private loadGeneration = 0;
   private pendingPosition = 0;
   private previewUrl: string | null = null;
+  private previewAbortController: AbortController | null = null;
+  private readonly previewCache = new Map<number, PlayerSeekPreview>();
   private subtitleElements: HTMLTrackElement[] = [];
   private blackFrameProbeTimer: ReturnType<typeof setTimeout> | null = null;
   private blackFrameProbeGeneration = 0;
@@ -305,17 +318,25 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     this.installSubtitles(request.subtitles);
 
     const attachPlayback = this.dependencies.attachPlayback ?? attachHtmlVideoPlayback;
-    const cleanup = await attachPlayback(this.video, request.attempt, {
-      ...this.dependencies,
-      signal: request.signal,
-      onHlsAttached: hls => { this.hlsTransport = hls; },
-      onError: message => this.emit({ phase: 'error', error: message }),
-    });
-    if (request.signal.aborted || generation !== this.loadGeneration) {
-      await cleanup();
-      return;
+    const attachment = (async () => {
+      const cleanup = await attachPlayback(this.video, request.attempt, {
+        ...this.dependencies,
+        signal: request.signal,
+        onHlsAttached: hls => { this.hlsTransport = hls; },
+        onError: message => this.emit({ phase: 'error', error: message }),
+      });
+      if (request.signal.aborted || generation !== this.loadGeneration) {
+        await cleanup();
+        return;
+      }
+      this.transportCleanup = cleanup;
+    })();
+    this.pendingAttachment = attachment;
+    try {
+      await attachment;
+    } finally {
+      if (this.pendingAttachment === attachment) this.pendingAttachment = null;
     }
-    this.transportCleanup = cleanup;
   }
 
   play() { return this.video.play(); }
@@ -375,10 +396,24 @@ export class HtmlVideoAdapter implements PlayerAdapter {
     this.emitTracks();
   }
 
-  requestSeekPreview(position: number): Promise<PlayerSeekPreview | null> {
+  requestSeekPreview(position: number, signal?: AbortSignal): Promise<PlayerSeekPreview | null> {
     if (!this.previewUrl) return Promise.resolve(null);
+    const cacheKey = Math.round(Math.max(0, position));
+    const cached = this.previewCache.get(cacheKey);
+    if (cached) return Promise.resolve(cached);
+    this.previewAbortController?.abort();
+    const abortController = new AbortController();
+    this.previewAbortController = abortController;
+    const abort = () => abortController.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
     const create = this.dependencies.createSeekPreview ?? captureSeekPreview;
-    return create(this.previewUrl, Math.max(0, position));
+    return create(this.previewUrl, cacheKey, abortController.signal).then(result => {
+      if (!abortController.signal.aborted && result) this.previewCache.set(cacheKey, result);
+      return abortController.signal.aborted ? null : result;
+    }).finally(() => {
+      signal?.removeEventListener('abort', abort);
+    });
   }
 
   subscribe(listener: (state: PlayerAdapterState) => void): () => void {
@@ -388,14 +423,22 @@ export class HtmlVideoAdapter implements PlayerAdapter {
   }
 
   async destroy(): Promise<void> {
+    if (this.destroyPromise) return this.destroyPromise;
     this.loadGeneration += 1;
-    await this.cleanupTransport();
-    this.eventCleanups.splice(0).forEach(cleanup => cleanup());
-    this.subtitleElements.forEach(element => element.remove());
-    this.subtitleElements = [];
-    this.cancelBlackFrameProbe();
-    this.previewUrl = null;
-    this.listeners.clear();
+    this.destroyPromise = (async () => {
+      try { await this.pendingAttachment; } catch { /* Load owns transport errors. */ }
+      await this.cleanupTransport();
+      this.eventCleanups.splice(0).forEach(cleanup => cleanup());
+      this.subtitleElements.forEach(element => element.remove());
+      this.subtitleElements = [];
+      this.cancelBlackFrameProbe();
+      this.previewUrl = null;
+      this.previewAbortController?.abort();
+      this.previewAbortController = null;
+      this.previewCache.clear();
+      this.listeners.clear();
+    })();
+    return this.destroyPromise;
   }
 
   private async cleanupTransport(): Promise<void> {
@@ -471,6 +514,7 @@ export class HtmlVideoAdapter implements PlayerAdapter {
       label: track.label || track.language || `Subtitle ${index + 1}`,
       language: track.language || undefined,
       embedded: !externalElement,
+      sourceUrl: externalElement?.getAttribute('src') ?? undefined,
       selected: track.mode === 'showing',
       };
     });
@@ -523,7 +567,7 @@ export class HtmlVideoAdapter implements PlayerAdapter {
 
   private restorePreferredTracks(): void {
     const audioList = (this.video as VideoWithTracks).audioTracks;
-    if (audioList && (this.preferredTracks.audioId !== null || this.preferredTracks.audioLanguage)) {
+    if (audioList && (this.preferredTracks.audioId !== null || this.preferredTracks.audioLanguage || this.preferredTracks.audioIdentity)) {
       let selectedIndex = -1;
       for (let index = 0; index < audioList.length; index += 1) {
         const track = audioList[index];
@@ -532,7 +576,12 @@ export class HtmlVideoAdapter implements PlayerAdapter {
           break;
         }
       }
-      if (selectedIndex < 0 && this.preferredTracks.audioLanguage) {
+      if (selectedIndex < 0 && this.preferredTracks.audioIdentity) {
+        const normalized = audioTracks(this.video as VideoWithTracks);
+        const match = findPlayerTrackByIdentity(normalized, this.preferredTracks.audioIdentity);
+        selectedIndex = match ? normalized.indexOf(match) : -1;
+      }
+      if (selectedIndex < 0 && this.preferredTracks.audioLanguage && !this.preferredTracks.audioIdentity) {
         for (let index = 0; index < audioList.length; index += 1) {
           if (audioList[index].language?.toLowerCase() === this.preferredTracks.audioLanguage.toLowerCase()) {
             selectedIndex = index;
@@ -546,13 +595,24 @@ export class HtmlVideoAdapter implements PlayerAdapter {
         }
       }
     }
-    if (!audioList && this.hlsTransport?.audioTracks && (this.preferredTracks.audioId !== null || this.preferredTracks.audioLanguage)) {
+    if (!audioList && this.hlsTransport?.audioTracks && (this.preferredTracks.audioId !== null || this.preferredTracks.audioLanguage || this.preferredTracks.audioIdentity)) {
       const hlsTracks = this.hlsTransport.audioTracks;
       let selectedIndex = this.preferredTracks.audioId === null
         ? -1
         : hlsTracks.findIndex((track, index) => `hls:${track.id ?? index}` === String(this.preferredTracks.audioId));
-      if (selectedIndex < 0 && this.preferredTracks.audioLanguage) {
+      if (selectedIndex < 0 && this.preferredTracks.audioLanguage && !this.preferredTracks.audioIdentity) {
         selectedIndex = hlsTracks.findIndex(track => track.lang?.toLowerCase() === this.preferredTracks.audioLanguage?.toLowerCase());
+      }
+      if (selectedIndex < 0 && this.preferredTracks.audioIdentity) {
+        const normalized = hlsTracks.map((track, index): PlayerTrack => ({
+          id: `hls:${track.id ?? index}`,
+          kind: 'audio',
+          label: track.name || track.lang || `Track ${index + 1}`,
+          language: track.lang,
+          selected: this.hlsTransport?.audioTrack === index,
+        }));
+        const match = findPlayerTrackByIdentity(normalized, this.preferredTracks.audioIdentity);
+        selectedIndex = match ? normalized.indexOf(match) : -1;
       }
       if (selectedIndex >= 0) this.hlsTransport.audioTrack = selectedIndex;
     }
@@ -569,10 +629,26 @@ export class HtmlVideoAdapter implements PlayerAdapter {
           === String(this.preferredTracks.subtitleId)
       ));
     }
-    if (selectedSubtitle < 0 && this.preferredTracks.subtitleLanguage) {
+    if (selectedSubtitle < 0 && this.preferredTracks.subtitleLanguage && !this.preferredTracks.subtitleIdentity) {
       selectedSubtitle = textTracks.findIndex(track => (
         track.language?.toLowerCase() === this.preferredTracks.subtitleLanguage?.toLowerCase()
       ));
+    }
+    if (selectedSubtitle < 0 && this.preferredTracks.subtitleIdentity) {
+      const normalized = textTracks.map((track, index): PlayerTrack => {
+        const element = this.subtitleElementForTrack(track, index, textTracks);
+        return {
+          id: element?.dataset.moonlitTrackId ?? index,
+          kind: 'subtitles',
+          label: track.label || track.language || `Subtitle ${index + 1}`,
+          language: track.language || undefined,
+          embedded: !element,
+          sourceUrl: element?.getAttribute('src') ?? undefined,
+          selected: track.mode === 'showing',
+        };
+      });
+      const match = findPlayerTrackByIdentity(normalized, this.preferredTracks.subtitleIdentity);
+      selectedSubtitle = match ? normalized.indexOf(match) : -1;
     }
     if (selectedSubtitle >= 0) {
       textTracks.forEach((track, index) => { track.mode = index === selectedSubtitle ? 'showing' : 'disabled'; });

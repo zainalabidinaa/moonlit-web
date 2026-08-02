@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('mediabunny', () => {
+  let conversionStarted = false;
+
   class AppendOnlyStreamTarget {
     constructor(writable: WritableStream<Uint8Array>) {
       const writer = writable.getWriter();
@@ -9,6 +11,10 @@ vi.mock('mediabunny', () => {
   }
 
   class Input {
+    constructor() {
+      conversionStarted = false;
+    }
+
     getPrimaryVideoTrack() {
       return Promise.resolve({
         getCodec: () => Promise.resolve('avc'),
@@ -28,6 +34,7 @@ vi.mock('mediabunny', () => {
 
   class Output {
     getMimeType() {
+      if (!conversionStarted) throw new Error('MIME requested before conversion began');
       return Promise.resolve('video/mp4; codecs="avc1.42E01E, mp4a.40.2"');
     }
   }
@@ -42,6 +49,7 @@ vi.mock('mediabunny', () => {
     }
 
     execute() {
+      conversionStarted = true;
       this.onProgress?.(1);
       return Promise.resolve();
     }
@@ -76,5 +84,20 @@ describe('MediabunnyRemuxer', () => {
     expect(onError).not.toHaveBeenCalledWith(expect.objectContaining({
       message: expect.stringContaining('WritableStream is locked'),
     }));
+  });
+
+  it('starts conversion before waiting for muxer MIME metadata', async () => {
+    const { MediabunnyRemuxer } = await import('./mediabunny-remuxer');
+    const onReady = vi.fn();
+    const onError = vi.fn();
+
+    await new MediabunnyRemuxer().start('https://cdn.example.com/movie.mkv', {
+      onChunk: vi.fn(),
+      onReady,
+      onError,
+    });
+
+    expect(onReady).toHaveBeenCalledWith('video/mp4; codecs="avc1.42E01E, mp4a.40.2"');
+    expect(onError).not.toHaveBeenCalled();
   });
 });

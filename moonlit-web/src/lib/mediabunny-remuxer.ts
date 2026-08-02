@@ -100,13 +100,19 @@ export class MediabunnyRemuxer {
         if (!this.cancelled) callbacks.onProgress?.(progress);
       };
 
-      // Get MIME type now that tracks are configured
-      const mimeType = await this.output.getMimeType();
+      // Fragmented MP4 cannot determine its precise codec MIME until conversion
+      // supplies the first track data, so execution and MIME discovery must overlap.
+      this.executing = true;
+      const execution = this.conversion.execute();
+      const mimePromise = this.output.getMimeType();
+      const mimeType = await Promise.race([
+        mimePromise,
+        execution.then(() => mimePromise),
+      ]);
       callbacks.onReady?.(mimeType);
 
-      // Execute transmux — this blocks until complete or cancelled
-      this.executing = true;
-      await this.conversion.execute();
+      // This blocks until all remaining fragments have been delivered.
+      await execution;
       this.executing = false;
     } catch (e) {
       if (e instanceof ConversionCanceledError) return;

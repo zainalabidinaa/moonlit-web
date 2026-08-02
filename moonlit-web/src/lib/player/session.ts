@@ -7,6 +7,7 @@ import type {
   PlayerAdapterState,
   PlayerTrackSelection,
 } from './contracts';
+import { playerTrackIdentity } from './contracts';
 
 export const DEFAULT_STARTUP_TIMEOUT_MS = 15_000;
 export const DEFAULT_REPEATED_BUFFERING_LIMIT = 3;
@@ -61,6 +62,7 @@ export class PlayerSession {
   private loadGeneration = 0;
   private destroyed = false;
   private destroyPromise: Promise<void> | null = null;
+  private readonly adapterDisposals = new WeakMap<PlayerAdapter, Promise<void>>();
   private startOptions: PlayerSessionStartOptions | null = null;
   private preservedPosition = 0;
   private preservedTracks: PlayerTrackSelection = {
@@ -168,20 +170,36 @@ export class PlayerSession {
     if (!this.adapter?.capabilities.remotePlayback || !this.adapter.requestRemotePlayback) return;
     return this.adapter.requestRemotePlayback();
   }
-  requestSeekPreview(position: number) {
+  requestSeekPreview(position: number, signal?: AbortSignal) {
     const adapter = this.adapter;
     const request = adapter?.requestSeekPreview;
     if (!adapter?.capabilities.seekPreview || !request) return null;
-    return request.call(adapter, Math.max(0, position));
+    return request.call(adapter, Math.max(0, position), signal);
   }
   selectAudioTrack(id: string | number) {
     if (!this.adapter?.capabilities.audioTracks) return;
     this.preservedTracks.audioId = id;
+    const tracks = this.state.adapterState?.audioTracks ?? [];
+    const track = tracks.find(item => item.id === id);
+    if (track) {
+      this.preservedTracks.audioLanguage = track.language ?? null;
+      this.preservedTracks.audioIdentity = playerTrackIdentity(track, tracks);
+    }
     return this.adapter.selectAudioTrack(id);
   }
   selectSubtitleTrack(id: string | number | 'off') {
     if (!this.adapter?.capabilities.subtitleTracks) return;
     this.preservedTracks.subtitleId = id;
+    if (id === 'off') {
+      this.preservedTracks.subtitleIdentity = null;
+    } else {
+      const tracks = this.state.adapterState?.subtitleTracks ?? [];
+      const track = tracks.find(item => item.id === id);
+      if (track) {
+        this.preservedTracks.subtitleLanguage = track.language ?? null;
+        this.preservedTracks.subtitleIdentity = playerTrackIdentity(track, tracks);
+      }
+    }
     return this.adapter.selectSubtitleTrack(id);
   }
 
@@ -281,12 +299,18 @@ export class PlayerSession {
     if (next.audioTracks.length > 0 && next.selectedAudioId !== null) {
       this.preservedTracks.audioId = next.selectedAudioId;
       const track = next.audioTracks.find(item => item.id === next.selectedAudioId);
-      if (track?.language) this.preservedTracks.audioLanguage = track.language;
+      if (track) {
+        this.preservedTracks.audioLanguage = track.language ?? null;
+        this.preservedTracks.audioIdentity = playerTrackIdentity(track, next.audioTracks);
+      }
     }
     if (next.subtitleTracks.length > 0 && next.selectedSubtitleId !== null) {
       this.preservedTracks.subtitleId = next.selectedSubtitleId;
       const track = next.subtitleTracks.find(item => item.id === next.selectedSubtitleId);
-      if (track?.language) this.preservedTracks.subtitleLanguage = track.language;
+      if (track) {
+        this.preservedTracks.subtitleLanguage = track.language ?? null;
+        this.preservedTracks.subtitleIdentity = playerTrackIdentity(track, next.subtitleTracks);
+      }
     }
 
     if (next.hasVideo === false && (next.phase === 'ready' || next.phase === 'playing' || next.phase === 'paused')) {
@@ -362,11 +386,13 @@ export class PlayerSession {
 
   private async destroyAdapter(adapter: PlayerAdapter | null): Promise<void> {
     if (!adapter) return;
-    try {
-      await adapter.destroy();
-    } catch {
-      // Teardown is best effort; a failed stop must not abort fallback.
-    }
+    const existing = this.adapterDisposals.get(adapter);
+    if (existing) return existing;
+    const disposal = Promise.resolve()
+      .then(() => adapter.destroy())
+      .catch(() => undefined);
+    this.adapterDisposals.set(adapter, disposal);
+    await disposal;
   }
 
   private update(patch: Partial<PlayerSessionState>): void {

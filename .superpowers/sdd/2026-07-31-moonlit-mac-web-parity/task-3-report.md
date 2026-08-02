@@ -51,6 +51,7 @@ Representative RED runs captured missing modules/contracts first, then expected 
 
 - `moonlit-web/api/media-proxy.ts`
 - `moonlit-web/package.json` and `package-lock.json`
+- `moonlit-web/playwright.player.config.ts`, `vite.config.ts`, browser media spec, and encoded player fixtures
 - `moonlit-web/vite.config.ts`
 - `moonlit-web/src/index.css`
 - `moonlit-web/src/app/PlayerProvider.tsx` and player integration test
@@ -65,10 +66,9 @@ Representative RED runs captured missing modules/contracts first, then expected 
 
 ## Self-Review and Concerns
 
-- The repository has no Playwright/media-harness setup. Integration coverage uses deterministic media metadata fixtures, mocked HTML media events, MSE/HLS/MPEG-TS engines, and Tauri IPC rather than decoding checked-in encoded video assets in a real browser.
+- The repository now has a Chromium Playwright media harness using checked-in encoded fixtures. It exercises HTML video, HLS.js/MSE, `mpegts.js`, Mediabunny, and WebCodecs through their real adapters. Native MPV remains manual-only because it requires the Tauri/libmpv desktop runtime rather than a browser.
 - Chromium MKV eligibility is necessarily a metadata/title heuristic before startup; unknown or mislabeled MKVs rely on runtime failure detection and the ordered fallback chain.
 - Browser exposure of embedded HLS audio tracks varies. The shared UI probes `HTMLMediaElement.audioTracks` lazily, but browsers that hide HLS.js audio tracks may not expose every rendition.
-- Subtitles delivered after an adapter has already loaded are shown in the shared panel without restarting playback, but an adapter may require a later follow-up to append that late track to the active engine.
 - The streaming server must itself be able to retrieve protected upstream media for server remux/transcode routes; direct browser, HLS.js, MPEG-TS, WebCodecs/Mediabunny proxy, and MPV header paths are covered here.
 - The production bundle still emits the existing chunk-size warning. MPEG-TS and HLS are lazy-loaded; broader application bundle splitting remains outside this task.
 - Unrelated native, portal, legacy submodule, worktree, and pre-existing migration changes were preserved and excluded from the commit.
@@ -108,3 +108,43 @@ Review findings in `task-3-review.md` were addressed with RED/GREEN regressions 
 - Production build: PASS — `npm run build` (only the existing chunk-size advisory).
 - Encoded-media integration harness: PASS — 3 tests.
 - Repository-wide ESLint remains baseline-red: 95 errors and 9 warnings in unrelated legacy/application files. All lint findings in the Task 3 fix scope were removed.
+
+## Fix Round 2 (2026-08-02)
+
+Review findings in `task-3-rereview-round1.md` were addressed with witnessed RED/GREEN regressions. Both Critical security fixes from round 1 were preserved. The optimistic HTML audio-capability Minor remains deferred as requested, along with the previously documented cumulative-buffering, HLS-recovery, and codec-heuristic Minors.
+
+### Lifecycle and exact-once teardown
+
+- `PlayerSession` now memoizes adapter disposal promises, so fallback, cancellation continuations, terminal exhaustion, Retry, and replacement cannot destroy the same adapter twice.
+- HTML destruction joins an unresolved transport attachment before returning and performs its eventual cleanup exactly once. WebCodecs and MPV gate every post-await startup continuation, and WebCodecs engine destruction is idempotent.
+- Added RED/GREEN coverage for a pending terminal adapter, unresolved HTML attachment, WebCodecs cancellation during resume seek, and MPV cancellation during track restoration.
+
+### Track identity, late subtitles, and native window state
+
+- Added renderer-neutral track identities containing kind, normalized language, label, source URL where available, and same-kind ordinal. Selection snapshots identity synchronously, so same-language and language-less external tracks survive asynchronous handoff without leaking adapter-local IDs.
+- MPV now reconciles `sub-add` results against the native track list, maps app subtitle IDs to numeric native `sid` values, avoids duplicate app/native rows, and never forwards string app IDs to MPV.
+- HTML and MPV restore selection by neutral identity. Tests cover the second of two same-language audio tracks, a language-less external subtitle, and manual selection of a late MPV subtitle.
+- HTML and WebCodecs listen for native fullscreen changes. MPV listens for native Tauri window state, exits PiP/fullscreen during destroy, restores saved geometry/always-on-top state, and removes the window listener.
+
+### Chrome recovery, focus, and bounded previews
+
+- Terminal error/external states now permit the Sources panel; the complete Choose source → select backup → close flow is covered.
+- Listboxes now implement actual roving `tabIndex`: arrow/Home/End movement updates both DOM focus and the sole tab stop, including lists with no selected item.
+- Timeline preview work is debounced, abortable, generation-safe, and cached. HTML owns at most one preview worker, aborts it on replacement/destroy, and bounds its cache. Tests cover rapid hover, cancellation, latest-result wins, reuse, and teardown cleanup.
+
+### Real decode harness and discovered integration fix
+
+- Added `@playwright/test`, a dedicated Playwright config/script, WebVTT plus genuine MKV/MPEG-TS fixtures, and Vitest exclusion for the e2e directory.
+- Chromium now verifies actual MP4 readiness/dimensions/subtitle selection/JPEG preview/ended, finite HLS.js/MSE playback and ended, dead-source `PlayerSession` fallback, continuous `mpegts.js` decode/progress, Mediabunny MKV remux/decode, and WebCodecs MKV decode.
+- Conditional worker-backed adapters receive absolute fixture URLs because blob workers cannot resolve document-root-relative fixture paths. The RED errors were captured at the transport boundary before changing only the test input.
+- The real Mediabunny run exposed a production deadlock: fragmented-MP4 MIME discovery waits for the first converted track data, while conversion previously began only after MIME resolution. Conversion and MIME discovery now overlap; a focused unit regression and the real browser decode both pass.
+- Native MPV is explicitly annotated as Tauri/libmpv manual-only; its bridge behavior remains covered deterministically in Vitest.
+
+### Fix-round-2 verification
+
+- Full Vitest suite: PASS — 47 files, 272 tests.
+- Chromium Playwright media suite: PASS — 6 tests.
+- TypeScript: PASS — `npm run typecheck`.
+- Task 3 scoped ESLint: PASS.
+- Production build: PASS — `npm run build` (only the existing chunk-size advisory).
+- Generated Playwright `test-results/.last-run.json` was restored to its pre-task bytes and excluded from the commit.

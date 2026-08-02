@@ -34,6 +34,7 @@ class FakeAdapter implements PlayerAdapter {
   readonly subtitleUpdates: SubtitleItem[][] = [];
   probeCount = 0;
   destroyed = false;
+  destroyCount = 0;
   private listeners = new Set<(state: PlayerAdapterState) => void>();
 
   constructor(
@@ -64,6 +65,7 @@ class FakeAdapter implements PlayerAdapter {
   }
   async destroy() {
     this.destroyed = true;
+    this.destroyCount += 1;
     await this.destroyBehavior?.();
   }
 
@@ -162,6 +164,81 @@ describe('PlayerSession', () => {
       },
     });
     expect(session.getState()).toMatchObject({ attemptIndex: 1, fallbackCount: 1, fallbackReason: 'decoder failed' });
+  });
+
+  it('snapshots a neutral identity before an async native selection event can arrive', async () => {
+    const adapters: FakeAdapter[] = [];
+    const session = new PlayerSession(playbackPlan(), {
+      createAdapter: () => {
+        const adapter = new FakeAdapter();
+        adapters.push(adapter);
+        return adapter;
+      },
+    });
+    await session.start({ position: 0, tracks: initialTracks, subtitles: [] });
+    adapters[0].emit({
+      phase: 'playing',
+      position: 20,
+      duration: 100,
+      selectedAudioId: 1,
+      audioTracks: [
+        { id: 1, kind: 'audio', label: 'Spanish commentary', language: 'es', selected: true },
+        { id: 2, kind: 'audio', label: 'Spanish stereo', language: 'es', selected: false },
+      ],
+    });
+
+    session.selectAudioTrack(2);
+    adapters[0].emit({ phase: 'error', position: 20, error: 'native switch failed' });
+
+    await vi.waitFor(() => expect(adapters).toHaveLength(2));
+    expect(adapters[1].loads[0].tracks).toMatchObject({
+      audioId: null,
+      audioLanguage: 'es',
+      audioIdentity: {
+        kind: 'audio',
+        language: 'es',
+        label: 'Spanish stereo',
+        ordinal: 1,
+      },
+    });
+  });
+
+  it('ports a language-less external subtitle by source identity, never local id', async () => {
+    const adapters: FakeAdapter[] = [];
+    const session = new PlayerSession(playbackPlan(), {
+      createAdapter: () => {
+        const adapter = new FakeAdapter();
+        adapters.push(adapter);
+        return adapter;
+      },
+    });
+    await session.start({ position: 0, tracks: initialTracks, subtitles: [] });
+    adapters[0].emit({
+      phase: 'playing',
+      selectedSubtitleId: 'local-9',
+      subtitleTracks: [{
+        id: 'local-9',
+        kind: 'subtitles',
+        label: 'Signs',
+        sourceUrl: 'https://subs.example/signs.vtt',
+        embedded: false,
+        selected: true,
+      }],
+    });
+
+    adapters[0].emit({ phase: 'error', error: 'fallback' });
+
+    await vi.waitFor(() => expect(adapters).toHaveLength(2));
+    expect(adapters[1].loads[0].tracks).toMatchObject({
+      subtitleId: null,
+      subtitleIdentity: {
+        kind: 'subtitles',
+        language: null,
+        label: 'Signs',
+        sourceUrl: 'https://subs.example/signs.vtt',
+        ordinal: 0,
+      },
+    });
   });
 
   it('falls back after repeated buffering but not on the first two recoveries', async () => {
@@ -377,6 +454,23 @@ describe('PlayerSession', () => {
 
     await vi.waitFor(() => expect(session.getState().phase).toBe('error'));
     expect(adapter.destroyed).toBe(true);
+  });
+
+  it('disposes a pending terminal adapter exactly once when its load settles late', async () => {
+    let resolveLoad: (() => void) | null = null;
+    const adapter = new FakeAdapter(allCapabilities, () => new Promise<void>(resolve => { resolveLoad = resolve; }));
+    const session = new PlayerSession(playbackPlan([playbackAttempt('only')]), {
+      createAdapter: () => adapter,
+    });
+    const start = session.start({ position: 0, tracks: initialTracks, subtitles: [] });
+    await vi.waitFor(() => expect(adapter.loads).toHaveLength(1));
+
+    adapter.emit({ phase: 'error', error: 'terminal failure' });
+    await vi.waitFor(() => expect(session.getState().phase).toBe('error'));
+    resolveLoad?.();
+    await start;
+
+    expect(adapter.destroyCount).toBe(1);
   });
 
   it('attaches late subtitles without recreating the active adapter', async () => {

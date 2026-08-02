@@ -118,6 +118,26 @@ describe('attachMediabunnyPlayback', () => {
 });
 
 describe('WebCodecsAdapter', () => {
+  it('reflects native fullscreen changes including Escape exits', () => {
+    const root = document.createElement('div');
+    let fullscreenElement: Element | null = root;
+    Object.defineProperty(document, 'fullscreenElement', { configurable: true, get: () => fullscreenElement });
+    const adapter = new WebCodecsAdapter(document.createElement('canvas'), root, () => ({
+      subscribe: () => () => undefined,
+      load: vi.fn(async () => undefined), seekTo: vi.fn(async () => undefined), seek: vi.fn(async () => undefined),
+      play: vi.fn(), pause: vi.fn(), destroy: vi.fn(),
+    }));
+    let latest: PlayerAdapterState | null = null;
+    adapter.subscribe(state => { latest = state; });
+
+    document.dispatchEvent(new Event('fullscreenchange'));
+    expect(latest?.fullscreen).toBe(true);
+    fullscreenElement = null;
+    document.dispatchEvent(new Event('fullscreenchange'));
+    expect(latest?.fullscreen).toBe(false);
+    delete (document as Document & { fullscreenElement?: Element | null }).fullscreenElement;
+  });
+
   it('maps engine state to the shared contract and restores position', async () => {
     const canvas = document.createElement('canvas');
     let listener: ((state: { duration: number; currentTime: number; isPlaying: boolean; isReady: boolean; ended: boolean; error: string | null }) => void) | null = null;
@@ -176,9 +196,101 @@ describe('WebCodecsAdapter', () => {
 
     expect(engine.play).not.toHaveBeenCalled();
   });
+
+  it('does not play WebCodecs after cancellation during resume seeking', async () => {
+    let resolveSeek: (() => void) | null = null;
+    const engine: WebCodecsEngineLike = {
+      subscribe: () => () => undefined,
+      load: vi.fn(async () => undefined),
+      seekTo: vi.fn(() => new Promise<void>(resolve => { resolveSeek = resolve; })),
+      seek: vi.fn(async () => undefined),
+      play: vi.fn(),
+      pause: vi.fn(),
+      destroy: vi.fn(),
+    };
+    const adapter = new WebCodecsAdapter(document.createElement('canvas'), document.createElement('div'), () => engine);
+    const controller = new AbortController();
+    const load = adapter.load({ ...request(attempt('webcodecs', 'webcodecs'), 33), signal: controller.signal });
+    await vi.waitFor(() => expect(engine.seekTo).toHaveBeenCalledWith(33));
+
+    controller.abort();
+    adapter.destroy();
+    resolveSeek?.();
+    await load;
+
+    expect(engine.play).not.toHaveBeenCalled();
+  });
 });
 
 describe('MpvAdapter', () => {
+  it('reflects native window state and clears PiP/fullscreen during destroy', async () => {
+    let windowListener: ((state: { fullscreen: boolean; pictureInPicture: boolean }) => void) | null = null;
+    const bridge: MpvAdapterBridge = {
+      start: vi.fn(async () => undefined), stop: vi.fn(async () => undefined),
+      setProp: vi.fn(async () => undefined), getProp: vi.fn(async () => []), command: vi.fn(async () => undefined),
+      subAdd: vi.fn(async () => undefined), listen: vi.fn(async () => () => undefined),
+      listenWindowState: vi.fn(async listener => { windowListener = listener; return () => { windowListener = null; }; }),
+      setFullscreen: vi.fn(async () => undefined), setPictureInPicture: vi.fn(async () => undefined),
+    };
+    const adapter = new MpvAdapter(bridge);
+    let latest: PlayerAdapterState | null = null;
+    adapter.subscribe(state => { latest = state; });
+    await adapter.load(request(attempt('mpv', 'mpv')));
+
+    windowListener?.({ fullscreen: true, pictureInPicture: true });
+    expect(latest?.fullscreen).toBe(true);
+    expect(latest?.pictureInPicture).toBe(true);
+    windowListener?.({ fullscreen: false, pictureInPicture: false });
+    expect(latest?.fullscreen).toBe(false);
+    expect(latest?.pictureInPicture).toBe(false);
+
+    await adapter.setPictureInPicture(true);
+    await adapter.setFullscreen(true);
+    await adapter.destroy();
+    expect(bridge.setPictureInPicture).toHaveBeenLastCalledWith(false);
+    expect(bridge.setFullscreen).toHaveBeenLastCalledWith(false);
+    expect(windowListener).toBeNull();
+  });
+
+  it('maps a late app subtitle to its native sid and never forwards the app string id', async () => {
+    let trackList: unknown[] = [];
+    const setProp = vi.fn(async () => undefined);
+    const bridge: MpvAdapterBridge = {
+      start: vi.fn(async () => undefined),
+      stop: vi.fn(async () => undefined),
+      setProp,
+      getProp: vi.fn(async name => name === 'track-list' ? trackList : undefined),
+      command: vi.fn(async () => undefined),
+      subAdd: vi.fn(async (url, options) => {
+        trackList = [{
+          id: 17,
+          type: 'sub',
+          title: options?.title,
+          lang: options?.lang,
+          external: true,
+          'external-filename': url,
+        }];
+      }),
+      listen: vi.fn(async () => () => undefined),
+      setFullscreen: vi.fn(async () => undefined),
+      setPictureInPicture: vi.fn(async () => undefined),
+    };
+    const adapter = new MpvAdapter(bridge);
+    let subtitleIds: Array<string | number> = [];
+    adapter.subscribe(state => { subtitleIds = state.subtitleTracks.map(track => track.id); });
+    await adapter.load({ ...request(attempt('mpv', 'mpv')), tracks: { ...request(attempt('mpv', 'mpv')).tracks, subtitleId: 'off' } });
+
+    await adapter.updateSubtitles?.(
+      [{ id: 'late-en', lang: 'en', name: 'English signs', url: 'https://subs.example/signs.vtt' }],
+      { audioId: null, subtitleId: 'late-en', audioLanguage: null, subtitleLanguage: 'en' },
+    );
+    await adapter.selectSubtitleTrack('late-en');
+
+    expect(setProp).toHaveBeenCalledWith('sid', 17);
+    expect(setProp).not.toHaveBeenCalledWith('sid', 'late-en');
+    expect(subtitleIds).toContain('late-en');
+  });
+
   it('normalizes Tauri IPC events and preserves launch headers and position', async () => {
     let eventListener: ((event: MpvEvent) => void) | null = null;
     const bridge: MpvAdapterBridge = {
@@ -318,5 +430,42 @@ describe('MpvAdapter', () => {
     await destroy;
 
     expect(bridge.stop).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not continue MPV setup after cancellation during track restoration', async () => {
+    let resolveAudioRestore: (() => void) | null = null;
+    const setProp = vi.fn((name: string) => name === 'aid'
+      ? new Promise<void>(resolve => { resolveAudioRestore = resolve; })
+      : Promise.resolve());
+    const bridge: MpvAdapterBridge = {
+      start: vi.fn(async () => undefined),
+      stop: vi.fn(async () => undefined),
+      setProp,
+      getProp: vi.fn(async () => []),
+      command: vi.fn(async () => undefined),
+      subAdd: vi.fn(async () => undefined),
+      listen: vi.fn(async () => () => undefined),
+      setGeometry: vi.fn(async () => undefined),
+      setFullscreen: vi.fn(async () => undefined),
+      setPictureInPicture: vi.fn(async () => undefined),
+    };
+    const adapter = new MpvAdapter(bridge);
+    const controller = new AbortController();
+    const load = adapter.load({
+      ...request(attempt('mpv', 'mpv')),
+      tracks: { audioId: 2, subtitleId: 3, audioLanguage: null, subtitleLanguage: null },
+      signal: controller.signal,
+    });
+    await vi.waitFor(() => expect(setProp).toHaveBeenCalledWith('aid', 2));
+
+    controller.abort();
+    const destroy = adapter.destroy();
+    resolveAudioRestore?.();
+    await load;
+    await destroy;
+
+    expect(setProp).not.toHaveBeenCalledWith('sid', expect.anything());
+    expect(bridge.setGeometry).not.toHaveBeenCalled();
+    expect(bridge.subAdd).not.toHaveBeenCalled();
   });
 });

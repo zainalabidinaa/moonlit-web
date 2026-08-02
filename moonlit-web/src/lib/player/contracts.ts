@@ -34,6 +34,16 @@ export interface PlayerTrackSelection {
   subtitleId: string | number | 'off' | null;
   audioLanguage: string | null;
   subtitleLanguage: string | null;
+  audioIdentity?: PlayerTrackIdentity | null;
+  subtitleIdentity?: PlayerTrackIdentity | null;
+}
+
+export interface PlayerTrackIdentity {
+  kind: 'audio' | 'subtitles';
+  language: string | null;
+  label: string;
+  sourceUrl?: string;
+  ordinal: number;
 }
 
 export interface PlayerLaunch {
@@ -68,6 +78,8 @@ export function normalizePlayerLaunch(launch: PlayerLaunch): NormalizedPlayerLau
       subtitleId: launch.preferredTracks?.subtitleId ?? null,
       audioLanguage: launch.preferredTracks?.audioLanguage ?? null,
       subtitleLanguage: launch.preferredTracks?.subtitleLanguage ?? null,
+      audioIdentity: launch.preferredTracks?.audioIdentity ?? null,
+      subtitleIdentity: launch.preferredTracks?.subtitleIdentity ?? null,
     },
   };
 }
@@ -110,7 +122,37 @@ export interface PlayerTrack {
   codec?: string;
   channels?: string;
   embedded?: boolean;
+  sourceUrl?: string;
   selected: boolean;
+}
+
+export function playerTrackIdentity(track: PlayerTrack, tracks: PlayerTrack[]): PlayerTrackIdentity {
+  return {
+    kind: track.kind,
+    language: track.language?.toLowerCase() ?? null,
+    label: track.label,
+    ...(track.sourceUrl ? { sourceUrl: track.sourceUrl } : {}),
+    ordinal: Math.max(0, tracks.indexOf(track)),
+  };
+}
+
+export function findPlayerTrackByIdentity<T extends PlayerTrack>(
+  tracks: T[],
+  identity: PlayerTrackIdentity | null | undefined,
+): T | undefined {
+  if (!identity) return undefined;
+  if (identity.sourceUrl) {
+    const sourceMatch = tracks.find(track => track.kind === identity.kind && track.sourceUrl === identity.sourceUrl);
+    if (sourceMatch) return sourceMatch;
+  }
+  const exact = tracks.find(track => track.kind === identity.kind
+    && (track.language?.toLowerCase() ?? null) === identity.language
+    && track.label === identity.label);
+  if (exact) return exact;
+  const ordinal = tracks[identity.ordinal];
+  if (ordinal?.kind === identity.kind && (ordinal.language?.toLowerCase() ?? null) === identity.language) return ordinal;
+  return tracks.find(track => track.kind === identity.kind
+    && (track.language?.toLowerCase() ?? null) === identity.language);
 }
 
 export interface PlayerAdapterCapabilities {
@@ -213,7 +255,7 @@ export interface PlayerAdapter {
   selectSubtitleTrack(id: string | number | 'off'): void | Promise<void>;
   updateSubtitles?(subtitles: SubtitleItem[], tracks: PlayerTrackSelection): void | Promise<void>;
   probeAudioTracks?(): void | Promise<void>;
-  requestSeekPreview?(position: number): PlayerSeekPreview | null | Promise<PlayerSeekPreview | null>;
+  requestSeekPreview?(position: number, signal?: AbortSignal): PlayerSeekPreview | null | Promise<PlayerSeekPreview | null>;
   subscribe(listener: (state: PlayerAdapterState) => void): () => void;
   destroy(): void | Promise<void>;
 }
