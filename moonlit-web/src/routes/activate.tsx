@@ -143,6 +143,7 @@ export default function ActivatePage() {
           <div className="mb-3">
             <input
               type="email"
+              aria-label="Email address"
               className="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FF8A35]/50"
               placeholder="Email"
               value={email}
@@ -154,6 +155,7 @@ export default function ActivatePage() {
           <div className="mb-4">
             <input
               type="password"
+              aria-label="Password"
               className="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FF8A35]/50"
               placeholder="Password"
               value={password}
@@ -166,6 +168,7 @@ export default function ActivatePage() {
             <div className="mb-4">
               <input
                 type="text"
+                aria-label="Invite code"
                 className="w-full bg-white/[0.06] border border-white/[0.08] rounded-lg px-4 py-3 text-white text-sm placeholder-white/20 focus:outline-none focus:border-[#FF8A35]/50"
                 placeholder="Invite Code"
                 value={inviteCode}

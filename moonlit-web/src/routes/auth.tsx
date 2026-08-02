@@ -100,6 +100,7 @@ export default function AuthPage() {
             placeholder="Email"
             value={email}
             onChange={e => setEmail(e.target.value)}
+            aria-label="Email address"
             className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] focus:outline-none focus:border-white/40 transition-colors"
             required
             autoComplete="email"
@@ -109,6 +110,7 @@ export default function AuthPage() {
             placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
+            aria-label="Password"
             className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] focus:outline-none focus:border-white/40 transition-colors"
             required
             autoComplete={isSignUp ? 'new-password' : 'current-password'}
@@ -119,6 +121,7 @@ export default function AuthPage() {
               placeholder="Invite Code"
               value={inviteCode}
               onChange={e => setInviteCode(e.target.value.toUpperCase())}
+              aria-label="Invite code"
               className="w-full px-4 py-[15px] bg-white/[0.06] border border-white/10 rounded-2xl text-white placeholder-white/40 text-[16px] uppercase tracking-widest focus:outline-none focus:border-white/40 transition-colors"
               maxLength={8}
             />

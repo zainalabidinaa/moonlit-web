@@ -187,6 +187,7 @@ export default function AdminPage() {
               <div className="flex gap-2">
                 <input value={addonUrlInput} onChange={e => setAddonUrlInput(e.target.value)}
                   placeholder="https://your-addon.xyz/manifest.json"
+                  aria-label="Addon URL"
                   className="flex-1 px-3 py-2 bg-moonlit-elevated rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-moonlit-accent" />
                 <button onClick={handleSaveAddon} disabled={addonSaving}
                   className="px-4 py-2 bg-white text-black rounded-full text-sm disabled:opacity-50">
@@ -200,6 +201,7 @@ export default function AdminPage() {
               <input value={newRowName} onChange={e => setNewRowName(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleAddRow()}
                 placeholder="New collection row name…"
+                aria-label="Collection name"
                 className="flex-1 px-3 py-2 bg-moonlit-elevated rounded-xl text-white text-sm focus:outline-none focus:ring-2 focus:ring-moonlit-accent" />
               <button onClick={handleAddRow} className="px-4 py-2 bg-white text-black rounded-full text-sm">+ Add Row</button>
             </div>
@@ -248,9 +250,11 @@ export default function AdminPage() {
           <div>
             <div className="flex gap-2 mb-4 items-center">
               <input type="number" value={maxUses} onChange={e => setMaxUses(Number(e.target.value))} min={1} max={100}
+                aria-label="Max uses"
                 className="w-20 px-3 py-2 bg-moonlit-elevated rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-moonlit-accent text-sm" />
               <span className="text-sm text-moonlit-muted">uses per code</span>
               <input type="datetime-local" value={newCodeExpiresAt} onChange={e => setNewCodeExpiresAt(e.target.value)}
+                aria-label="Expiration"
                 className="px-3 py-2 bg-moonlit-elevated rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-moonlit-accent text-sm" />
               <button onClick={() => setNewCodeExpiresAt('')} className="text-xs text-moonlit-muted hover:text-white">Never</button>
               <button onClick={handleGenerate} className="ml-auto px-4 py-2 bg-white text-black rounded-full text-sm">Generate Code</button>
@@ -268,6 +272,7 @@ export default function AdminPage() {
                   </div>
                   <div className="flex gap-2 items-center flex-wrap justify-end">
                     <input type="datetime-local" value={isoToDateTimeInput(code.expires_at)} onChange={e => handleExpirationChange(code.code, e.target.value)}
+                      aria-label="Expiration"
                       className="px-2 py-1.5 bg-moonlit-elevated rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-moonlit-accent text-xs" />
                     <button onClick={() => handleExpirationChange(code.code, '')} className="text-xs text-moonlit-muted hover:text-white">Never</button>
                     <span className={`w-2 h-2 rounded-full ${code.is_active && !code.used_by && !isExpired(code) ? 'bg-green-500' : code.used_by || isExpired(code) ? 'bg-red-500' : 'bg-gray-500'}`} />

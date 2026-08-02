@@ -29,13 +29,47 @@ export function headersForExactOrigin(
   }
 }
 
-export function buildMediaProxyUrl(url: string, requestHeaders?: Record<string, string>): never {
-  void url;
-  void requestHeaders;
-  throw new Error('Media proxy disabled: authenticated opaque proxy sessions are required.');
+let _sessionId: string | null = null;
+let _sessionTarget: string | null = null;
+let _sessionCreatedAt = 0;
+
+const SESSION_TTL_MS = 3_300_000;
+
+export async function ensureProxySession(
+  targetUrl: string,
+  requestHeaders?: Record<string, string>,
+): Promise<string | null> {
+  if (_sessionId && _sessionTarget === targetUrl && Date.now() - _sessionCreatedAt < SESSION_TTL_MS) {
+    return _sessionId;
+  }
+  try {
+    const proxyBase = window.location.origin;
+    const resp = await fetch(`${proxyBase}/api/media-proxy/session`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ target: targetUrl, headers: requestHeaders ?? {} }),
+    });
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    _sessionId = data.session;
+    _sessionTarget = targetUrl;
+    _sessionCreatedAt = Date.now();
+    return _sessionId;
+  } catch {
+    return null;
+  }
+}
+
+export function buildMediaProxyUrl(url: string, sessionId: string): string {
+  const proxyBase = typeof window !== 'undefined' ? window.location.origin : '';
+  return `${proxyBase}/api/media-proxy?session=${encodeURIComponent(sessionId)}&url=${encodeURIComponent(url)}`;
 }
 
 export function parseMediaProxyHeaders(value: string | null): Record<string, string> {
-  void value;
-  return {};
+  if (!value) return {};
+  try {
+    return JSON.parse(value);
+  } catch {
+    return {};
+  }
 }

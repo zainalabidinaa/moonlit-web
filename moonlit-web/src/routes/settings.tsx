@@ -1,14 +1,32 @@
-import { useState } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { useAuth } from '@/app/AuthProvider';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { getInstalledAddons, saveInstalledAddons } from '@/lib/services/api';
 import { fetchManifest } from '@/lib/stremio';
 import { DEFAULT_ADDONS } from '@/lib/supabase';
-import { AddonManifest } from '@/lib/types';
+import type { AddonManifest } from '@/lib/types';
 import { useNavigate } from '@tanstack/react-router';
 import { getStreamingServerUrl, setStreamingServerUrl } from '@/lib/config';
 import { pingServer } from '@/lib/streaming-server';
+import {
+  createProfilePreferencesRepository,
+  DEFAULT_HOME_PREFERENCES,
+  DEFAULT_ARTWORK_PREFERENCES,
+  DEFAULT_PLAYER_PREFERENCES,
+  DEFAULT_SUBTITLE_PREFERENCES,
+  normalizeSubtitlePreferences,
+  type HomePreferences,
+  type ArtworkPreferences,
+  type PlayerPreferences,
+  type SubtitlePreferences,
+  type PlayerEnginePreference,
+  type PlayerCacheMode,
+  type SubtitlePreset,
+  type SubtitleAlignment,
+} from '@/lib/preferences/profile-preferences';
+import { saveSubtitlePreferences, loadSubtitlePreferences, subscribeSubtitlePreferences } from '@/lib/subtitle-preferences';
+import { isDesktop } from '@/lib/platform';
 
 function getAddonCapabilities(manifest: AddonManifest): string[] {
   if (!manifest.resources) return [];
@@ -82,6 +100,147 @@ function RowDivider() {
   return <div className="h-px bg-white/[0.06] ml-14" />;
 }
 
+function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
+  return (
+    <label className="flex items-center justify-between gap-3 py-2 px-4 hover:bg-white/[0.02] cursor-pointer">
+      <span className="text-sm text-white/80">{label}</span>
+      <button
+        role="switch"
+        aria-checked={checked}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-6 w-10 items-center rounded-full transition-colors ${checked ? 'bg-white' : 'bg-white/15'}`}
+      >
+        <span
+          className={`inline-block h-4 w-4 rounded-full bg-black transition-transform ${checked ? 'translate-x-5' : 'translate-x-1'}`}
+        />
+      </button>
+    </label>
+  );
+}
+
+function SliderSetting({ label, value, min, max, step, onChange, unit }: {
+  label: string; value: number; min: number; max: number; step: number;
+  onChange: (v: number) => void; unit?: string;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-4 py-2 px-4 hover:bg-white/[0.02] cursor-pointer">
+      <span className="text-sm text-white/80 min-w-0">{label}</span>
+      <div className="flex items-center gap-2 shrink-0">
+        <input
+          type="range"
+          min={min}
+          max={max}
+          step={step}
+          value={value}
+          onChange={e => onChange(parseFloat(e.target.value))}
+          className="w-24 h-1.5 accent-white"
+        />
+        <span className="text-xs text-white/40 w-12 text-right tabular-nums">
+          {value}{unit ?? ''}
+        </span>
+      </div>
+    </label>
+  );
+}
+
+function SelectSetting<T extends string>({ label, value, options, onChange }: {
+  label: string; value: T; options: { value: T; label: string }[];
+  onChange: (v: T) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-4 py-2 px-4 hover:bg-white/[0.02]">
+      <span className="text-sm text-white/80">{label}</span>
+      <select
+        value={value}
+        onChange={e => onChange(e.target.value as T)}
+        className="bg-[#2a2a2a] rounded text-sm text-white px-2 py-1 border border-white/10 focus:outline-none focus:ring-1 focus:ring-white/30"
+      >
+        {options.map(o => (
+          <option key={o.value} value={o.value}>{o.label}</option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function ColorSetting({ label, value, onChange }: {
+  label: string; value: string; onChange: (v: string) => void;
+}) {
+  return (
+    <label className="flex items-center justify-between gap-4 py-2 px-4 hover:bg-white/[0.02]">
+      <span className="text-sm text-white/80">{label}</span>
+      <div className="flex items-center gap-2">
+        <input
+          type="color"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          className="w-7 h-7 rounded border border-white/10 bg-transparent cursor-pointer"
+        />
+        <span className="text-xs text-white/40 w-16 tabular-nums">{value}</span>
+      </div>
+    </label>
+  );
+}
+
+function ArtworkPreview({ scale, radius, halo }: { scale: number; radius: number; halo: boolean }) {
+  return (
+    <div className="flex justify-center py-6 bg-[#191919] rounded border border-white/5">
+      <div className="relative" style={{ perspective: '800px' }}>
+        {halo && (
+          <>
+            <div className="absolute -inset-3 rounded opacity-30 blur-xl"
+              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.15), rgba(255,255,255,0.05))' }} />
+            <div className="absolute -inset-6 rounded opacity-15 blur-2xl"
+              style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.1), transparent)' }} />
+          </>
+        )}
+        <div
+          className="relative bg-gradient-to-br from-[#2a2a2a] to-[#1a1a1a] border border-white/10 overflow-hidden"
+          style={{
+            width: `${154 * scale}px`,
+            height: `${231 * scale}px`,
+            borderRadius: `${radius}px`,
+          }}
+        >
+          <div className="absolute inset-0 flex items-center justify-center">
+            <svg viewBox="0 0 24 24" fill="none" className="w-8 h-8 text-white/15" stroke="currentColor" strokeWidth="1">
+              <rect x="3" y="3" width="18" height="18" rx="3" />
+              <path d="M3 16l5-5 4 4 5-5 4 4" />
+              <circle cx="8.5" cy="8.5" r="1.5" />
+            </svg>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function SubtitlePreview({ prefs }: { prefs: SubtitlePreferences }) {
+  const n = normalizeSubtitlePreferences(prefs);
+  return (
+    <div className="flex justify-center py-8 bg-[#111111] rounded border border-white/5 relative">
+      <div className="absolute top-3 left-3 text-[10px] text-white/20">Preview</div>
+      <div
+        className="text-center px-4 max-w-sm"
+        style={{
+          fontSize: `${Math.round(n.fontSize * n.scale)}px`,
+          color: n.textColorHex,
+          fontWeight: n.isBold ? 700 : 400,
+          fontStyle: n.isItalic ? 'italic' : 'normal',
+          textShadow: `0 0 ${n.textBlur}px rgba(0,0,0,0.8), ${['left', 'right'].includes(n.horizontalAlignment) ? 'none' : '-1px -1px 0 ' + n.outlineColorHex + ', 1px -1px 0 ' + n.outlineColorHex + ', -1px 1px 0 ' + n.outlineColorHex + ', 1px 1px 0 ' + n.outlineColorHex}`,
+          background: n.backgroundColorHex
+            ? `linear-gradient(${n.backgroundColorHex}${Math.round(n.backgroundOpacity * 255).toString(16).padStart(2, '0')}, ${n.backgroundColorHex}${Math.round(n.backgroundOpacity * 255).toString(16).padStart(2, '0')})`
+            : undefined,
+          textAlign: n.horizontalAlignment as 'left' | 'center' | 'right',
+          padding: `${n.horizontalMargin}px ${n.horizontalMargin}px`,
+        }}
+      >
+        This is how your subtitles will look
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const { currentProfile, signOut, refreshAddons } = useAuth();
   const navigate = useNavigate();
@@ -91,10 +250,84 @@ export default function SettingsPage() {
   const [installError, setInstallError] = useState('');
   const [showAddons, setShowAddons] = useState(false);
   const [showServer, setShowServer] = useState(false);
+  const [showHome, setShowHome] = useState(false);
+  const [showArtwork, setShowArtwork] = useState(false);
+  const [showPlayer, setShowPlayer] = useState(false);
+  const [showSubtitles, setShowSubtitles] = useState(false);
 
   const [serverUrl, setServerUrlState] = useState(() => getStreamingServerUrl());
   const [testing, setTesting] = useState(false);
   const [serverStatus, setServerStatus] = useState<'idle' | 'ok' | 'fail'>('idle');
+
+  const repo = createProfilePreferencesRepository();
+
+  const { data: prefs } = useQuery({
+    queryKey: ['profile-preferences', currentProfile?.id],
+    queryFn: async () => {
+      if (!currentProfile) return null;
+      const results = await Promise.all([
+        repo.load(currentProfile.id, 'home'),
+        repo.load(currentProfile.id, 'artwork'),
+        repo.load(currentProfile.id, 'player'),
+      ]);
+      return {
+        home: results[0].value as HomePreferences,
+        artwork: results[1].value as ArtworkPreferences,
+        player: results[2].value as PlayerPreferences,
+        subtitles: loadSubtitlePreferences(),
+      };
+    },
+    enabled: !!currentProfile,
+  });
+
+  const [homePrefs, setHomePrefs] = useState<HomePreferences>(DEFAULT_HOME_PREFERENCES);
+  const [artworkPrefs, setArtworkPrefs] = useState<ArtworkPreferences>(DEFAULT_ARTWORK_PREFERENCES);
+  const [playerPrefs, setPlayerPrefs] = useState<PlayerPreferences>(DEFAULT_PLAYER_PREFERENCES);
+  const [subPrefs, setSubPrefs] = useState<SubtitlePreferences>(DEFAULT_SUBTITLE_PREFERENCES);
+  const prefsInitialized = useRef(false);
+
+  useEffect(() => {
+    if (prefs && !prefsInitialized.current) {
+      prefsInitialized.current = true;
+      setHomePrefs(prefs.home);
+      setArtworkPrefs(prefs.artwork);
+      setPlayerPrefs(prefs.player);
+      setSubPrefs(prefs.subtitles);
+    }
+  }, [prefs]);
+
+  useEffect(() => {
+    return subscribeSubtitlePreferences(newPrefs => {
+      setSubPrefs(newPrefs);
+    });
+  }, []);
+
+  const savePrefs = useCallback(async () => {
+    if (!currentProfile) return;
+    void Promise.all([
+      repo.save(currentProfile.id, 'home', homePrefs),
+      repo.save(currentProfile.id, 'artwork', artworkPrefs),
+      repo.save(currentProfile.id, 'player', playerPrefs),
+    ]);
+    saveSubtitlePreferences(subPrefs);
+  }, [currentProfile, homePrefs, artworkPrefs, playerPrefs, subPrefs, repo]);
+
+  const resetSection = useCallback(async <T extends keyof typeof defaults>(namespace: T, setter: (v: (typeof defaults)[T]) => void) => {
+    const defaults = {
+      home: DEFAULT_HOME_PREFERENCES,
+      artwork: DEFAULT_ARTWORK_PREFERENCES,
+      player: DEFAULT_PLAYER_PREFERENCES,
+      subtitles: DEFAULT_SUBTITLE_PREFERENCES,
+    } as const;
+    const value = defaults[namespace];
+    setter(value as (typeof defaults)[T]);
+    if (!currentProfile) return;
+    if (namespace === 'subtitles') {
+      saveSubtitlePreferences(value as SubtitlePreferences);
+    } else {
+      void repo.save(currentProfile.id, namespace, value);
+    }
+  }, [currentProfile, repo]);
 
   async function handleSaveServer() {
     const url = serverUrl.trim().replace(/\/+$/, '');
@@ -116,7 +349,7 @@ export default function SettingsPage() {
       const cache: Record<string, AddonManifest> = {};
       await Promise.allSettled(
         targetUrls.map(async url => {
-          try { cache[url] = await fetchManifest(url); } catch {}
+          try { cache[url] = await fetchManifest(url); } catch { /* skip unreachable addon */ }
         })
       );
       return { urls: targetUrls, manifests: cache };
@@ -160,11 +393,35 @@ export default function SettingsPage() {
     serverStatus === 'fail' ? 'Unreachable' :
     serverUrl ? 'Not tested' : 'Off';
 
+  const ENGINE_OPTIONS: { value: PlayerEnginePreference; label: string }[] = [
+    { value: 'auto', label: 'Auto' },
+    { value: 'native', label: 'Native' },
+    { value: 'mpv', label: 'MPV' },
+  ];
+
+  const CACHE_OPTIONS: { value: PlayerCacheMode; label: string }[] = [
+    { value: 'memory', label: 'Memory' },
+    { value: 'disk', label: 'Disk' },
+    { value: 'off', label: 'Off' },
+  ];
+
+  const PRESET_OPTIONS: { value: SubtitlePreset; label: string }[] = [
+    { value: 'standard', label: 'Standard' },
+    { value: 'boxed', label: 'Boxed' },
+    { value: 'classic', label: 'Classic' },
+    { value: 'minimal', label: 'Minimal' },
+  ];
+
+  const ALIGN_OPTIONS: { value: SubtitleAlignment; label: string }[] = [
+    { value: 'left', label: 'Left' },
+    { value: 'center', label: 'Center' },
+    { value: 'right', label: 'Right' },
+  ];
+
   return (
     <div className="px-6 md:px-14 py-8 max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-white mb-6">Settings</h1>
 
-      {/* Profile card */}
       <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
         <div className="px-4 py-3.5 flex items-center gap-3">
           {currentProfile && <ProfileAvatar profile={currentProfile} size={44} className="shrink-0" />}
@@ -179,7 +436,14 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      <SectionLabel>General</SectionLabel>
+      <div className="flex items-center justify-between mt-6">
+        <SectionLabel>Compatibility</SectionLabel>
+        {isDesktop() && (
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-white/5 text-white/30 border border-white/10">
+            Desktop
+          </span>
+        )}
+      </div>
       <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
         <SettingsRow
           iconBg="#2C7DE8"
@@ -189,6 +453,19 @@ export default function SettingsPage() {
           chevron={false}
           value="TMDB"
         />
+        {isDesktop() && (
+          <>
+            <RowDivider />
+            <SettingsRow
+              iconBg="#8B5CF6"
+              icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4z"/></svg>}
+              title="Anime4K"
+              subtitle="GPU-accelerated upscaling"
+              chevron={false}
+              value="Available"
+            />
+          </>
+        )}
       </div>
 
       {currentProfile?.role === 'admin' && (
@@ -289,7 +566,9 @@ export default function SettingsPage() {
 
             <div className="p-4 border-t border-white/10 space-y-2">
               <div className="flex gap-2">
+                <label htmlFor="addon-url" className="sr-only">Addon manifest URL</label>
                 <input
+                  id="addon-url"
                   value={newUrl}
                   onChange={e => { setNewUrl(e.target.value); setInstallError(''); }}
                   onKeyDown={e => e.key === 'Enter' && !installing && handleInstall()}
@@ -299,17 +578,74 @@ export default function SettingsPage() {
                 <button
                   onClick={handleInstall}
                   disabled={!newUrl.trim() || installing}
-                   className="px-4 py-2.5 bg-white text-black rounded text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[80px] flex items-center justify-center"
+                  className="px-4 py-2.5 bg-white text-black rounded text-sm font-semibold disabled:opacity-40 hover:bg-white/90 transition-colors min-w-[80px] flex items-center justify-center"
                 >
                   {installing
                     ? <div className="w-4 h-4 rounded-full border-2 border-black/20 border-t-black animate-spin-arc" />
                     : 'Install'}
                 </button>
               </div>
-              {installError && <p className="text-xs text-red-400">{installError}</p>}
+              {installError && <p className="text-xs text-red-400" role="alert">{installError}</p>}
               <p className="text-[11px] text-moonlit-muted">
                 Paste a Stremio addon manifest URL.
               </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <SectionLabel>Home</SectionLabel>
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <SettingsRow
+          iconBg="#007AFF"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>}
+          title="Home Screen"
+          subtitle={`Cinematic mode ${homePrefs.cinematicModeEnabled ? 'on' : 'off'}`}
+          onClick={() => setShowHome(v => !v)}
+        />
+        {showHome && (
+          <div className="border-t border-white/10">
+            <Toggle checked={homePrefs.cinematicModeEnabled} onChange={v => setHomePrefs(p => ({ ...p, cinematicModeEnabled: v }))} label="Cinematic mode" />
+            <div className="flex justify-end px-4 py-2">
+              <button onClick={() => { setHomePrefs(DEFAULT_HOME_PREFERENCES); savePrefs(); }}
+                className="text-xs text-white/40 hover:text-white mr-2">Reset</button>
+              <button onClick={savePrefs}
+                className="text-xs font-semibold text-white bg-white/10 px-3 py-1 rounded hover:bg-white/20">Save</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <SectionLabel>Appearance</SectionLabel>
+      <div className="rounded bg-[#1f1f1f] border border-white/10 overflow-hidden">
+        <SettingsRow
+          iconBg="#FF9500"
+          icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M20 3H4c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zM8.5 19h7c.3 0 .5.2.5.5s-.2.5-.5.5z"/></svg>}
+          title="Artwork"
+          subtitle={`Scale ${artworkPrefs.posterScale}x · Radius ${artworkPrefs.posterRadius}px`}
+          value={artworkPrefs.artworkHaloEnabled ? 'Halo on' : 'Halo off'}
+          onClick={() => setShowArtwork(v => !v)}
+        />
+        {showArtwork && (
+          <div className="border-t border-white/10">
+            <ArtworkPreview scale={artworkPrefs.posterScale} radius={artworkPrefs.posterRadius} halo={artworkPrefs.artworkHaloEnabled} />
+            <SliderSetting label="Poster scale" value={artworkPrefs.posterScale} min={0.5} max={2} step={0.05}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterScale: v }))} unit="x" />
+            <SliderSetting label="Poster radius" value={artworkPrefs.posterRadius} min={0} max={24} step={1}
+              onChange={v => setArtworkPrefs(p => ({ ...p, posterRadius: v }))} unit="px" />
+            <Toggle checked={artworkPrefs.artworkHaloEnabled}
+              onChange={v => setArtworkPrefs(p => ({ ...p, artworkHaloEnabled: v }))} label="Artwork halo" />
+            <Toggle checked={artworkPrefs.hoverPreviewEnabled}
+              onChange={v => setArtworkPrefs(p => ({ ...p, hoverPreviewEnabled: v }))} label="Hover preview" />
+            {artworkPrefs.hoverPreviewEnabled && (
+              <SliderSetting label="Preview delay" value={artworkPrefs.hoverPreviewDelaySeconds} min={0.1} max={2} step={0.1}
+                onChange={v => setArtworkPrefs(p => ({ ...p, hoverPreviewDelaySeconds: v }))} unit="s" />
+            )}
+            <div className="flex justify-end px-4 py-2">
+              <button onClick={() => resetSection('artwork', setArtworkPrefs)}
+                className="text-xs text-white/40 hover:text-white mr-2">Reset</button>
+              <button onClick={savePrefs}
+                className="text-xs font-semibold text-white bg-white/10 px-3 py-1 rounded hover:bg-white/20">Save</button>
             </div>
           </div>
         )}
@@ -321,18 +657,18 @@ export default function SettingsPage() {
           iconBg="#FF3B30"
           icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M4 4h16a1 1 0 011 1v14a1 1 0 01-1 1H4a1 1 0 01-1-1V5a1 1 0 011-1zm6 7.5l5 2.5-5 2.5v-5z"/></svg>}
           title="Video Player"
-          subtitle="Playback quality & behavior"
-          chevron={false}
-          value="Default"
+          subtitle={playerPrefs.usePerTypePlayers ? 'Per-type' : playerPrefs.moviePlayer}
+          value={playerPrefs.showOnlyCompatibleFormats ? 'Compatible only' : 'Auto'}
+          onClick={() => setShowPlayer(v => !v)}
         />
         <RowDivider />
         <SettingsRow
           iconBg="#636366"
           icon={<svg viewBox="0 0 24 24" fill="white" className="w-4 h-4"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h14v2H3z"/></svg>}
           title="Subtitles"
-          subtitle="Language & styling"
-          chevron={false}
-          value="Off"
+          subtitle={subPrefs.preset}
+          value={`${subPrefs.fontSize}px`}
+          onClick={() => setShowSubtitles(v => !v)}
         />
         <RowDivider />
         <SettingsRow
@@ -353,10 +689,81 @@ export default function SettingsPage() {
           onClick={() => setShowServer(v => !v)}
         />
 
+        {showPlayer && (
+          <div className="border-t border-white/10">
+            <Toggle checked={playerPrefs.autoplayNextEpisode}
+              onChange={v => setPlayerPrefs(p => ({ ...p, autoplayNextEpisode: v }))} label="Autoplay next episode" />
+            <Toggle checked={playerPrefs.showSkipIntroButton}
+              onChange={v => setPlayerPrefs(p => ({ ...p, showSkipIntroButton: v }))} label="Show skip intro button" />
+            <Toggle checked={playerPrefs.autoSkipIntros}
+              onChange={v => setPlayerPrefs(p => ({ ...p, autoSkipIntros: v }))} label="Auto-skip intros" />
+            <Toggle checked={playerPrefs.showTimelineHighlights}
+              onChange={v => setPlayerPrefs(p => ({ ...p, showTimelineHighlights: v }))} label="Timeline highlights" />
+            <Toggle checked={playerPrefs.autoplayPreviews}
+              onChange={v => setPlayerPrefs(p => ({ ...p, autoplayPreviews: v }))} label="Autoplay previews" />
+            <Toggle checked={playerPrefs.showOnlyCompatibleFormats}
+              onChange={v => setPlayerPrefs(p => ({ ...p, showOnlyCompatibleFormats: v }))} label="Show only compatible formats" />
+            {isDesktop() && (
+              <Toggle checked={playerPrefs.anime4KEnabled}
+                onChange={v => setPlayerPrefs(p => ({ ...p, anime4KEnabled: v }))} label="Anime4K upscaling" />
+            )}
+            <SelectSetting label="Cache mode" value={playerPrefs.cacheMode} options={CACHE_OPTIONS}
+              onChange={v => setPlayerPrefs(p => ({ ...p, cacheMode: v }))} />
+            <SelectSetting label="Movie player" value={playerPrefs.moviePlayer} options={ENGINE_OPTIONS}
+              onChange={v => setPlayerPrefs(p => ({ ...p, moviePlayer: v }))} />
+            <SelectSetting label="Series player" value={playerPrefs.seriesPlayer} options={ENGINE_OPTIONS}
+              onChange={v => setPlayerPrefs(p => ({ ...p, seriesPlayer: v }))} />
+            <SelectSetting label="Live TV player" value={playerPrefs.livePlayer} options={ENGINE_OPTIONS}
+              onChange={v => setPlayerPrefs(p => ({ ...p, livePlayer: v }))} />
+            <div className="flex justify-end px-4 py-2">
+              <button onClick={() => resetSection('player', setPlayerPrefs)}
+                className="text-xs text-white/40 hover:text-white mr-2">Reset</button>
+              <button onClick={savePrefs}
+                className="text-xs font-semibold text-white bg-white/10 px-3 py-1 rounded hover:bg-white/20">Save</button>
+            </div>
+          </div>
+        )}
+
+        {showSubtitles && (
+          <div className="border-t border-white/10">
+            <SubtitlePreview prefs={subPrefs} />
+            <SelectSetting label="Preset" value={subPrefs.preset} options={PRESET_OPTIONS}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, preset: v }))} />
+            <SliderSetting label="Font size" value={subPrefs.fontSize} min={16} max={64} step={1}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, fontSize: v }))} unit="px" />
+            <SliderSetting label="Scale" value={subPrefs.scale} min={0.5} max={2} step={0.05}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, scale: v }))} unit="x" />
+            <Toggle checked={subPrefs.isBold}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, isBold: v }))} label="Bold" />
+            <Toggle checked={subPrefs.isItalic}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, isItalic: v }))} label="Italic" />
+            <ColorSetting label="Text color" value={subPrefs.textColorHex}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, textColorHex: v }))} />
+            <ColorSetting label="Outline color" value={subPrefs.outlineColorHex}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, outlineColorHex: v }))} />
+            <ColorSetting label="Background color" value={subPrefs.backgroundColorHex}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, backgroundColorHex: v }))} />
+            <SliderSetting label="Background opacity" value={subPrefs.backgroundOpacity} min={0} max={1} step={0.05}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, backgroundOpacity: v }))} unit="" />
+            <SelectSetting label="Alignment" value={subPrefs.horizontalAlignment} options={ALIGN_OPTIONS}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, horizontalAlignment: v }))} />
+            <SliderSetting label="Vertical position" value={subPrefs.verticalPosition} min={0} max={200} step={1}
+              onChange={v => setSubPrefs(p => normalizeSubtitlePreferences({ ...p, verticalPosition: v }))} unit="px" />
+            <div className="flex justify-end px-4 py-2">
+              <button onClick={() => resetSection('subtitles', setSubPrefs)}
+                className="text-xs text-white/40 hover:text-white mr-2">Reset</button>
+              <button onClick={savePrefs}
+                className="text-xs font-semibold text-white bg-white/10 px-3 py-1 rounded hover:bg-white/20">Save</button>
+            </div>
+          </div>
+        )}
+
         {showServer && (
           <div className="p-4 border-t border-white/10 space-y-2">
             <div className="flex gap-2">
+              <label htmlFor="server-url" className="sr-only">Streaming server URL</label>
               <input
+                id="server-url"
                 value={serverUrl}
                 onChange={e => { setServerUrlState(e.target.value); setServerStatus('idle'); }}
                 onKeyDown={e => e.key === 'Enter' && !testing && handleSaveServer()}

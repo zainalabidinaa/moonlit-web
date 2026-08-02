@@ -109,6 +109,7 @@ export default function SearchPage() {
                 <input ref={inputRef} type="text" value={query} onChange={e => handleQueryChange(e.target.value)}
                   onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
                   placeholder="Search movies & shows..."
+                  aria-label="Search"
                   className="flex-1 bg-transparent text-white text-[15px] placeholder-white/30 outline-none" autoComplete="off" />
                 {query && (
                   <button type="button" onClick={() => { setQuery(''); setResults([]); setSubmitted(false); }}
@@ -231,7 +232,7 @@ export default function SearchPage() {
             ) : (
               <div className="flex flex-col items-center justify-center py-24 gap-4">
                 <svg className="w-12 h-12 text-white/15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35" strokeLinecap="round"/></svg>
-                <p className="text-white/40 text-sm">No results for &ldquo;{query}&rdquo;</p>
+                <p className="text-white/30 text-sm">No results for &ldquo;{query}&rdquo;</p>
                 <p className="text-white/25 text-xs">Try a different spelling or keyword</p>
               </div>
             )}

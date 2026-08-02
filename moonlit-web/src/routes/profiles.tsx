@@ -72,6 +72,7 @@ export default function ProfilesPage() {
             <input autoFocus value={newName} onChange={e => setNewName(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleCreate()}
               placeholder="Profile name"
+              aria-label="Profile name"
               className="flex-1 px-4 py-2.5 bg-white/5 border border-white/10 rounded-xl text-white text-sm focus:outline-none focus:border-moonlit-accent/60 transition-all" />
             <button onClick={handleCreate}
               className="px-4 py-2.5 bg-moonlit-action hover:bg-moonlit-action/90 rounded-xl text-sm font-semibold text-moonlit-action-foreground transition-colors cursor-pointer">
