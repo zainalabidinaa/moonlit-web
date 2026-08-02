@@ -12,6 +12,7 @@ const primaryNavItems = [
   { href: '/home', label: 'Home' },
   { href: '/movies', label: 'Movies' },
   { href: '/series', label: 'Series' },
+  { href: '/genre/Action', label: 'Genres' },
   { href: '/live', label: 'Live TV' },
   { href: '/watchlist', label: 'Watchlist' },
 ] as const;
@@ -21,6 +22,7 @@ function activePrimaryPath(pathname: string): string | null {
   if (pathname === '/library' || pathname.startsWith('/watchlist')) return '/watchlist';
   if (pathname.startsWith('/movies')) return '/movies';
   if (pathname.startsWith('/series')) return '/series';
+  if (pathname.startsWith('/genre/')) return '/genre/Action';
   if (pathname.startsWith('/live')) return '/live';
   if (pathname.startsWith('/browse/movie/')) return '/movies';
   if (pathname.startsWith('/browse/series/')) return '/series';

@@ -186,6 +186,12 @@ const collectionsRoute = createRoute({
   component: lazily(() => import('@/routes/collections')),
 });
 
+const genreHubRoute = createRoute({
+  getParentRoute: () => protectedLayout,
+  path: '/genre/$genreName',
+  component: lazily(() => import('@/routes/genre-hub')),
+});
+
 const adminRoute = createRoute({
   getParentRoute: () => protectedLayout,
   path: '/admin',
@@ -209,6 +215,7 @@ const routeTree = rootRoute.addChildren([
     searchRoute,
     settingsRoute,
     collectionsRoute,
+    genreHubRoute,
     adminRoute,
   ]),
 ]);
