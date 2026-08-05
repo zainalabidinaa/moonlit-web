@@ -817,6 +817,18 @@ struct PlayerScreen: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
+        // Sized by the block it sits behind, so it grows with an open panel and
+        // shrinks back with it. `.background` cannot affect its host's layout, so
+        // this cannot inflate the container the way a sibling would.
+        .background {
+            LinearGradient(
+                colors: [.black.opacity(0), .black.opacity(0.85)],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea(edges: .bottom)
+            .allowsHitTesting(false)
+        }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { chromeHeight = $0 }
     }
 
@@ -1853,8 +1865,10 @@ private struct PlayerDetailsPanel: View {
                 }
             }
         }
-        .padding(12)
-        .glassCard(cornerRadius: 16)
+        // No card. The Apple TV player renders panel content flush over the video,
+        // legibility coming from the bottom scrim on `playerBottomArea` rather than
+        // from a container. Vertical padding only — horizontal comes from the block.
+        .padding(.vertical, 8)
         .task {
             guard tab == .soundtrack, let groupId = soundtrack?.releaseGroupId else { return }
             albumArtworkURL = await SoundtrackService.fetchAlbumArtwork(releaseGroupId: groupId)
