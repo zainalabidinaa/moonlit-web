@@ -559,6 +559,12 @@ struct PlayerScreen: View {
             // native players. Faded out (not offset) while a detail panel is
             // open so it doesn't compete with the panel for attention.
             playerTransport
+                // Centre on the full frame, not on the space left once the bottom safe
+                // area is subtracted. The home indicator inset (~21pt in landscape) was
+                // pulling the centre to (402-21)/2 = 190.5pt; measured 191pt against
+                // Apple's exact 201pt.
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .ignoresSafeArea()
                 .opacity(playerDetailTab == nil ? 1 : 0)
                 .allowsHitTesting(playerDetailTab == nil)
                 .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: playerDetailTab)
@@ -711,8 +717,11 @@ struct PlayerScreen: View {
         .glassCircle(clear: false)
         .accessibilityLabel("Close player")
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .padding(.leading, 16)
-        .padding(.top, 24)
+        // Sits at the safe-area edge rather than 16pt inside it. Apple places its close
+        // button at 38pt, i.e. *within* the landscape safe area — not matched here, since
+        // that region is where the Dynamic Island lands depending on which way the phone
+        // is rotated. This closes most of the 58pt gap without risking a collision.
+        .padding(.top, 12)
     }
 
     /// Background taps close an open detail panel before they do anything else. With the
@@ -825,7 +834,10 @@ struct PlayerScreen: View {
                 )
             }
         }
-        .padding(.horizontal, 20)
+        // No horizontal padding. In landscape the safe area already insets this by
+        // ~62pt, which is exactly where the Apple TV player puts its content edge.
+        // Adding a nominal 20pt gutter on top double-inset the whole block and gave
+        // away 40pt of width — measured at 82.7pt against Apple's 62.0pt.
         .padding(.bottom, 14)
         // A VStack(alignment: .leading) sizes itself to its CONTENT, not the screen.
         // Without this the backdrop below inherited that narrower width and stopped
@@ -2055,8 +2067,12 @@ private struct PlayerTimelineControls: View {
     var body: some View {
         let _ = PlayerPerformanceDiagnostics.shared.mark("PlayerTimelineControls.body")
         HStack(spacing: 10) {
+            // Leading, not trailing. Right-aligning a short time like "00:29" inside a
+            // 44pt box pushed it ~12pt inward, so it no longer shared the left edge with
+            // the title and chips. Apple puts elapsed time, title and chips on one
+            // unbroken vertical line; one stray edge is enough to lose that.
             Text(formatTime(displayPosition))
-                .frame(minWidth: 44, alignment: .trailing)
+                .frame(minWidth: 44, alignment: .leading)
 
             PlayerScrubber(
                 value: scrubberBinding,
@@ -2067,8 +2083,10 @@ private struct PlayerTimelineControls: View {
             )
             .frame(maxWidth: .infinity)
 
+            // Trailing, for the mirror reason: the remaining time should pin to the
+            // right content edge rather than floating just after the track.
             Text("−\(formatTime(max(timeline.duration - displayPosition, 0)))")
-                .frame(minWidth: 52, alignment: .leading)
+                .frame(minWidth: 52, alignment: .trailing)
         }
         .font(.system(size: 11, weight: .medium).monospacedDigit())
         .foregroundStyle(.white.opacity(0.55))
