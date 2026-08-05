@@ -827,17 +827,38 @@ struct PlayerScreen: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
-        // Sized by the block it sits behind, so it grows with an open panel and
-        // shrinks back with it. `.background` cannot affect its host's layout, so
-        // this cannot inflate the container the way a sibling would.
+        // A VStack(alignment: .leading) sizes itself to its CONTENT, not the screen.
+        // Without this the backdrop below inherited that narrower width and stopped
+        // partway across. Width only — height is untouched, so this cannot reintroduce
+        // the vertical overflow that resized the video.
+        .frame(maxWidth: .infinity, alignment: .leading)
+        // Only while a panel is open. Applied unconditionally it read as a permanent
+        // black bar across the bottom of the picture.
+        //
+        // Blurred material rather than a flat gradient, masked so it dissolves upward
+        // instead of ending on a hard edge. `.background` is sized by its host and
+        // cannot affect that host's layout, so this cannot inflate the container.
         .background {
-            LinearGradient(
-                colors: [.black.opacity(0), .black.opacity(0.85)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea(edges: .bottom)
-            .allowsHitTesting(false)
+            if playerDetailTab != nil {
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .environment(\.colorScheme, .dark)
+                    .mask {
+                        LinearGradient(
+                            stops: [
+                                .init(color: .clear, location: 0),
+                                .init(color: .black.opacity(0.6), location: 0.25),
+                                .init(color: .black, location: 0.55),
+                                .init(color: .black, location: 1)
+                            ],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    }
+                    .ignoresSafeArea(edges: .bottom)
+                    .allowsHitTesting(false)
+                    .transition(.opacity)
+            }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { chromeHeight = $0 }
     }
