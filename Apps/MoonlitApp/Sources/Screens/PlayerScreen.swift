@@ -8,6 +8,7 @@ import MoonlitCore
 struct PlayerScreen: View {
     let onDismiss: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private let engine = PlayerEngine.shared
     @StateObject private var mpvEngine = MPVPlayerEngine()
     @State private var timeline = PlayerTimelineModel()
@@ -15,6 +16,7 @@ struct PlayerScreen: View {
     @StateObject private var streamRepo = StreamRepository.shared
     @StateObject private var addonRepo = AddonRepository.shared
     @StateObject private var metaRepo = MetaRepository.shared
+    @StateObject private var subtitleAppearanceStore = SubtitleAppearanceStore.shared
     @State private var showControls = true
     @State private var resolvedLogo: String?
     @State private var resolvedBackground: String?
@@ -36,16 +38,16 @@ struct PlayerScreen: View {
     @State private var isFetchingStream = false
     @State private var isSwitchingStream = false
     @State private var isFillingVideo = false
-    // Snapshots frozen while a menu is open so unrelated player state changes
-    // don't rebuild the content and reset the menu's scroll position.
-    @State private var subtitleMenuSnapshot: [(lang: String, items: [SubtitleItem])] = []
-    @State private var subtitleMenuSelectedSnapshot: SubtitleItem? = nil
-    @State private var audioMenuSnapshot: [String] = []
-    @State private var audioMenuSelectedSnapshot: String? = nil
-    @State private var isSubtitleMenuOpen = false
+    @State private var skipBackAngle: Double = 0
+    @State private var skipBackScale: CGFloat = 1
+    @State private var skipForwardAngle: Double = 0
+    @State private var skipForwardScale: CGFloat = 1
+    @State private var showSubtitleAppearanceEditor = false
     @State private var cachedSourceFallbackTask: Task<Void, Never>?
     @State private var isResolvingStream = true
     @State private var autoPlayCandidates: [StreamItem] = []
+    @StateObject private var recoveryCoordinator = PlaybackRecoveryCoordinator()
+    @StateObject private var soundtrackService = SoundtrackService.shared
 
     // Branded pre-roll loading card visibility + minimum-visible window so a
     // fast cached source doesn't flash the card out before it's perceptible.
@@ -58,8 +60,16 @@ struct PlayerScreen: View {
     @State private var systemVolume: Float = AVAudioSession.sharedInstance().outputVolume
 #endif
 
-    // Skip Intro
-    @StateObject private var introViewModel = IntroTimestampServiceViewModel()
+    // Community-verified recap/intro/outro windows for the active episode.
+    @StateObject private var segmentViewModel = PlaybackSegmentsViewModel()
+    @State private var skipActionsHiddenForSource = false
+    @State private var playerDetailTab: PlayerDetailTab? = nil
+    @State private var isDismissing = false
+    // Measured height of the bottom chrome block, so the skip-intro pill (which
+    // lives outside playerControlsLayer so it survives auto-hide) can float just
+    // above it instead of overlapping the tab row / speed / track menus.
+    @State private var chromeHeight: CGFloat = 0
+    @State private var detailPanelHeight: CGFloat = 0
 
     init(launch: PlayerLaunch, onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
@@ -68,6 +78,23 @@ struct PlayerScreen: View {
 
     private var videoReady: Bool {
         (engine.customDisplayView ?? mpvEngine.displayView) != nil && mpvEngine.hasRenderedFrame
+    }
+
+    /// First 4-digit run in the loaded detail's release info — disambiguates a
+    /// MusicBrainz soundtrack search for titles that share a name with a much
+    /// more famous album (e.g. a low-profile film named after a hit song).
+    private var releaseYear: Int? {
+        guard let raw = metaRepo.detail?.releaseInfo else { return nil }
+        var digits = ""
+        for ch in raw {
+            if ch.isNumber {
+                digits.append(ch)
+                if digits.count == 4 { return Int(digits) }
+            } else {
+                digits = ""
+            }
+        }
+        return nil
     }
 
     var body: some View {
@@ -88,18 +115,12 @@ struct PlayerScreen: View {
                 .allowsHitTesting(false)
                 .transition(.opacity)
                 .zIndex(50)
-                .overlay(alignment: .topLeading) {
-                    cancelButton {
-                        engine.stop()
-                        onDismiss()
-                    }
-                }
                 .overlay(alignment: .topTrailing) {
                     retryButton()
                 }
             }
 
-            if !isSwitchingStream, !mpvEngine.didEncounterError,
+            if !mpvEngine.didEncounterError,
                let ksView = engine.customDisplayView ?? mpvEngine.displayView {
                 MPVPlayerViewRepresentable(playerView: ksView)
                     .id(mpvEngine.launchToken)
@@ -143,15 +164,27 @@ struct PlayerScreen: View {
                     }
                 }
 
-            // Subtitle text overlay — always visible while a subtitle is loaded
-            if !mpvEngine.loadedCues.isEmpty {
-                TimelineSubtitleOverlay(
-                    index: SubtitleCueIndex(cues: mpvEngine.loadedCues),
-                    timeline: timeline
-                )
-                    .allowsHitTesting(false)
-                    .ignoresSafeArea()
-            }
+            // Subtitle text overlay. Kept mounted at all times and faded via opacity
+            // rather than conditionally inserted — mounting/unmounting this on every
+            // `loadedCues` change (e.g. when switching tracks) was contributing to the
+            // flicker reported around subtitle/audio selection, the same reason
+            // playerControlsLayer above uses opacity instead of removal.
+            TimelineSubtitleOverlay(
+                index: SubtitleCueIndex(cues: mpvEngine.loadedCues),
+                timeline: timeline,
+                delay: mpvEngine.subtitleDelaySeconds,
+                trailingInset: showSubtitleAppearanceEditor ? subtitleCustomizationPanelWidth : 0,
+                // Rests at its normal configured position when controls are
+                // hidden, and lifts clear of the bottom chrome (title, scrubber,
+                // tabs, an open detail panel) when they're shown — previously a
+                // fixed offset, which is why controls used to land on top of it.
+                extraBottomInset: showControls ? chromeHeight + detailPanelHeight + 12 : detailPanelHeight + 12
+            )
+                .opacity(mpvEngine.loadedCues.isEmpty ? 0 : 1)
+                .allowsHitTesting(false)
+                .ignoresSafeArea()
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: showControls)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: chromeHeight)
 
             // ── STREAM-SWITCH LOADING OVERLAY ─────────────────────────────
             if isSwitchingStream {
@@ -183,9 +216,7 @@ struct PlayerScreen: View {
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 40)
                         Button {
-                            engine.stop()
-                            mpvEngine.stop()
-                            onDismiss()
+                            dismissPlayer()
                         } label: {
                             Label("Dismiss", systemImage: "xmark")
                                 .font(.system(size: 15, weight: .medium))
@@ -201,16 +232,87 @@ struct PlayerScreen: View {
 
             PlayerLockMode(isLocked: $isLocked, showHint: $showUnlockHint)
 
-            if showControls && !isLocked && !mpvEngine.didEncounterError {
-                playerControlsLayer
+            // Keep native Menu presenters mounted while controls fade. Removing
+            // this subtree while a system menu is open dismisses it and produces
+            // the visible flicker reported during playback progress updates.
+            playerControlsLayer
+                .opacity(showControls && !isLocked && !mpvEngine.didEncounterError ? 1 : 0)
+                .allowsHitTesting(showControls && !isLocked && !mpvEngine.didEncounterError)
+                .accessibilityHidden(!showControls || isLocked || mpvEngine.didEncounterError)
+
+            // Detail panel overlay — standalone glass card above the bottom chrome.
+            // Rendered outside playerControlsLayer so the chrome area stays a fixed
+            // height and the video/subtitles don't jump when a panel opens.
+            if let tab = playerDetailTab, !isLocked && !mpvEngine.didEncounterError {
+                VStack(spacing: 0) {
+                    Spacer()
+                    PlayerDetailsPanel(
+                        tab: tab,
+                        launch: activeLaunch,
+                        detail: metaRepo.detail,
+                        soundtrack: soundtrackService.soundtrack(forId: activeLaunch.parentMetaId ?? activeLaunch.videoId),
+                        restart: { engine.seek(to: 0) }
+                    )
+                    .padding(.horizontal, 20)
+                    // Measure the panel itself, BEFORE the bottom padding is applied.
+                    // Measuring after meant `detailPanelHeight` silently included
+                    // `chromeHeight + 14`, and every consumer then wrote
+                    // `chromeHeight + detailPanelHeight` — counting the chrome twice and
+                    // feeding a geometry value back into the layout that produced it.
+                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { detailPanelHeight = $0 }
+                    .padding(.bottom, chromeHeight + 14)
+                }
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .move(edge: .bottom).combined(with: .opacity)
+                )
+                .zIndex(30)
             }
+
+            // Rendered outside playerControlsLayer (and its opacity gate) so the
+            // skip pill survives auto-hide instead of disappearing with the rest
+            // of the chrome. Floats above the bottom chrome block when controls
+            // are visible, drops to the safe-area inset when they aren't.
+            if !isLocked && !mpvEngine.didEncounterError {
+                skipSegmentOverlay
+            }
+
+            if !isLocked && (loadingCardVisible || showControls || mpvEngine.didEncounterError) {
+                playerCloseButton
+                    .zIndex(200)
+            }
+
         }
         .preferredColorScheme(.dark)
+        .overlay(alignment: .trailing) {
+            if showSubtitleAppearanceEditor {
+                PlayerSubtitleCustomizationPanel(
+                    delay: Binding(
+                        get: { mpvEngine.subtitleDelaySeconds },
+                        set: { mpvEngine.setSubtitleDelay($0) }
+                    ),
+                    onClose: closeAdvancedSubtitleAppearance
+                )
+                .frame(width: subtitleCustomizationPanelWidth)
+                .safeAreaPadding(.vertical, 12)
+                .safeAreaPadding(.trailing, 12)
+                .transition(
+                    reduceMotion
+                        ? .opacity
+                        : .move(edge: .trailing).combined(with: .opacity)
+                )
+                .zIndex(150)
+            }
+        }
         .onAppear {
             MainHangDiagnostics.start()
             MainHangDiagnostics.mark("player.onAppear")
+            recoveryCoordinator.reset()
 #if os(iOS)
-            OrientationManager.shared.currentMask = .allButUpsideDown
+            // Restrict UIKit before asking the scene to rotate; otherwise the
+            // player can briefly lay out in portrait during presentation.
+            OrientationManager.shared.prepare(.landscape)
 #endif
             // Keep the branded loading card up for a minimum window so it's
             // always perceptible, even when a cached source renders instantly.
@@ -301,12 +403,10 @@ struct PlayerScreen: View {
                 }
             }
 #if os(iOS)
-            // Request landscape after the fullScreenCover slide-up animation finishes
+            // Request landscape from the active app scene after the cover attaches.
             Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(500))
-                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                    scene.requestGeometryUpdate(.iOS(interfaceOrientations: .landscape)) { _ in }
-                }
+                try? await Task.sleep(for: .milliseconds(120))
+                OrientationManager.shared.request(.landscape)
             }
 #endif
         }
@@ -314,13 +414,15 @@ struct PlayerScreen: View {
             hideControlsTask?.cancel()
             cachedSourceFallbackTask?.cancel()
 #if os(iOS)
-            OrientationManager.shared.currentMask = .portrait
-            if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
-                scene.requestGeometryUpdate(.iOS(interfaceOrientations: .portrait)) { _ in }
-            }
+            // Fallback for every dismissal path, including errors and interrupted covers.
+            OrientationManager.shared.request(.portrait)
+            PlaybackWakeLock.set(false)
 #endif
             engine.stop()
             mpvEngine.stop()
+        }
+        .onChange(of: showSubtitleAppearanceEditor) { _, showing in
+            showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
         }
         .onChange(of: showControls) { _, visible in
             guard visible else {
@@ -341,23 +443,67 @@ struct PlayerScreen: View {
                 maybeHideLoadingCard()
             }
         }
-        .onChange(of: streamRepo.streams) { _, _ in refreshSourceControlState() }
-        .onChange(of: activeLaunch.sourceUrl) { _, _ in refreshSourceControlState() }
-        .onChange(of: mpvEngine.availableSubtitles) { _, subs in
-            guard !isSubtitleMenuOpen else { return }
-            let grouped = Dictionary(grouping: subs, by: { $0.lang })
-            subtitleMenuSnapshot = grouped.keys.sorted().map { k in
-                (lang: k, items: (grouped[k] ?? []).sorted { ($0.name ?? $0.lang) < ($1.name ?? $1.lang) })
+        .onReceive(subtitleAppearanceStore.objectWillChange) { _ in
+            // Store setters announce immediately before persisting their new value.
+            // Defer one main-queue turn so both custom cue rendering and embedded
+            // libass subtitles read the updated appearance.
+            DispatchQueue.main.async {
+                mpvEngine.applySubtitleAppearance()
             }
         }
-        .task(id: activeLaunch.videoId) {
-            if let imdbId = activeLaunch.parentMetaId,
-               let season = activeLaunch.seasonNumber,
-               let episode = activeLaunch.episodeNumber {
-                await introViewModel.load(imdbId: imdbId, season: season, episode: episode)
-            } else {
-                introViewModel.clear()
+        .onChange(of: streamRepo.streams) { _, _ in refreshSourceControlState() }
+        .onChange(of: activeLaunch.sourceUrl) { _, _ in
+            skipActionsHiddenForSource = false
+            segmentViewModel.clear()
+            refreshSourceControlState()
+        }
+        .task(id: segmentLookupKey) {
+            guard mpvEngine.duration > 0,
+                  let rawId = activeLaunch.parentMetaId,
+                  let imdbId = rawId.split(separator: ":").first.map(String.init),
+                  imdbId.hasPrefix("tt"),
+                  let season = activeLaunch.seasonNumber,
+                  let episode = activeLaunch.episodeNumber else {
+                segmentViewModel.clear()
+                return
             }
+            let request = PlaybackSegmentRequest(
+                imdbId: imdbId,
+                season: season,
+                episode: episode,
+                duration: mpvEngine.duration,
+                streamIdentity: activeStreamIdentity
+            )
+            await segmentViewModel.load(
+                request: request,
+                exactSegments: mpvEngine.embeddedPlaybackSegments
+            )
+        }
+        .task(id: activeLaunch.parentMetaId) {
+            guard let id = activeLaunch.parentMetaId else { return }
+            await metaRepo.loadDetail(
+                type: activeLaunch.parentMetaType ?? activeLaunch.contentType.rawValue,
+                id: id,
+                addons: addonRepo.activeAddons
+            )
+        }
+        .task(id: activeLaunch.parentMetaId ?? activeLaunch.videoId) {
+            let id = activeLaunch.parentMetaId ?? activeLaunch.videoId
+            // For an episode, `activeLaunch.title` is the *episode's* title —
+            // querying a soundtrack source with that almost never matches.
+            // The parent show's own name is what actually resolves, so this
+            // awaits the parent detail itself (idempotent/cached if the
+            // sibling `.task` above already loaded it) rather than racing it.
+            var queryTitle = activeLaunch.title
+            if let parentId = activeLaunch.parentMetaId {
+                await metaRepo.loadDetail(
+                    type: activeLaunch.parentMetaType ?? activeLaunch.contentType.rawValue,
+                    id: parentId,
+                    addons: addonRepo.activeAddons
+                )
+                queryTitle = metaRepo.detail?.name ?? activeLaunch.title
+            }
+            await soundtrackService.fetch(id: id, title: queryTitle, year: releaseYear)
         }
         .animation(.easeInOut(duration: 0.4), value: videoReady)
         .overlay(alignment: .trailing) {
@@ -374,10 +520,17 @@ struct PlayerScreen: View {
             .zIndex(10)
         }
         .onChange(of: showSources) { _, showing in
-            showing ? pauseControlsAutoHide() : scheduleControlsAutoHide()
+            showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
         }
         .onChange(of: showEpisodes) { _, showing in
-            showing ? pauseControlsAutoHide() : scheduleControlsAutoHide()
+            showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
+        }
+        .onChange(of: show4KChoice) { _, showing in
+            showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
+        }
+        .onChange(of: playerDetailTab) { _, tab in
+            PlayerLayoutLog.write("detailTab=\(tab.map(String.init(describing:)) ?? "nil") chromeHeight=\(chromeHeight) detailPanelHeight=\(detailPanelHeight)")
+            tab == nil ? resumeControlsAutoHide() : pauseControlsAutoHide()
         }
         .sheet(isPresented: $showEpisodes) { EpisodesPanel(engine: engine) }
         .confirmationDialog("4K Playback", isPresented: $show4KChoice, titleVisibility: .visible) {
@@ -400,6 +553,35 @@ struct PlayerScreen: View {
         }
     }
 
+    private func selectAudioTrackFromPanel(_ id: Int64) {
+        mpvEngine.selectAudioTrack(id: id)
+        // Deferred a tick so this doesn't invalidate the view while the system
+        // Menu is still animating its dismissal — a contributor to the flicker
+        // reported around track selection.
+        DispatchQueue.main.async {
+            revealControls(scheduleAutoHide: true)
+        }
+    }
+
+    private func selectSubtitleFromPanel(_ subtitle: SubtitleItem?) {
+        engine.setSubtitle(subtitle)
+        DispatchQueue.main.async {
+            revealControls(scheduleAutoHide: true)
+        }
+    }
+
+    private func openAdvancedSubtitleAppearance() {
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.22)) {
+            showSubtitleAppearanceEditor = true
+        }
+    }
+
+    private func closeAdvancedSubtitleAppearance() {
+        withAnimation(reduceMotion ? nil : .snappy(duration: 0.18)) {
+            showSubtitleAppearanceEditor = false
+        }
+    }
+
     @ViewBuilder private var playerControlsLayer: some View {
         ZStack {
             Color.clear
@@ -410,10 +592,17 @@ struct PlayerScreen: View {
                     hideControlsNow()
                 }
 
-            // Transport truly centered on screen
+            // True screen center — matches the transport position on tvOS/iOS
+            // native players. Faded out (not offset) while a detail panel is
+            // open so it doesn't compete with the panel for attention.
             playerTransport
+                .opacity(playerDetailTab == nil ? 1 : 0)
+                .allowsHitTesting(playerDetailTab == nil)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.22), value: playerDetailTab)
 
-            // Top bar pinned to top
+            // Top bar pinned to top. Deliberately NOT gated on `playerDetailTab` —
+            // the Apple TV player keeps close/PiP/AirPlay/share and the volume slider
+            // visible while a detail panel is open, so the user always has an exit.
             VStack(spacing: 0) {
                 playerTopBar
                     .padding(.horizontal, 20)
@@ -430,40 +619,91 @@ struct PlayerScreen: View {
     }
 
     @ViewBuilder private var playerTransport: some View {
-        HStack(spacing: 44) {
+        HStack(spacing: 40) {
             Button {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.prepare()
+                generator.impactOccurred()
+                skipBackAngle = -30
+                skipBackScale = 0.85
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.45)) {
+                        skipBackAngle = 0
+                        skipBackScale = 1
+                    }
+                }
                 pauseControlsAutoHide()
-                engine.skipBack15()
+                engine.seek(to: max(timeline.position - 10, 0))
             } label: {
-                Image(systemName: "gobackward.15")
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
+                ZStack {
+                    Image(systemName: "gobackward")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundColor(.white)
+                        .rotationEffect(.degrees(skipBackAngle))
+                    Text("10")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .scaleEffect(skipBackScale)
+                .frame(width: 60, height: 60)
+                .glassCircle(clear: false)
+                .frame(width: 88, height: 88)
+                .contentShape(Rectangle())
             }
-            .glassCircle(clear: true)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Go back 10 seconds")
 
             Button {
                 pauseControlsAutoHide()
                 engine.togglePlayPause()
             } label: {
                 Image(systemName: engine.isPlaying ? "pause.fill" : "play.fill")
-                    .font(.system(size: 30, weight: .semibold))
+                    .font(.system(size: 50, weight: .semibold))
                     .foregroundColor(.white)
-                    .frame(width: 72, height: 72)
+                    .frame(width: 96, height: 96)
                     .offset(x: engine.isPlaying ? 0 : 2)
+                    .glassCircle(clear: true)
+                    .frame(width: 120, height: 120)
+                    .contentShape(Rectangle())
             }
-            .glassCircle(clear: true)
+            .buttonStyle(.plain)
+            .accessibilityLabel(engine.isPlaying ? "Pause" : "Play")
 
             Button {
+                let generator = UIImpactFeedbackGenerator(style: .light)
+                generator.prepare()
+                generator.impactOccurred()
+                skipForwardAngle = 30
+                skipForwardScale = 0.85
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.45)) {
+                        skipForwardAngle = 0
+                        skipForwardScale = 1
+                    }
+                }
                 pauseControlsAutoHide()
-                engine.skipForward15()
+                let destination = timeline.duration > 0
+                    ? min(timeline.position + 10, timeline.duration)
+                    : timeline.position + 10
+                engine.seek(to: destination)
             } label: {
-                Image(systemName: "goforward.15")
-                    .font(.system(size: 26, weight: .medium))
-                    .foregroundColor(.white)
-                    .frame(width: 56, height: 56)
+                ZStack {
+                    Image(systemName: "goforward")
+                        .font(.system(size: 28, weight: .medium))
+                        .foregroundColor(.white)
+                        .rotationEffect(.degrees(skipForwardAngle))
+                    Text("10")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white)
+                }
+                .scaleEffect(skipForwardScale)
+                .frame(width: 60, height: 60)
+                .glassCircle(clear: false)
+                .frame(width: 88, height: 88)
+                .contentShape(Rectangle())
             }
-            .glassCircle(clear: true)
+            .buttonStyle(.plain)
+            .accessibilityLabel("Go forward 10 seconds")
         }
     }
 
@@ -483,17 +723,6 @@ struct PlayerScreen: View {
 
     private var playerTopBarContent: some View {
         HStack(spacing: 8) {
-            Button {
-                engine.stop()
-                onDismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 50, height: 50)
-            }
-            .glassCircle(clear: true)
-
             Spacer()
 
 #if os(iOS)
@@ -507,19 +736,62 @@ struct PlayerScreen: View {
         }
     }
 
+    private var playerCloseButton: some View {
+        Button(action: dismissPlayer) {
+            Image(systemName: "xmark")
+                .font(.system(size: 19, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 52, height: 52)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .glassCircle(clear: false)
+        .accessibilityLabel("Close player")
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(.leading, 16)
+        .padding(.top, 24)
+    }
+
+    @MainActor
+    private func dismissPlayer() {
+        guard !isDismissing else { return }
+        isDismissing = true
+        hideControlsTask?.cancel()
+        cachedSourceFallbackTask?.cancel()
+        engine.stop()
+        mpvEngine.stop()
+#if os(iOS)
+        // Restore the orientation while this explicit close action is still on screen;
+        // waiting for onDisappear leaves UIKit with no reason to re-query the mask.
+        OrientationManager.shared.request(.portrait)
+        PlaybackWakeLock.set(false)
+#endif
+        onDismiss()
+    }
+
+    // Prefer the actual episode title (already resolved by DetailScreen into
+    // `streamTitle` when known) over a bare "S1 · E2" so the caption row reads
+    // like the reference design instead of leaving it blank most of the time.
+    private var episodeCaption: String? {
+        guard let s = activeLaunch.seasonNumber, let e = activeLaunch.episodeNumber else { return nil }
+        if let title = activeLaunch.streamTitle, !title.isEmpty { return title }
+        return "S\(s) · E\(e)"
+    }
+
     @ViewBuilder private var playerBottomArea: some View {
-        VStack(spacing: 8) {
-            // Title (left) + control buttons (right) — same row
+        VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .bottom, spacing: 8) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(activeLaunch.title)
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                    if let s = activeLaunch.seasonNumber, let e = activeLaunch.episodeNumber {
-                        Text("S\(s) · E\(e)")
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.white.opacity(0.45))
+                    if let episodeCaption {
+                        Text(episodeCaption)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.white.opacity(0.55))
+                            .lineLimit(1)
                     }
+                    Text(activeLaunch.title)
+                        .font(.system(size: 26, weight: .bold))
+                        .foregroundColor(.white)
+                        .lineLimit(1)
                 }
 
                 Spacer()
@@ -531,8 +803,7 @@ struct PlayerScreen: View {
                             show4KChoice = true
                         }
                     }
-                    ccMenu
-                    audioMenu
+                    nativeTrackMenus
                     moreMenu
                 }
             }
@@ -540,7 +811,6 @@ struct PlayerScreen: View {
             PlayerTimelineControls(
                 engine: engine,
                 timeline: timeline,
-                introViewModel: introViewModel,
                 isScrubbing: $isScrubbing,
                 scrubPosition: $scrubPosition,
                 onScrubStarted: {
@@ -551,106 +821,132 @@ struct PlayerScreen: View {
                     pauseControlsAutoHide()
                 }
             )
+
+            playerDetailTabButtons
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 10)
+        .padding(.bottom, 14)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { chromeHeight = $0 }
     }
 
-    @ViewBuilder private var ccMenu: some View {
-        let isActive = engine.selectedSubtitle != nil
-        Menu {
-            ForEach(subtitleMenuSnapshot, id: \.lang) { group in
-                if group.items.count == 1, let item = group.items.first {
-                    Button(action: { revealControls(scheduleAutoHide: true); engine.setSubtitle(item) }) {
-                        if subtitleMenuSelectedSnapshot?.id == item.id {
-                            Label(subtitleDisplayName(for: group.lang), systemImage: "checkmark")
-                        } else {
-                            Text(subtitleDisplayName(for: group.lang))
-                        }
-                    }
-                } else {
-                    Menu(subtitleDisplayName(for: group.lang)) {
-                        ForEach(group.items) { item in
-                            Button(action: { revealControls(scheduleAutoHide: true); engine.setSubtitle(item) }) {
-                                if subtitleMenuSelectedSnapshot?.id == item.id {
-                                    Label(item.name ?? item.lang, systemImage: "checkmark")
-                                } else {
-                                    Text(item.name ?? item.lang)
-                                }
-                            }
-                        }
-                    }
+    @ViewBuilder
+    private var playerDetailTabButtons: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    playerDetailTabButton(.info, title: "Info")
+                    playerDetailTabButton(.spotlight, title: "Spotlight")
+                    playerDetailTabButton(.soundtrack, title: "Soundtrack")
                 }
             }
-            Divider()
-            Button(action: { revealControls(scheduleAutoHide: true); engine.setSubtitle(nil) }) {
-                if subtitleMenuSelectedSnapshot == nil {
-                    Label("Off", systemImage: "checkmark")
-                } else {
-                    Text("Off")
-                }
+        } else {
+            HStack(spacing: 8) {
+                playerDetailTabButton(.info, title: "Info")
+                playerDetailTabButton(.spotlight, title: "Spotlight")
+                playerDetailTabButton(.soundtrack, title: "Soundtrack")
             }
-            Color.clear.frame(width: 0, height: 0)
-                .onAppear {
-                    isSubtitleMenuOpen = true
-                    hideControlsTask?.cancel()
-                    let grouped = Dictionary(grouping: engine.availableSubtitles, by: { $0.lang })
-                    subtitleMenuSnapshot = grouped.keys.sorted().map { k in
-                        (lang: k, items: (grouped[k] ?? []).sorted { ($0.name ?? $0.lang) < ($1.name ?? $1.lang) })
-                    }
-                    subtitleMenuSelectedSnapshot = engine.selectedSubtitle
-                }
-                .onDisappear {
-                    isSubtitleMenuOpen = false
-                    scheduleControlsAutoHide()
-                }
-        } label: {
-            Image(systemName: "captions.bubble")
-                .renderingMode(.template)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.white.opacity(0.9))
-                .frame(width: 44, height: 44)
         }
-        .tint(.white)
-        .glassCapsuleActive(isActive: isActive)
     }
 
-    @ViewBuilder private var audioMenu: some View {
-        let tracks = engine.availableAudioTracks.isEmpty ? mpvEngine.availableAudioTracks : engine.availableAudioTracks
-        let selected = engine.selectedAudioTrack ?? mpvEngine.selectedAudioTrack
-        let isActive = !tracks.isEmpty && selected != nil
-        Menu {
-            // Show live tracks — no snapshot needed; Menu re-renders on open.
-            ForEach(tracks, id: \.self) { track in
-                Button(action: { revealControls(scheduleAutoHide: true); engine.setAudioTrack(track) }) {
-                    if selected == track {
-                        Label(track, systemImage: "checkmark")
-                    } else {
-                        Text(track)
-                    }
+    @ViewBuilder
+    private var skipSegmentButton: some View {
+        if VideoPlayerPreferenceStore.shared.showSkipIntroButton,
+           !skipActionsHiddenForSource,
+           let segment = segmentViewModel.segments?.action(at: timeline.position) {
+            SkipSegmentAction(
+                label: segment.kind == .recap ? "Skip Recap" : "Skip Intro"
+            ) {
+                engine.seek(to: segment.end)
+                revealControls(scheduleAutoHide: true)
+            }
+            .contextMenu {
+                Button("Hide Skip Actions", systemImage: "eye.slash") {
+                    skipActionsHiddenForSource = true
                 }
             }
-            // Static fallback keeps the Menu openable even before tracks arrive.
-            if tracks.isEmpty {
-                Button("No audio tracks") { }
-                    .disabled(true)
-            }
-            Divider()
-            Color.clear.frame(width: 0, height: 0)
-                .onAppear {
-                    hideControlsTask?.cancel()
-                    mpvEngine.refreshAudioTracks()
-                }
-                .onDisappear { scheduleControlsAutoHide() }
-        } label: {
-            Image(systemName: "waveform")
-                .renderingMode(.template)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.white.opacity(0.9))
-                .frame(width: 44, height: 44)
         }
-        .tint(.white)
-        .glassCapsuleActive(isActive: isActive)
+    }
+
+    @ViewBuilder
+    private var skipSegmentOverlay: some View {
+        skipSegmentButton
+            .padding(.trailing, 20)
+            // Same reason as SubtitleTextOverlay: a rigid bottom padding built from
+            // `chromeHeight + detailPanelHeight` can exceed the screen and inflate the
+            // enclosing ZStack, which resizes the video. Offset instead — it positions
+            // without contributing to layout.
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+            .offset(y: -(showControls ? chromeHeight + detailPanelHeight + 12 : detailPanelHeight + 28))
+            .transition(.move(edge: .trailing).combined(with: .opacity))
+            .animation(
+                reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86),
+                value: showControls
+            )
+            .zIndex(120)
+    }
+
+    private func playerDetailTabButton(_ tab: PlayerDetailTab, title: String) -> some View {
+        Button {
+            withAnimation(.snappy(duration: 0.2)) {
+                playerDetailTab = playerDetailTab == tab ? nil : tab
+            }
+        } label: {
+            playerDetailTabLabel(tab, title: title)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(playerDetailTab == tab ? .isSelected : [])
+    }
+
+    @ViewBuilder
+    private func playerDetailTabLabel(_ tab: PlayerDetailTab, title: String) -> some View {
+        let selected = playerDetailTab == tab
+        // `Text` hit-tests its glyph bounds, not the frame padded around it — without
+        // an explicit contentShape the capsule looks tappable but only the word is.
+        // Horizontal padding comes before the frame (not a minWidth) so every
+        // label gets proportional breathing room — `minWidth: 76` alone left
+        // "Soundtrack" (wider than that floor) with zero padding, its text
+        // touching the capsule edge.
+        let content = Text(title)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 18)
+            .frame(minHeight: 48)
+            .contentShape(.capsule)
+
+        if #available(iOS 26.0, *) {
+            // `.regular` is what actually reads as glass — `.clear` was
+            // visually indistinguishable from a flat dark fill over video.
+            content
+                .glassEffect(
+                    selected
+                        ? .regular.tint(.white.opacity(0.28)).interactive()
+                        : .regular.interactive(),
+                    in: .capsule
+                )
+        } else {
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .stroke(Color.white.opacity(selected ? 0.28 : 0.12), lineWidth: 0.75)
+                }
+        }
+    }
+
+    private var nativeTrackMenus: some View {
+        PlayerNativeTrackMenus(
+            audioTracks: mpvEngine.availableAudioTrackItems,
+            subtitles: engine.availableSubtitles,
+            selectedAudioID: mpvEngine.availableAudioTrackItems.first(where: \.isSelected)?.id,
+            selectedSubtitleID: engine.selectedSubtitle?.id,
+            onSelectAudio: selectAudioTrackFromPanel,
+            onSelectSubtitle: selectSubtitleFromPanel,
+            onCustomizeSubtitles: openAdvancedSubtitleAppearance,
+            onMenuPresented: pauseControlsAutoHide,
+            onMenuDismissed: resumeControlsAutoHide
+        )
+        .equatable()
     }
 
     @ViewBuilder private var moreMenu: some View {
@@ -671,8 +967,8 @@ struct PlayerScreen: View {
                 cyclePlaybackSpeed()
             }
             Color.clear.frame(width: 0, height: 0)
-                .onAppear { hideControlsTask?.cancel() }
-                .onDisappear { scheduleControlsAutoHide() }
+                .onAppear(perform: pauseControlsAutoHide)
+                .onDisappear(perform: resumeControlsAutoHide)
         } label: {
             Image(systemName: "ellipsis")
                 .renderingMode(.template)
@@ -719,6 +1015,21 @@ struct PlayerScreen: View {
         streamRepo.streams.first { $0.url == activeLaunch.sourceUrl }
     }
 
+    private var activeStreamIdentity: String {
+        PlaybackStreamIdentity.make(
+            providerName: activeLaunch.providerName,
+            sourceURL: activeLaunch.sourceUrl,
+            sourceSize: activeLaunch.sourceVideoSize,
+            streamTitle: activeLaunch.streamTitle
+        )
+    }
+
+    private var segmentLookupKey: String {
+        let durationBucket = Int(mpvEngine.duration.rounded())
+        let exactMarker = mpvEngine.embeddedPlaybackSegments == nil ? "remote" : "embedded"
+        return "\(activeLaunch.videoId):\(activeStreamIdentity):\(durationBucket):\(exactMarker)"
+    }
+
     private var loadingLogoURL: URL? {
         (resolvedLogo ?? activeLaunch.logo).flatMap(URL.init)
     }
@@ -727,7 +1038,7 @@ struct PlayerScreen: View {
     /// preference: wide fanart → fetched fanart → episode still → poster →
     /// fetched poster. The card always renders crisp — no blur fallback.
     private var loadingBackdropURL: String? {
-        activeLaunch.background ?? resolvedBackground ?? activeLaunch.episodeThumbnail ?? activeLaunch.poster ?? resolvedPoster
+        activeLaunch.background ?? resolvedBackground ?? metaRepo.detail?.background ?? activeLaunch.episodeThumbnail
     }
 
     /// Crossfades the branded loading card out once the first frame has
@@ -754,7 +1065,7 @@ struct PlayerScreen: View {
                 .foregroundColor(.white)
                 .frame(width: 50, height: 50)
         }
-        .glassCircle(clear: true)
+        .glassCircle(clear: false)
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -769,7 +1080,7 @@ struct PlayerScreen: View {
                 .foregroundColor(.white)
                 .frame(width: 50, height: 50)
         }
-        .glassCircle(clear: true)
+        .glassCircle(clear: false)
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
         .padding(.top, 12)
@@ -830,31 +1141,59 @@ struct PlayerScreen: View {
         StreamSourceSelector.best4KStream(from: streamRepo.streams, excluding: currentStream)
     }
 
+    /// Single entry point for both the automatic failure sink and the manual
+    /// "Retry source" menu action. Routed through `PlaybackRecoveryCoordinator`,
+    /// which classifies what just failed and — only for the two shapes an
+    /// expired or IP-rejected link actually takes — re-fetches the stream list
+    /// from the user's own enabled addons before giving up. Shows the error
+    /// overlay only once every avenue, including a fresh fetch, is exhausted.
     private func switchToNextSource() {
-        let candidates = StreamSourceSelector.cachedCandidates(
-            currentUrl: activeLaunch.sourceUrl,
-            from: streamRepo.streams
-        )
-        guard let stream = StreamSourceSelector.nextStream(
-            after: currentStream,
-            currentSourceUrl: activeLaunch.sourceUrl,
-            from: candidates,
-            prefer4K: prefers4K
-        ) else { return }
-        Task { await switchToSource(stream, persist4KPreference: false) }
+        Task {
+            await recoverFromPlaybackFailure(
+                failedUrl: activeLaunch.sourceUrl,
+                failedHeaders: activeLaunch.sourceHeaders ?? [:]
+            )
+        }
     }
 
-    ///  silent candidate cycling during stream resolution.
-    /// Removes the current (failed) stream from the queue and tries the next
-    /// auto-playable candidate. If none remain, shows the error overlay.
-    private func tryNextAutoPlayCandidate() {
-        autoPlayCandidates.removeAll { $0.id == currentStream?.id || $0.url == activeLaunch.sourceUrl }
-        guard let next = autoPlayCandidates.first else {
+    /// `failedUrl`/`failedHeaders` describe whatever candidate just failed —
+    /// this is NOT always `activeLaunch`. When `switchToSource` rejects a
+    /// candidate at its own preflight, `activeLaunch` still reflects the
+    /// previously-playing source, since the new one is only committed after a
+    /// clean preflight.
+    private func recoverFromPlaybackFailure(failedUrl: String, failedHeaders: [String: String]) async {
+        if !failedUrl.isEmpty { recoveryCoordinator.markTried(failedUrl) }
+        let reason: PlaybackFailureReason? = failedUrl.isEmpty
+            ? nil
+            : await StreamPreflight.classify(url: failedUrl, headers: failedHeaders)
+
+        let candidates = isResolvingStream
+            ? autoPlayCandidates
+            : StreamSourceSelector.cachedCandidates(currentUrl: failedUrl, from: streamRepo.streams, prefer4K: prefers4K)
+
+        let outcome = await recoveryCoordinator.recover(
+            candidates: candidates,
+            reason: reason,
+            type: activeLaunch.contentType.rawValue,
+            id: activeLaunch.videoId,
+            title: activeLaunch.title,
+            addons: addonRepo.activeAddons,
+            prefer4K: prefers4K
+        )
+
+        guard let stream = outcome.stream else {
             isSwitchingStream = false
             mpvEngine.didEncounterError = true
             return
         }
-        Task { await switchToSource(next, persist4KPreference: false) }
+        if isResolvingStream {
+            autoPlayCandidates.removeAll { $0.id == stream.id }
+        }
+        StreamPlaybackDiagnostics.logSelectedStream(
+            stream,
+            reason: outcome.refetched ? "recovery-expired" : "recovery-cascade"
+        )
+        await switchToSource(stream, persist4KPreference: false)
     }
 
     private var prefers4K: Bool {
@@ -889,7 +1228,7 @@ struct PlayerScreen: View {
         await streamRepo.fetchStreams(
             type: activeLaunch.contentType.rawValue,
             id: activeLaunch.videoId,
-            addons: addonRepo.enabledAddons
+            addons: addonRepo.activeAddons
         )
         refreshSourceControlState()
     }
@@ -943,7 +1282,7 @@ struct PlayerScreen: View {
         isSwitchingStream = true
         engine.pause()
         // Preflight: skip this candidate if the server returns an error page
-        // instead of media. On failure, tryNextAutoPlayCandidate() moves to the next.
+        // instead of media. On failure, recoverFromPlaybackFailure() moves to the next.
         if await preflightReachable(url: url, headers: hints.requestHeaders ?? [:]) {
             mpvEngine.launch(nextLaunch)
             engine.launch(nextLaunch)
@@ -951,7 +1290,7 @@ struct PlayerScreen: View {
             engine.play()
         } else {
             // URL rejected by preflight — try next candidate without showing error
-            tryNextAutoPlayCandidate()
+            await recoverFromPlaybackFailure(failedUrl: url, failedHeaders: hints.requestHeaders ?? [:])
             return
         }
         showControls = true
@@ -992,8 +1331,32 @@ struct PlayerScreen: View {
         revealControls(scheduleAutoHide: false)
     }
 
+    private var subtitleCustomizationPanelWidth: CGFloat {
+        let bounds = UIScreen.main.bounds
+        return min(max(bounds.width, bounds.height) * 0.34, 380)
+    }
+
+    private func resumeControlsAutoHide() {
+        guard !showSources,
+              !showEpisodes,
+              !show4KChoice,
+              !showSubtitleAppearanceEditor,
+              playerDetailTab == nil else {
+            return
+        }
+        isAutoHidePausedByControls = false
+        scheduleControlsAutoHide()
+    }
+
     private func hideControlsNow() {
-        guard !isScrubbing else { return }
+        guard !isScrubbing,
+              !showSources,
+              !showEpisodes,
+              !show4KChoice,
+              !showSubtitleAppearanceEditor,
+              playerDetailTab == nil else {
+            return
+        }
         PlayerPerformanceDiagnostics.shared.mark("controls.hide")
         hideControlsTask?.cancel()
         isAutoHidePausedByControls = false
@@ -1031,11 +1394,11 @@ struct PlayerScreen: View {
         }
         let metaId = activeLaunch.parentMetaId ?? activeLaunch.videoId
         let metaType = activeLaunch.parentMetaType ?? activeLaunch.contentType.rawValue
-        NSLog("[Moonlit][Loading] fetchDetail metaId=\(metaId) metaType=\(metaType) addons=\(addonRepo.enabledAddons.count)")
+        NSLog("[Moonlit][Loading] fetchDetail metaId=\(metaId) metaType=\(metaType) addons=\(addonRepo.activeAddons.count)")
         guard let detail = await metaRepo.fetchDetail(
             type: metaType,
             id: metaId,
-            addons: addonRepo.enabledAddons
+            addons: addonRepo.activeAddons
         ) else {
             NSLog("[Moonlit][Loading] fetchDetail returned nil")
             return
@@ -1066,7 +1429,7 @@ struct PlayerScreen: View {
             guard let profile = ProfileManager.shared.currentProfile else { return false }
             return PlaybackQualityPreferenceStore.shared.prefers4K(profileId: profile.id)
         }()
-        let installOrder = addonRepo.enabledAddons.map(\.name)
+        let installOrder = addonRepo.activeAddons.map(\.name)
 
         // Use pre-fetched streams from DetailScreen warmup if fresh (< 5 min).
         // This makes playback start instantly — no extra network round-trip needed.
@@ -1076,7 +1439,7 @@ struct PlayerScreen: View {
         } else {
             streamRepo.clearStreams()
             MainHangDiagnostics.mark("player.fetchStreams")
-            let bg = Task { await streamRepo.fetchStreams(type: type, id: id, addons: addonRepo.enabledAddons, title: activeLaunch.title) }
+            let bg = Task { await streamRepo.fetchStreams(type: type, id: id, addons: addonRepo.activeAddons, title: activeLaunch.title) }
             // Resume on whichever comes first: a ranked stream lands, the whole
             // fetch finishes, or the 15s ceiling expires.
             final class Holder { var cancellable: AnyCancellable? }
@@ -1110,51 +1473,42 @@ struct PlayerScreen: View {
             if Task.isCancelled { return }
         }
 
-        // Populate auto-play candidate queue for silent cycling ().
-        // If the first candidate fails, tryNextAutoPlayCandidate() picks the next.
+        // Resolve the best candidate via PlaybackRecoveryCoordinator: the first
+        // pass (`reason: nil`) just preflights the already-fetched pool in rank
+        // order; if every one of those fails, a second pass forces a fresh fetch
+        // from the user's own enabled addons — the recoverable shape an expired
+        // or IP-rejected link actually takes — before finally giving up.
         autoPlayCandidates = StreamSourceSelector.candidatesForAutoPlay(
             from: streamRepo.streams, prefer4K: prefer4K, installOrder: installOrder
         )
-
-        let selected = autoPlayCandidates.first
-        guard var stream = selected,
-              StreamSourceSelector.isPlaybackCandidate(stream),
-              var url = stream.url else { return }
-
-        // Remove selected from candidate queue so it won't be retried
-        autoPlayCandidates.removeFirst()
-
-        // Preflight: verify host is reachable before mpv connects.
-        // A dead proxy causes mpv_terminate_destroy to block main indefinitely.
-        var hints = StreamPlaybackHints(stream: stream)
         MainHangDiagnostics.mark("player.preflight")
-        if !(await preflightReachable(url: url, headers: hints.requestHeaders ?? [:])) {
-            // Auto-fallback: try candidates from the auto-play queue ().
-            var found = false
-            while let candidate = autoPlayCandidates.first {
-                autoPlayCandidates.removeFirst()
-                guard let candidateUrl = candidate.url,
-                      candidateUrl != url,
-                      StreamSourceSelector.isAutoPlayable(candidate) else { continue }
-                let candidateHints = StreamPlaybackHints(stream: candidate)
-                if await preflightReachable(url: candidateUrl, headers: candidateHints.requestHeaders ?? [:]) {
-                    stream = candidate
-                    url = candidateUrl
-                    hints = candidateHints
-                    found = true
-                    break
-                }
-            }
-            guard found else {
-                #if DEBUG
-                print("[Moonlit] preflight all candidates unreachable")
-                #endif
-                return
-            }
-            StreamPlaybackDiagnostics.logSelectedStream(stream, reason: "player-ranked-auto-fallback")
-        } else {
-            StreamPlaybackDiagnostics.logSelectedStream(stream, reason: "player-ranked-auto")
+        var outcome = await recoveryCoordinator.recover(
+            candidates: autoPlayCandidates,
+            reason: nil,
+            type: type, id: id, title: activeLaunch.title,
+            addons: addonRepo.activeAddons, prefer4K: prefer4K
+        )
+        if outcome.stream == nil {
+            outcome = await recoveryCoordinator.recover(
+                candidates: [],
+                reason: .providerError,
+                type: type, id: id, title: activeLaunch.title,
+                addons: addonRepo.activeAddons, prefer4K: prefer4K
+            )
         }
+        guard let stream = outcome.stream, let url = stream.url else {
+            #if DEBUG
+            print("[Moonlit] preflight all candidates unreachable, including a fresh fetch")
+            #endif
+            mpvEngine.didEncounterError = true
+            return
+        }
+        autoPlayCandidates.removeAll { $0.id == stream.id }
+        let hints = StreamPlaybackHints(stream: stream)
+        StreamPlaybackDiagnostics.logSelectedStream(
+            stream,
+            reason: outcome.refetched ? "recovery-expired" : "player-ranked-auto"
+        )
 
         // Start playback immediately — don't block on warmup or subtitle fetch
         let launch = PlayerLaunch(
@@ -1218,7 +1572,7 @@ struct PlayerScreen: View {
         let fetched = (try? await SubtitleService.shared.fetchSubtitlesFromAddons(
             type: activeLaunch.contentType.rawValue,
             id: activeLaunch.videoId,
-            addons: addonRepo.enabledAddons
+            addons: addonRepo.activeAddons
         )) ?? []
         var seen = Set<String>()
         let merged = (embedded + fetched)
@@ -1227,95 +1581,11 @@ struct PlayerScreen: View {
         return merged.isEmpty ? nil : merged
     }
 
+    /// Was a from-scratch reimplementation of `StreamPreflight.isReachable` with
+    /// slightly drifting error markers — now a thin wrapper over the canonical
+    /// MoonlitCore copy that `PlaybackRecoveryCoordinator` also uses.
     private func preflightReachable(url: String, headers: [String: String]) async -> Bool {
-        guard let requestUrl = URL(string: url) else { return false }
-        var request = URLRequest(url: requestUrl, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 3)
-        request.httpMethod = "GET"
-        request.setValue("bytes=0-4095", forHTTPHeaderField: "Range")
-        for (key, value) in headers {
-            request.setValue(value, forHTTPHeaderField: key)
-        }
-        guard let (data, response) = try? await URLSession.shared.data(for: request),
-              let httpResponse = response as? HTTPURLResponse else { return false }
-        let statusOk = (200...208).contains(httpResponse.statusCode) || httpResponse.statusCode == 416
-        guard statusOk else {
-            #if DEBUG
-            print("[Moonlit] preflight \(requestUrl.host ?? "nil") → \(httpResponse.statusCode)")
-            #endif
-            return false
-        }
-        // Reject auth errors: 401/403 = invalid subscription, 429 = rate limited
-        let code = httpResponse.statusCode
-        if code == 401 || code == 403 || code == 429 {
-            #if DEBUG
-            print("[Moonlit] preflight \(requestUrl.host ?? "nil") → rejected \(code)")
-            #endif
-            return false
-        }
-        let contentType = (httpResponse.allHeaderFields["Content-Type"] as? String)?.lowercased() ?? ""
-        if contentType.contains("text/html") {
-            #if DEBUG
-            print("[Moonlit] preflight \(requestUrl.host ?? "nil") → HTML error page, source expired")
-            #endif
-            return false
-        }
-        // Read first 4KB of body — JSON errors come in HTTP 200
-        if !data.isEmpty {
-            let chunk = data.prefix(4096)
-            let body = String(data: chunk, encoding: .utf8)
-                ?? String(data: chunk, encoding: .isoLatin1)
-                ?? ""
-            let lower = body.lowercased()
-
-            // Try to parse as JSON — remote services often return structured errors
-            var jsonFields = ""
-            if let json = try? JSONSerialization.jsonObject(with: chunk) as? [String: Any] {
-                jsonFields = json.compactMap { "\($0.key): \($0.value)" }.joined(separator: " ").lowercased()
-            }
-
-            let combined = lower + " " + jsonFields
-            let errorMarkers: [(String, label: String)] = [
-                ("media_not_cached_yet", "not cached yet"),
-                ("not downloaded", "not downloaded"),
-                ("not cached", "not cached"),
-                ("not yet cached", "not yet cached"),
-                ("downloading", "downloading"),
-                ("caching", "caching"),
-                ("queued", "queued"),
-                ("try again shortly", "try again shortly"),
-                ("being prepared", "being prepared"),
-                ("wait a short while", "wait a short while"),
-                ("something went wrong", "addon error"),
-                ("unexpected error resolving", "addon error"),
-                ("access denied", "access denied"),
-                ("not downloaded yet", "not downloaded"),
-                ("torrent not downloaded", "not downloaded"),
-                ("invalid token", "invalid token"),
-                ("subscription", "subscription"),
-                ("internal provider issue", "internal provider"),
-                ("please retry later", "retry later"),
-            ]
-            for (term, label) in errorMarkers {
-                if combined.contains(term) {
-                    let preview = lower.prefix(150).replacingOccurrences(of: "\n", with: " ")
-                    #if DEBUG
-                    print("[Moonlit] preflight \(requestUrl.host ?? "nil") → \(label): \(preview)")
-                    #endif
-                    return false
-                }
-            }
-
-            // Generic JSON error: non-empty error field + empty/absent stream data
-            if let json = try? JSONSerialization.jsonObject(with: chunk) as? [String: Any],
-               let errorValue = json["error"] as? String, !errorValue.isEmpty,
-               json["streams"] == nil, json["url"] == nil, json["data"] == nil {
-                #if DEBUG
-                print("[Moonlit] preflight \(requestUrl.host ?? "nil") → json error: \(errorValue.prefix(100))")
-                #endif
-                return false
-            }
-        }
-        return true
+        await StreamPreflight.isReachable(url: url, headers: headers)
     }
 
     private var feedbackText: String {
@@ -1348,6 +1618,14 @@ struct PlayerScreen: View {
             .removeDuplicates()
             .sink { engine.isPlaying = $0 }
             .store(in: &engineBindings)
+        mpvEngine.$isPlaying
+            .removeDuplicates()
+            .sink { isPlaying in
+#if os(iOS)
+                PlaybackWakeLock.set(isPlaying)
+#endif
+            }
+            .store(in: &engineBindings)
         mpvEngine.$isLoading
             .removeDuplicates()
             .sink { engine.isLoading = $0 }
@@ -1362,10 +1640,6 @@ struct PlayerScreen: View {
                 PlayerPerformanceDiagnostics.shared.mark("timeline.bridge")
                 engine.currentPosition = position
                 timeline.update(position: position)
-                guard VideoPlayerPreferenceStore.shared.autoSkipIntros,
-                      let ts = introViewModel.timestamps,
-                      position >= ts.introStart && position < ts.introEnd else { return }
-                engine.seek(to: ts.introEnd)
             }
             .store(in: &engineBindings)
         mpvEngine.bufferedPositionPublisher
@@ -1409,15 +1683,11 @@ struct PlayerScreen: View {
         mpvEngine.$didEncounterError
             .filter { $0 }
             .sink { _ in
-                // During stream resolution: silently try next candidate ().
-                // Only show error when all auto-playable candidates are exhausted.
-                if self.isResolvingStream {
-                    self.tryNextAutoPlayCandidate()
-                } else {
-                    // Mid-playback error: auto-switch if multiple sources available
-                    guard self.hasMultiplePlayableSources else { return }
-                    self.switchToNextSource()
-                }
+                // Always attempt recovery, even mid-playback with only one known
+                // source — PlaybackRecoveryCoordinator may still find a fresh URL
+                // for it via a re-fetch. It shows the error overlay itself once
+                // every avenue is exhausted.
+                self.switchToNextSource()
             }
             .store(in: &engineBindings)
     }
@@ -1433,17 +1703,32 @@ struct PlayerScreen: View {
     }
 }
 
-// MARK: - Intro Timestamp ViewModel
+// MARK: - Playback segments
 
 @MainActor
-private class IntroTimestampServiceViewModel: ObservableObject {
-    @Published var timestamps: IntroTimestamp?
+private class PlaybackSegmentsViewModel: ObservableObject {
+    @Published var segments: PlaybackSegments?
+    private var activeLoadToken: UUID?
 
-    func load(imdbId: String, season: Int, episode: Int) async {
-        timestamps = await IntroTimestampService.shared.timestamps(imdbId: imdbId, season: season, episode: episode)
+    func load(
+        request: PlaybackSegmentRequest,
+        exactSegments: PlaybackSegments?
+    ) async {
+        let loadToken = UUID()
+        activeLoadToken = loadToken
+        segments = nil
+        let result = await IntroTimestampService.shared.segments(
+            request: request,
+            exactSegments: exactSegments
+        )
+        guard !Task.isCancelled, activeLoadToken == loadToken else { return }
+        segments = result
     }
 
-    func clear() { timestamps = nil }
+    func clear() {
+        activeLoadToken = nil
+        segments = nil
+    }
 }
 
 // MARK: - Glass Volume Slider
@@ -1473,10 +1758,247 @@ private final class PlayerTimelineModel: ObservableObject {
     }
 }
 
+private enum PlayerDetailTab { case info, spotlight, soundtrack }
+
+private struct PlayerDetailsPanel: View {
+    let tab: PlayerDetailTab
+    let launch: PlayerLaunch
+    let detail: MetaDetail?
+    let soundtrack: TitleSoundtrack?
+    let restart: () -> Void
+
+    @State private var albumArtworkURL: URL?
+
+    var body: some View {
+        Group {
+            switch tab {
+            case .info:
+                HStack(spacing: 14) {
+                    if let image = launch.episodeThumbnail ?? launch.poster, let url = URL(string: image) {
+                        CachedAsyncImage(url: url) { phase in
+                            if case .success(let image) = phase { image.resizable().scaledToFill() }
+                            else { Color.white.opacity(0.1) }
+                        }
+                        .frame(width: 108, height: 64).clipShape(.rect(cornerRadius: 8))
+                    }
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(launch.title).font(.system(size: 16, weight: .bold))
+                        Text(detail?.description ?? launch.streamTitle ?? "Now playing")
+                            .font(.system(size: 12)).foregroundStyle(.white.opacity(0.72)).lineLimit(3)
+                    }
+                    Spacer()
+                    Button(action: restart) { Label("From Beginning", systemImage: "play.fill") }
+                        .buttonStyle(.bordered).tint(.white).foregroundStyle(.black)
+                }
+            case .spotlight:
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach((detail?.cast ?? []).prefix(8)) { person in
+                            VStack(alignment: .leading, spacing: 8) {
+                                Group {
+                                    if let photo = person.photo, let url = URL(string: photo) {
+                                        CachedAsyncImage(url: url) { phase in
+                                            if case .success(let image) = phase {
+                                                image.resizable().scaledToFill()
+                                            } else {
+                                                actorPlaceholder
+                                            }
+                                        }
+                                    } else {
+                                        actorPlaceholder
+                                    }
+                                }
+                                .frame(width: 76, height: 76)
+                                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                                .padding(4)
+                                .modifier(SpotlightCastGlass())
+                                .overlay {
+                                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                        .strokeBorder(Color.white.opacity(0.16), lineWidth: 0.75)
+                                }
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(person.name).font(.system(size: 11.5, weight: .bold)).lineLimit(1)
+                                    if let character = person.character, !character.isEmpty {
+                                        Text(character)
+                                            .font(.system(size: 10.5))
+                                            .foregroundStyle(.white.opacity(0.55))
+                                            .lineLimit(1)
+                                    }
+                                }
+                            }.frame(width: 84, alignment: .leading)
+                        }
+                        if (detail?.cast ?? []).isEmpty { Text("Cast information is unavailable for this title.").foregroundStyle(.white.opacity(0.65)) }
+                    }
+                }
+            case .soundtrack:
+                let cues = soundtrack?.cues ?? []
+                if cues.isEmpty {
+                    Text("No soundtrack information is available for this title.")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.white.opacity(0.65))
+                } else {
+                    // The height cap is load-bearing, not cosmetic. A vertical
+                    // ScrollView has no intrinsic height — it expands to fill whatever
+                    // it is offered. This panel's measured height is written back into
+                    // `detailPanelHeight`, which sibling overlays add to their own
+                    // padding; those siblings can then grow the enclosing ZStack, which
+                    // offers this ScrollView more height, which grows the measurement
+                    // again. That runaway pegs the main thread — the controls stop
+                    // responding while mpv, which renders off the main thread, carries
+                    // on playing. Info and Spotlight never hit it because both have an
+                    // intrinsic height and cannot expand.
+                    //
+                    // LazyVStack because a soundtrack can carry 100+ cues and every row
+                    // builds a CachedAsyncImage; the eager VStack constructed all of
+                    // them, and kicked off all their fetches, in one main-thread pass.
+                    ScrollView(.vertical, showsIndicators: false) {
+                        LazyVStack(alignment: .leading, spacing: 14) {
+                            albumHeader
+                            ForEach(cues) { cue in
+                                soundtrackRow(cue)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 220)
+                }
+            }
+        }
+        .padding(12)
+        .glassCard(cornerRadius: 16)
+        .task {
+            guard tab == .soundtrack, let groupId = soundtrack?.releaseGroupId else { return }
+            albumArtworkURL = await SoundtrackService.fetchAlbumArtwork(releaseGroupId: groupId)
+        }
+    }
+
+    @ViewBuilder
+    private var albumHeader: some View {
+        if let sourceAlbum = soundtrack?.sourceAlbum {
+            HStack(spacing: 12) {
+                Group {
+                    if let url = albumArtworkURL {
+                        CachedAsyncImage(url: url) { phase in
+                            if case .success(let image) = phase {
+                                image.resizable().scaledToFill()
+                            } else {
+                                albumArtPlaceholder
+                            }
+                        }
+                    } else {
+                        albumArtPlaceholder
+                    }
+                }
+                .frame(width: 64, height: 64)
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("SOUNDTRACK")
+                        .font(.system(size: 10, weight: .bold))
+                        .tracking(0.4)
+                        .foregroundStyle(.white.opacity(0.4))
+                    Text(sourceAlbum)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .lineLimit(2)
+                    if let count = soundtrack?.cues.count {
+                        Text("\(count) tracks")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.white.opacity(0.55))
+                    }
+                }
+                Spacer()
+            }
+            .padding(.bottom, 4)
+
+            Divider()
+                .background(Color.white.opacity(0.12))
+        }
+    }
+
+    private func soundtrackRow(_ cue: SoundtrackCue) -> some View {
+        HStack(spacing: 10) {
+            Group {
+                if let artworkURL = cue.artworkURL, let url = URL(string: artworkURL) {
+                    CachedAsyncImage(url: url) { phase in
+                        if case .success(let image) = phase {
+                            image.resizable().scaledToFill()
+                        } else {
+                            soundtrackArtPlaceholder
+                        }
+                    }
+                } else {
+                    soundtrackArtPlaceholder
+                }
+            }
+            .frame(width: 44, height: 44)
+            .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+            .overlay {
+                RoundedRectangle(cornerRadius: 9, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.14), lineWidth: 0.75)
+            }
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(cue.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                if let artist = cue.artist {
+                    Text(artist)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.white.opacity(0.6))
+                        .lineLimit(1)
+                }
+                if let scene = cue.sceneDescription {
+                    Text(scene)
+                        .font(.system(size: 11))
+                        .foregroundStyle(MoonlitTheme.accent.opacity(0.85))
+                        .lineLimit(2)
+                }
+            }
+            Spacer()
+        }
+    }
+
+    private var soundtrackArtPlaceholder: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.1))
+            .overlay(Image(systemName: "music.note").font(.system(size: 15)).foregroundStyle(.white.opacity(0.5)))
+    }
+
+    private var albumArtPlaceholder: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.1))
+            .overlay(Image(systemName: "music.note.list").font(.system(size: 22)).foregroundStyle(.white.opacity(0.4)))
+    }
+
+    private var actorPlaceholder: some View {
+        Rectangle()
+            .fill(Color.white.opacity(0.1))
+            .overlay(Image(systemName: "person.fill").foregroundStyle(.white.opacity(0.7)))
+    }
+}
+
+/// Real liquid glass over the cast photo — matches the reference Apple TV
+/// InSight cards and the rounded-square treatment `DetailScreen`/
+/// `ActorBioScreen` already use for cast, instead of Spotlight's old bare
+/// circle with no chrome.
+private struct SpotlightCastGlass: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26.0, *) {
+            content.glassEffect(.regular, in: .rect(cornerRadius: 20, style: .continuous))
+        } else {
+            content.background(.thinMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+    }
+}
+
 private struct PlayerTimelineControls: View {
     let engine: PlayerEngine
     @ObservedObject var timeline: PlayerTimelineModel
-    @ObservedObject var introViewModel: IntroTimestampServiceViewModel
     @Binding var isScrubbing: Bool
     @Binding var scrubPosition: Double
     let onScrubStarted: () -> Void
@@ -1497,55 +2019,26 @@ private struct PlayerTimelineControls: View {
 
     var body: some View {
         let _ = PlayerPerformanceDiagnostics.shared.mark("PlayerTimelineControls.body")
-        VStack(spacing: 8) {
-            skipIntroButton
+        HStack(spacing: 10) {
+            Text(formatTime(displayPosition))
+                .frame(minWidth: 44, alignment: .trailing)
 
             PlayerScrubber(
                 value: scrubberBinding,
                 duration: max(timeline.duration, 0),
                 isScrubbing: isScrubbing,
                 onEditingChanged: handleScrubbingChanged,
-                highlights: introViewModel.timestamps?.highlights ?? []
+                highlights: []
             )
+            .frame(maxWidth: .infinity)
 
-            HStack {
-                Text(formatTime(displayPosition))
-                Spacer()
-                Text(formatTime(max(timeline.duration - displayPosition, 0)))
-            }
-            .font(.system(size: 11, weight: .medium))
-            .foregroundColor(.white.opacity(0.5))
+            Text("−\(formatTime(max(timeline.duration - displayPosition, 0)))")
+                .frame(minWidth: 52, alignment: .leading)
         }
+        .font(.system(size: 11, weight: .medium).monospacedDigit())
+        .foregroundStyle(.white.opacity(0.55))
     }
 
-    @ViewBuilder private var skipIntroButton: some View {
-        let prefs = VideoPlayerPreferenceStore.shared
-        if prefs.showSkipIntroButton,
-           let ts = introViewModel.timestamps,
-           timeline.position >= ts.introStart && timeline.position < ts.introEnd {
-            HStack {
-                Spacer()
-                SkipIntroButton(label: "Skip Intro") { engine.seek(to: ts.introEnd) }
-                Spacer()
-            }
-            .transition(.asymmetric(
-                insertion: .move(edge: .bottom).combined(with: .opacity),
-                removal: .opacity
-            ))
-            .animation(.spring(duration: 0.3), value: introViewModel.timestamps != nil)
-        } else if prefs.showSkipIntroButton, prefs.fallbackSkipEnabled,
-                  introViewModel.timestamps == nil,
-                  timeline.position > 15, timeline.position < 300 {
-            HStack {
-                Spacer()
-                SkipIntroButton(label: "Skip +\(prefs.fallbackSkipSeconds)s") {
-                    engine.seek(to: timeline.position + Double(prefs.fallbackSkipSeconds))
-                }
-                Spacer()
-            }
-            .transition(.opacity)
-        }
-    }
 
     private func handleScrubbingChanged(_ editing: Bool) {
         if editing {
@@ -1555,8 +2048,10 @@ private struct PlayerTimelineControls: View {
             }
             isScrubbing = true
         } else {
+            let destination = scrubPosition
+            timeline.update(position: destination)
+            engine.seek(to: destination)
             isScrubbing = false
-            engine.seek(to: scrubPosition)
             onScrubEnded()
         }
     }
@@ -1717,13 +2212,13 @@ private struct VolumeViewRepresentable: UIViewRepresentable {
 
 // MARK: - Skip Intro Button
 
-private struct SkipIntroButton: View {
-    var label: String = "Skip Intro"
+private struct SkipSegmentAction: View {
+    let label: String
     let onSkip: () -> Void
 
     var body: some View {
         Button(action: onSkip) {
-            HStack(spacing: 5) {
+            let content = HStack(spacing: 5) {
                 Text(label)
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
@@ -1731,20 +2226,25 @@ private struct SkipIntroButton: View {
                     .font(.system(size: 11, weight: .bold))
                     .foregroundColor(.white)
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 10)
-            .background {
+            .padding(.horizontal, 16)
+            .frame(minHeight: 44)
+            .contentShape(.capsule)
+
 #if os(iOS)
-                if #available(iOS 26.0, *) {
-                    Capsule().glassEffect()
-                } else {
-                    Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
-                }
-#else
-                Capsule().fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
-#endif
+            if #available(iOS 26.0, *) {
+                content.glassEffect(.regular.interactive(), in: .capsule)
+            } else {
+                content
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .environment(\.colorScheme, .dark)
             }
+#else
+            content
+                .background(.ultraThinMaterial, in: Capsule())
+                .environment(\.colorScheme, .dark)
+#endif
         }
+        .buttonStyle(.plain)
     }
 }
 
@@ -1838,16 +2338,22 @@ private struct PlayerScrubber: View {
 private struct TimelineSubtitleOverlay: View {
     let index: SubtitleCueIndex
     @ObservedObject var timeline: PlayerTimelineModel
+    let delay: TimeInterval
+    let trailingInset: CGFloat
+    let extraBottomInset: CGFloat
 
     var body: some View {
         let _ = PlayerPerformanceDiagnostics.shared.mark("SubtitleTextOverlay.body")
-        SubtitleTextOverlay(index: index, position: timeline.position)
+        SubtitleTextOverlay(index: index, position: timeline.position - delay, extraBottomInset: extraBottomInset)
+            .padding(.trailing, trailingInset)
     }
 }
 
 private struct SubtitleTextOverlay: View {
     let index: SubtitleCueIndex
     let position: TimeInterval
+    let extraBottomInset: CGFloat
+    @ObservedObject private var appearance = SubtitleAppearanceStore.shared
 
     var body: some View {
         let active = PlayerPerformanceDiagnostics.shared.measure("subtitle.lookup") {
@@ -1859,28 +2365,92 @@ private struct SubtitleTextOverlay: View {
                 let text = active[i].text
                 if !text.isEmpty {
                     Text(text)
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundColor(.white)
-                        .multilineTextAlignment(.center)
+                        .font(.system(
+                            size: min(max(appearance.fontSize * appearance.scale, 12), 72),
+                            weight: appearance.isBold ? .bold : .regular
+                        ))
+                        .italic(appearance.isItalic)
+                        .foregroundStyle(subtitleColor(appearance.textColorHex, fallback: .white))
+                        .multilineTextAlignment(textAlignment)
                         .lineSpacing(2)
-                        .shadow(color: .black.opacity(0.9), radius: 2, x: 1, y: 1)
-                        .shadow(color: .black.opacity(0.9), radius: 2, x: -1, y: -1)
-                        .padding(.horizontal, 24)
+                        .shadow(
+                            color: subtitleColor(appearance.outlineColorHex, fallback: .black).opacity(0.95),
+                            radius: 2,
+                            x: 1,
+                            y: 1
+                        )
+                        .shadow(
+                            color: subtitleColor(appearance.outlineColorHex, fallback: .black).opacity(0.95),
+                            radius: 2,
+                            x: -1,
+                            y: -1
+                        )
+                        .blur(radius: appearance.textBlur)
+                        .padding(.horizontal, appearance.horizontalMargin)
                         .padding(.vertical, 4)
-                        .background(Color.black.opacity(0.45).cornerRadius(MoonlitTheme.radiusSmall))
+                        .frame(maxWidth: .infinity, alignment: frameAlignment)
+                        .background(
+                            subtitleColor(appearance.backgroundColorHex, fallback: .black)
+                                .opacity(appearance.backgroundOpacity),
+                            in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusSmall)
+                        )
                         .padding(.bottom, 4)
                 }
             }
         }
-        .padding(.bottom, 88)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // `.offset`, not `.padding`. Padding is rigid: it raises this view's MINIMUM
+        // height, and the `.frame(maxHeight: .infinity)` that follows cannot shrink below
+        // it. With a detail panel open the inset reaches ~503pt on a 402pt screen, so this
+        // overlay demanded 503pt, the enclosing ZStack grew to match, and the mpv video
+        // view — a sibling with `.ignoresSafeArea()` — filled the inflated space and
+        // rendered ~101pt taller than the screen. That was the "zoom".
+        //
+        // `.offset` is a render-time transform and contributes nothing to layout, so the
+        // subtitles still lift above the chrome without any of it reaching the container.
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+        .offset(y: -(SubtitleRenderingMetrics.bottomMargin(appearance.verticalPosition) + extraBottomInset))
+    }
+
+    private var textAlignment: TextAlignment {
+        switch appearance.horizontalAlignment {
+        case .left: .leading
+        case .center: .center
+        case .right: .trailing
+        }
+    }
+
+    private var frameAlignment: Alignment {
+        switch appearance.horizontalAlignment {
+        case .left: .leading
+        case .center: .center
+        case .right: .trailing
+        }
+    }
+
+    private func subtitleColor(_ hex: String, fallback: Color) -> Color {
+        let value = hex.trimmingCharacters(in: CharacterSet(charactersIn: "#"))
+        guard value.count == 6, let rgb = UInt64(value, radix: 16) else { return fallback }
+        return Color(
+            red: Double((rgb >> 16) & 0xFF) / 255,
+            green: Double((rgb >> 8) & 0xFF) / 255,
+            blue: Double(rgb & 0xFF) / 255
+        )
     }
 }
 
-private extension View {
+extension View {
+    @ViewBuilder
     func glassCapsuleActive(isActive: Bool) -> some View {
         // Non-interactive glass: the interactive press effect fights the Menu's
-        // own open/highlight animation and flashes matte for a frame.
-        self.glassCapsule(interactive: false, clear: false)
+        // own open/highlight animation and flashes matte for a frame. `glassCapsule`
+        // has no tint parameter, so the active state is a plate behind the content,
+        // visible through the glass blur — `isActive` previously had no effect at all.
+        self
+            .background {
+                if isActive {
+                    Capsule(style: .continuous).fill(Color.white.opacity(0.24))
+                }
+            }
+            .glassCapsule(interactive: false, clear: false)
     }
 }
