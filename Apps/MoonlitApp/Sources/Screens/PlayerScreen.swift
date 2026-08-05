@@ -69,7 +69,6 @@ struct PlayerScreen: View {
     // lives outside playerControlsLayer so it survives auto-hide) can float just
     // above it instead of overlapping the tab row / speed / track menus.
     @State private var chromeHeight: CGFloat = 0
-    @State private var detailPanelHeight: CGFloat = 0
 
     init(launch: PlayerLaunch, onDismiss: @escaping () -> Void) {
         self.onDismiss = onDismiss
@@ -178,7 +177,7 @@ struct PlayerScreen: View {
                 // hidden, and lifts clear of the bottom chrome (title, scrubber,
                 // tabs, an open detail panel) when they're shown — previously a
                 // fixed offset, which is why controls used to land on top of it.
-                extraBottomInset: showControls ? chromeHeight + detailPanelHeight + 12 : detailPanelHeight + 12
+                extraBottomInset: showControls ? chromeHeight + 12 : 12
             )
                 .opacity(mpvEngine.loadedCues.isEmpty ? 0 : 1)
                 .allowsHitTesting(false)
@@ -239,36 +238,6 @@ struct PlayerScreen: View {
                 .opacity(showControls && !isLocked && !mpvEngine.didEncounterError ? 1 : 0)
                 .allowsHitTesting(showControls && !isLocked && !mpvEngine.didEncounterError)
                 .accessibilityHidden(!showControls || isLocked || mpvEngine.didEncounterError)
-
-            // Detail panel overlay — standalone glass card above the bottom chrome.
-            // Rendered outside playerControlsLayer so the chrome area stays a fixed
-            // height and the video/subtitles don't jump when a panel opens.
-            if let tab = playerDetailTab, !isLocked && !mpvEngine.didEncounterError {
-                VStack(spacing: 0) {
-                    Spacer()
-                    PlayerDetailsPanel(
-                        tab: tab,
-                        launch: activeLaunch,
-                        detail: metaRepo.detail,
-                        soundtrack: soundtrackService.soundtrack(forId: activeLaunch.parentMetaId ?? activeLaunch.videoId),
-                        restart: { engine.seek(to: 0) }
-                    )
-                    .padding(.horizontal, 20)
-                    // Measure the panel itself, BEFORE the bottom padding is applied.
-                    // Measuring after meant `detailPanelHeight` silently included
-                    // `chromeHeight + 14`, and every consumer then wrote
-                    // `chromeHeight + detailPanelHeight` — counting the chrome twice and
-                    // feeding a geometry value back into the layout that produced it.
-                    .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { detailPanelHeight = $0 }
-                    .padding(.bottom, chromeHeight + 14)
-                }
-                .transition(
-                    reduceMotion
-                        ? .opacity
-                        : .move(edge: .bottom).combined(with: .opacity)
-                )
-                .zIndex(30)
-            }
 
             // Rendered outside playerControlsLayer (and its opacity gate) so the
             // skip pill survives auto-hide instead of disappearing with the rest
@@ -529,7 +498,7 @@ struct PlayerScreen: View {
             showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
         }
         .onChange(of: playerDetailTab) { _, tab in
-            PlayerLayoutLog.write("detailTab=\(tab.map(String.init(describing:)) ?? "nil") chromeHeight=\(chromeHeight) detailPanelHeight=\(detailPanelHeight)")
+            PlayerLayoutLog.write("detailTab=\(tab.map(String.init(describing:)) ?? "nil") chromeHeight=\(chromeHeight)")
             tab == nil ? resumeControlsAutoHide() : pauseControlsAutoHide()
         }
         .sheet(isPresented: $showEpisodes) { EpisodesPanel(engine: engine) }
@@ -778,51 +747,73 @@ struct PlayerScreen: View {
         return "S\(s) · E\(e)"
     }
 
-    @ViewBuilder private var playerBottomArea: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(alignment: .bottom, spacing: 8) {
-                VStack(alignment: .leading, spacing: 2) {
-                    if let episodeCaption {
-                        Text(episodeCaption)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(.white.opacity(0.55))
-                            .lineLimit(1)
-                    }
-                    Text(activeLaunch.title)
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundColor(.white)
+    /// Title, episode caption and the right-hand icon row. Hidden while a detail panel
+    /// is open — the panel takes this space, matching the Apple TV player.
+    @ViewBuilder private var playerTitleRow: some View {
+        HStack(alignment: .bottom, spacing: 8) {
+            VStack(alignment: .leading, spacing: 2) {
+                if let episodeCaption {
+                    Text(episodeCaption)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundColor(.white.opacity(0.55))
                         .lineLimit(1)
                 }
-
-                Spacer()
-
-                HStack(spacing: 6) {
-                    if hasAvailable4KSource {
-                        controlPill(icon: "4k.tv", label: "4K") {
-                            revealControls(scheduleAutoHide: true)
-                            show4KChoice = true
-                        }
-                    }
-                    nativeTrackMenus
-                    moreMenu
-                }
+                Text(activeLaunch.title)
+                    .font(.system(size: 26, weight: .bold))
+                    .foregroundColor(.white)
+                    .lineLimit(1)
             }
 
-            PlayerTimelineControls(
-                engine: engine,
-                timeline: timeline,
-                isScrubbing: $isScrubbing,
-                scrubPosition: $scrubPosition,
-                onScrubStarted: {
-                    hideControlsTask?.cancel()
-                    isAutoHidePausedByControls = true
-                },
-                onScrubEnded: {
-                    pauseControlsAutoHide()
+            Spacer()
+
+            HStack(spacing: 6) {
+                if hasAvailable4KSource {
+                    controlPill(icon: "4k.tv", label: "4K") {
+                        revealControls(scheduleAutoHide: true)
+                        show4KChoice = true
+                    }
                 }
-            )
+                nativeTrackMenus
+                moreMenu
+            }
+        }
+    }
+
+    @ViewBuilder private var playerBottomArea: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Closed state: title + scrubber above the chips. Open state: neither —
+            // the chips rise and the panel takes the space below them. The chip row is
+            // the SAME view in both states, so SwiftUI animates its position rather
+            // than cross-fading it; no matchedGeometryEffect is needed.
+            if playerDetailTab == nil {
+                playerTitleRow
+
+                PlayerTimelineControls(
+                    engine: engine,
+                    timeline: timeline,
+                    isScrubbing: $isScrubbing,
+                    scrubPosition: $scrubPosition,
+                    onScrubStarted: {
+                        hideControlsTask?.cancel()
+                        isAutoHidePausedByControls = true
+                    },
+                    onScrubEnded: {
+                        pauseControlsAutoHide()
+                    }
+                )
+            }
 
             playerDetailTabButtons
+
+            if let tab = playerDetailTab {
+                PlayerDetailsPanel(
+                    tab: tab,
+                    launch: activeLaunch,
+                    detail: metaRepo.detail,
+                    soundtrack: soundtrackService.soundtrack(forId: activeLaunch.parentMetaId ?? activeLaunch.videoId),
+                    restart: { engine.seek(to: 0) }
+                )
+            }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 14)
@@ -872,11 +863,11 @@ struct PlayerScreen: View {
         skipSegmentButton
             .padding(.trailing, 20)
             // Same reason as SubtitleTextOverlay: a rigid bottom padding built from
-            // `chromeHeight + detailPanelHeight` can exceed the screen and inflate the
+            // `chromeHeight` can exceed the screen and inflate the
             // enclosing ZStack, which resizes the video. Offset instead — it positions
             // without contributing to layout.
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-            .offset(y: -(showControls ? chromeHeight + detailPanelHeight + 12 : detailPanelHeight + 28))
+            .offset(y: -(showControls ? chromeHeight + 12 : 28))
             .transition(.move(edge: .trailing).combined(with: .opacity))
             .animation(
                 reduceMotion ? nil : .spring(response: 0.34, dampingFraction: 0.86),
@@ -1839,14 +1830,13 @@ private struct PlayerDetailsPanel: View {
                 } else {
                     // The height cap is load-bearing, not cosmetic. A vertical
                     // ScrollView has no intrinsic height — it expands to fill whatever
-                    // it is offered. This panel's measured height is written back into
-                    // `detailPanelHeight`, which sibling overlays add to their own
-                    // padding; those siblings can then grow the enclosing ZStack, which
-                    // offers this ScrollView more height, which grows the measurement
-                    // again. That runaway pegs the main thread — the controls stop
-                    // responding while mpv, which renders off the main thread, carries
-                    // on playing. Info and Spotlight never hit it because both have an
-                    // intrinsic height and cannot expand.
+                    // it is offered. This panel sits inside the measured bottom block
+                    // (`chromeHeight`), which sibling overlays offset themselves by; an
+                    // uncapped list would take every point offered, and the measurement
+                    // would chase it. That runaway pegs the main thread — the controls
+                    // stop responding while mpv, which renders off the main thread,
+                    // carries on playing. Info and Spotlight never hit it because both
+                    // have an intrinsic height and cannot expand.
                     //
                     // LazyVStack because a soundtrack can carry 100+ cues and every row
                     // builds a CachedAsyncImage; the eager VStack constructed all of
