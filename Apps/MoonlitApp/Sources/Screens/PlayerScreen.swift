@@ -155,13 +155,7 @@ struct PlayerScreen: View {
                     showControls: $showControls,
                     isLocked: $isLocked
                 )
-                .onTapGesture {
-                    if showControls {
-                        hideControlsNow()
-                    } else {
-                        revealControls(scheduleAutoHide: true)
-                    }
-                }
+                .onTapGesture { handleBackgroundTap() }
 
             // Subtitle text overlay. Kept mounted at all times and faded via opacity
             // rather than conditionally inserted — mounting/unmounting this on every
@@ -558,7 +552,7 @@ struct PlayerScreen: View {
                 .ignoresSafeArea()
                 .onTapGesture {
                     PlayerPerformanceDiagnostics.shared.mark("controls.backgroundTap")
-                    hideControlsNow()
+                    handleBackgroundTap()
                 }
 
             // True screen center — matches the transport position on tvOS/iOS
@@ -719,6 +713,22 @@ struct PlayerScreen: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .padding(.leading, 16)
         .padding(.top, 24)
+    }
+
+    /// Background taps close an open detail panel before they do anything else. With the
+    /// chrome hidden behind a panel, the usual "toggle controls" response would be
+    /// invisible, leaving the tap feeling dead.
+    @MainActor
+    private func handleBackgroundTap() {
+        if playerDetailTab != nil {
+            withAnimation(.snappy(duration: 0.2)) { playerDetailTab = nil }
+            return
+        }
+        if showControls {
+            hideControlsNow()
+        } else {
+            revealControls(scheduleAutoHide: true)
+        }
     }
 
     @MainActor
