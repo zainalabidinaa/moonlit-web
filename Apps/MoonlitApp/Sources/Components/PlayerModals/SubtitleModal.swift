@@ -617,9 +617,8 @@ struct PlayerNativeTrackMenus: View, Equatable {
     // the Apple TV player's single unified control pill instead of three
     // separate floating circles.
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(spacing: 2) {
             subtitleMenu
-            trackMenuDivider
             audioMenu
         }
     }
@@ -719,14 +718,6 @@ struct PlayerNativeTrackMenus: View, Equatable {
         .buttonStyle(.plain)
         .tint(.white)
         .accessibilityLabel("Audio")
-    }
-
-    /// Hairline separator between icons sharing one glass pill — Apple TV's
-    /// unified control group uses the same thin division instead of gaps.
-    var trackMenuDivider: some View {
-        Divider()
-            .frame(width: 0.75, height: 22)
-            .overlay(Color.white.opacity(0.18))
     }
 
     private var menuLifecycleObserver: some View {

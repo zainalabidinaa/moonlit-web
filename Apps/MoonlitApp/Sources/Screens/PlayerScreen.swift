@@ -593,7 +593,13 @@ struct PlayerScreen: View {
                 .padding(.trailing, 38)
                 .padding(.top, 24)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                .ignoresSafeArea()
+                // Only the TRAILING edge — the one edge with a large, problematic
+                // inset in this rotation. An unqualified `.ignoresSafeArea()` here
+                // also ate the LEADING inset, which `playerBottomArea` (see below)
+                // depends on for its own horizontal position — nothing else was
+                // giving it a left margin. Same mistake, mirrored to the top bar
+                // by accident; fixed in both places at once.
+                .ignoresSafeArea(edges: .trailing)
 
             // Bottom area pinned to bottom. Same fix as the top bar, mirrored — this
             // is the one that was actually wrong: the old `VStack { Spacer(); content }`
@@ -603,9 +609,16 @@ struct PlayerScreen: View {
             // Measured 61.33pt of chip-text-to-bottom margin after that fix — WORSE
             // than the 51.33pt before it — because the added padding stacked on top of
             // an inset that was never actually being ignored.
+            //
+            // `edges: .bottom` ONLY. `playerBottomArea` has no leading padding of its
+            // own — "No horizontal padding. In landscape the safe area already insets
+            // this by ~62pt" — so it depends entirely on the system's natural leading
+            // inset for its position. An unqualified `.ignoresSafeArea()` killed that
+            // inset too, and the title/chips rendered flush against the true left
+            // edge, clipped by the corner. Confirmed by screenshot.
             playerBottomArea
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
-                .ignoresSafeArea()
+                .ignoresSafeArea(edges: .bottom)
         }
     }
 
@@ -828,7 +841,7 @@ struct PlayerScreen: View {
             // capsule can gain a segment after the row has already rendered. Animating
             // on that value makes the capsule widen smoothly when that happens, rather
             // than the icon assembly popping sideways.
-            HStack(spacing: 0) {
+            HStack(spacing: 2) {
                 if hasAvailable4KSource {
                     Button {
                         revealControls(scheduleAutoHide: true)
@@ -839,10 +852,8 @@ struct PlayerScreen: View {
                             .foregroundColor(.white.opacity(0.9))
                             .frame(width: 44, height: 44)
                     }
-                    trackMenuDivider
                 }
                 nativeTrackMenus
-                trackMenuDivider
                 moreMenu
             }
             // Same reasoning as the skip-10 circles: `.regular` measured at 24/255
@@ -1074,15 +1085,12 @@ struct PlayerScreen: View {
                 .foregroundColor(.white.opacity(0.9))
                 .frame(width: 44, height: 44)
         }
+        // Missing on this one Menu (present on subtitleMenu/audioMenu in
+        // PlayerNativeTrackMenus) — without it, a Menu falls back to the system's
+        // default bordered button chrome, which is the unexplained rounded-rect
+        // highlight that showed up behind the ellipsis specifically.
+        .buttonStyle(.plain)
         .tint(.white)
-    }
-
-    /// Matches `PlayerNativeTrackMenus.trackMenuDivider` — kept as a separate
-    /// tiny copy rather than shared plumbing across the two files/targets.
-    private var trackMenuDivider: some View {
-        Divider()
-            .frame(width: 0.75, height: 22)
-            .overlay(Color.white.opacity(0.18))
     }
 
     private func subtitleDisplayName(for code: String) -> String {
