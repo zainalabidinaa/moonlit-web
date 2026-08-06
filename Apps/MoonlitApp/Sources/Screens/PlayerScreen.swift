@@ -582,8 +582,17 @@ struct PlayerScreen: View {
             // visible while a detail panel is open, so the user always has an exit.
             VStack(spacing: 0) {
                 playerTopBar
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
+                    // Same flat-margin treatment as the close button, and for the same
+                    // reason: `.padding(.horizontal, 20)` alone doesn't ignore the safe
+                    // area, so on the trailing edge it stacked on top of the Dynamic
+                    // Island's rotated inset — measured landing the volume pill ~90pt
+                    // from the true edge against Apple's flat 38pt. Only the trailing
+                    // side needs to ignore the safe area; the leading side of this row
+                    // is empty space pushed by `Spacer()` inside `playerTopBarContent`,
+                    // so its inset was never visible.
+                    .padding(.trailing, 38)
+                    .ignoresSafeArea(edges: .trailing)
+                    .padding(.top, 24)
                 Spacer()
             }
 
@@ -623,7 +632,11 @@ struct PlayerScreen: View {
                 }
                 .scaleEffect(skipBackScale)
                 .frame(width: 60, height: 60)
-                .glassCircle(clear: false)
+                // `.regular` carries a real grey tint independent of what's behind it —
+                // measured at 28/255 over pure black, against Apple's own skip-10
+                // circles at 0/255. `.clear` matches: icon-only controls don't need a
+                // background plate for legibility the way the text chips do.
+                .glassCircle(clear: true)
                 .frame(width: 88, height: 88)
                 .contentShape(Rectangle())
             }
@@ -675,7 +688,7 @@ struct PlayerScreen: View {
                 }
                 .scaleEffect(skipForwardScale)
                 .frame(width: 60, height: 60)
-                .glassCircle(clear: false)
+                .glassCircle(clear: true)
                 .frame(width: 88, height: 88)
                 .contentShape(Rectangle())
             }
@@ -724,14 +737,18 @@ struct PlayerScreen: View {
         .buttonStyle(.plain)
         .glassCircle(clear: false)
         .accessibilityLabel("Close player")
-        .padding(.leading, 14)
+        // Measured off Apple's own player: a flat 38pt from the true left edge and
+        // 24pt from the true top, regardless of device rotation. 14pt (both axes)
+        // undershot that — the button landed closer to the corner than Apple's,
+        // rather than at the same distance.
+        .padding(.leading, 38)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         // In landscape, the leading edge carries the Dynamic Island's rotated
         // safe-area inset (~59pt on notched iPhones) even though nothing is
         // actually there to avoid. The Apple TV player ignores it and sits a
-        // small fixed gutter off the true edge instead — matched here.
+        // fixed gutter off the true edge instead — matched here.
         .ignoresSafeArea(edges: .leading)
-        .padding(.top, 14)
+        .padding(.top, 24)
     }
 
     /// Background taps close an open detail panel before they do anything else. With the
@@ -823,7 +840,10 @@ struct PlayerScreen: View {
                 trackMenuDivider
                 moreMenu
             }
-            .glassCapsule(interactive: true, clear: false)
+            // Same reasoning as the skip-10 circles: `.regular` measured at 24/255
+            // over pure black against Apple's 5/255 for its equivalent icon-group
+            // pill. Icon-only, so `.clear` matches without a legibility cost.
+            .glassCapsule(interactive: true, clear: true)
             .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: hasAvailable4KSource)
         }
     }
@@ -868,7 +888,15 @@ struct PlayerScreen: View {
         // ~62pt, which is exactly where the Apple TV player puts its content edge.
         // Adding a nominal 20pt gutter on top double-inset the whole block and gave
         // away 40pt of width — measured at 82.7pt against Apple's 62.0pt.
-        .padding(.bottom, 14)
+        // Flat 24pt from the true bottom edge, matching Apple's measured margin —
+        // same pattern as the leading/trailing corner fixes. Without ignoring the
+        // safe area, this sat on top of BOTH the real landscape home-indicator inset
+        // (~20pt) and the explicit padding: 14 + ~20 ≈ 34pt measured, 10pt more than
+        // Apple's 24. The scrim in the `.background` below already ignores the bottom
+        // safe area on its own — this makes the content agree with where the scrim
+        // thinks the bottom is, instead of the two disagreeing about the true edge.
+        .padding(.bottom, 24)
+        .ignoresSafeArea(edges: .bottom)
         // A VStack(alignment: .leading) sizes itself to its CONTENT, not the screen.
         // Without this the backdrop below inherited that narrower width and stopped
         // partway across. Width only — height is untouched, so this cannot reintroduce
