@@ -580,27 +580,32 @@ struct PlayerScreen: View {
             // Top bar pinned to top. Deliberately NOT gated on `playerDetailTab` —
             // the Apple TV player keeps close/PiP/AirPlay/share and the volume slider
             // visible while a detail panel is open, so the user always has an exit.
-            VStack(spacing: 0) {
-                playerTopBar
-                    // Same flat-margin treatment as the close button, and for the same
-                    // reason: `.padding(.horizontal, 20)` alone doesn't ignore the safe
-                    // area, so on the trailing edge it stacked on top of the Dynamic
-                    // Island's rotated inset — measured landing the volume pill ~90pt
-                    // from the true edge against Apple's flat 38pt. Only the trailing
-                    // side needs to ignore the safe area; the leading side of this row
-                    // is empty space pushed by `Spacer()` inside `playerTopBarContent`,
-                    // so its inset was never visible.
-                    .padding(.trailing, 38)
-                    .ignoresSafeArea(edges: .trailing)
-                    .padding(.top, 24)
-                Spacer()
-            }
+            //
+            // `.frame(maxHeight: .infinity, alignment: .top)` + `.ignoresSafeArea()`,
+            // not a wrapping `VStack { content; Spacer() }`. A plain VStack sitting as
+            // a ZStack child is proposed a size that's already inset by the safe area —
+            // nothing tells the ZStack itself to ignore it — so a `.ignoresSafeArea()`
+            // applied to a child INSIDE that VStack only lets that child paint past its
+            // assigned bounds; it can't move where the VStack decided to place it.
+            // Matches the pattern already proven on `playerTransport` above: give the
+            // view itself a full, safe-area-ignoring frame, then align content within it.
+            playerTopBar
+                .padding(.trailing, 38)
+                .padding(.top, 24)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+                .ignoresSafeArea()
 
-            // Bottom area pinned to bottom
-            VStack(spacing: 0) {
-                Spacer()
-                playerBottomArea
-            }
+            // Bottom area pinned to bottom. Same fix as the top bar, mirrored — this
+            // is the one that was actually wrong: the old `VStack { Spacer(); content }`
+            // landed `playerBottomArea` at the edge of the SAFE region, not the true
+            // screen edge, so its own `.padding(.bottom, 24)` landed 20pt higher than
+            // intended (the real landscape home-indicator inset was still in effect).
+            // Measured 61.33pt of chip-text-to-bottom margin after that fix — WORSE
+            // than the 51.33pt before it — because the added padding stacked on top of
+            // an inset that was never actually being ignored.
+            playerBottomArea
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .ignoresSafeArea()
         }
     }
 
@@ -889,14 +894,9 @@ struct PlayerScreen: View {
         // Adding a nominal 20pt gutter on top double-inset the whole block and gave
         // away 40pt of width — measured at 82.7pt against Apple's 62.0pt.
         // Flat 24pt from the true bottom edge, matching Apple's measured margin —
-        // same pattern as the leading/trailing corner fixes. Without ignoring the
-        // safe area, this sat on top of BOTH the real landscape home-indicator inset
-        // (~20pt) and the explicit padding: 14 + ~20 ≈ 34pt measured, 10pt more than
-        // Apple's 24. The scrim in the `.background` below already ignores the bottom
-        // safe area on its own — this makes the content agree with where the scrim
-        // thinks the bottom is, instead of the two disagreeing about the true edge.
+        // same pattern as the leading/trailing corner fixes. The safe-area handling
+        // itself lives on the OUTER wrapper below, not here — see the comment there.
         .padding(.bottom, 24)
-        .ignoresSafeArea(edges: .bottom)
         // A VStack(alignment: .leading) sizes itself to its CONTENT, not the screen.
         // Without this the backdrop below inherited that narrower width and stopped
         // partway across. Width only — height is untouched, so this cannot reintroduce
