@@ -98,7 +98,9 @@ struct PlayerScreen: View {
 
     var body: some View {
         let _ = PlayerPerformanceDiagnostics.shared.mark("PlayerScreen.body")
-        ZStack {
+        // Split into typed stages — chaining every modifier onto one ZStack expression
+        // makes the type checker solve the whole thing as one problem and times out.
+        let stage1: some View = ZStack {
             Color.black.ignoresSafeArea()
 
             // ── PRE-ROLL BRANDED LOADING CARD ─────────────────────────────
@@ -384,6 +386,8 @@ struct PlayerScreen: View {
             engine.stop()
             mpvEngine.stop()
         }
+
+        let stage2: some View = stage1
         .onChange(of: showSubtitleAppearanceEditor) { _, showing in
             showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
         }
@@ -420,6 +424,8 @@ struct PlayerScreen: View {
             segmentViewModel.clear()
             refreshSourceControlState()
         }
+
+        let stage2b: some View = stage2
         .task(id: segmentLookupKey) {
             guard mpvEngine.duration > 0,
                   let rawId = activeLaunch.parentMetaId,
@@ -482,6 +488,8 @@ struct PlayerScreen: View {
             .animation(.easeInOut(duration: 0.22), value: showSources)
             .zIndex(10)
         }
+
+        return stage2b
         .onChange(of: showSources) { _, showing in
             showing ? pauseControlsAutoHide() : resumeControlsAutoHide()
         }
@@ -708,20 +716,22 @@ struct PlayerScreen: View {
     private var playerCloseButton: some View {
         Button(action: dismissPlayer) {
             Image(systemName: "xmark")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundStyle(.white)
-                .frame(width: 52, height: 52)
+                .frame(width: 44, height: 44)
                 .contentShape(Circle())
         }
         .buttonStyle(.plain)
         .glassCircle(clear: false)
         .accessibilityLabel("Close player")
+        .padding(.leading, 14)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        // Sits at the safe-area edge rather than 16pt inside it. Apple places its close
-        // button at 38pt, i.e. *within* the landscape safe area — not matched here, since
-        // that region is where the Dynamic Island lands depending on which way the phone
-        // is rotated. This closes most of the 58pt gap without risking a collision.
-        .padding(.top, 12)
+        // In landscape, the leading edge carries the Dynamic Island's rotated
+        // safe-area inset (~59pt on notched iPhones) even though nothing is
+        // actually there to avoid. The Apple TV player ignores it and sits a
+        // small fixed gutter off the true edge instead — matched here.
+        .ignoresSafeArea(edges: .leading)
+        .padding(.top, 14)
     }
 
     /// Background taps close an open detail panel before they do anything else. With the
@@ -785,16 +795,36 @@ struct PlayerScreen: View {
 
             Spacer()
 
-            HStack(spacing: 6) {
+            // One shared capsule for every control here, 4K included when it's
+            // available — matches Apple's own icon-group pill (speed + more sit in
+            // one continuous shape, not as separate floating circles). Previously 4K
+            // was its own standalone `.glassCapsuleActive`, sitting apart from this
+            // group with a plain HStack gap between them.
+            //
+            // `hasAvailable4KSource` resolves asynchronously once stream candidates
+            // load, so it's false at first paint and can flip true mid-session — this
+            // capsule can gain a segment after the row has already rendered. Animating
+            // on that value makes the capsule widen smoothly when that happens, rather
+            // than the icon assembly popping sideways.
+            HStack(spacing: 0) {
                 if hasAvailable4KSource {
-                    controlPill(icon: "4k.tv", label: "4K") {
+                    Button {
                         revealControls(scheduleAutoHide: true)
                         show4KChoice = true
+                    } label: {
+                        Image(systemName: "4k.tv")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.9))
+                            .frame(width: 44, height: 44)
                     }
+                    trackMenuDivider
                 }
                 nativeTrackMenus
+                trackMenuDivider
                 moreMenu
             }
+            .glassCapsule(interactive: true, clear: false)
+            .animation(reduceMotion ? nil : .snappy(duration: 0.28), value: hasAvailable4KSource)
         }
     }
 
@@ -844,32 +874,26 @@ struct PlayerScreen: View {
         // partway across. Width only — height is untouched, so this cannot reintroduce
         // the vertical overflow that resized the video.
         .frame(maxWidth: .infinity, alignment: .leading)
-        // Only while a panel is open. Applied unconditionally it read as a permanent
-        // black bar across the bottom of the picture.
-        //
-        // Blurred material rather than a flat gradient, masked so it dissolves upward
-        // instead of ending on a hard edge. `.background` is sized by its host and
-        // cannot affect that host's layout, so this cannot inflate the container.
+        // Apple TV player scrim — a vertical gradient that darkens the bottom of the
+        // picture so white text remains legible. No blur: the video stays crisp and
+        // the scrim reads as deliberate darkening rather than a frosted-glass panel.
+        // `.background` is sized by its host and cannot affect layout, so this
+        // cannot inflate the container.
         .background {
             if playerDetailTab != nil {
-                Rectangle()
-                    .fill(.ultraThinMaterial)
-                    .environment(\.colorScheme, .dark)
-                    .mask {
-                        LinearGradient(
-                            stops: [
-                                .init(color: .clear, location: 0),
-                                .init(color: .black.opacity(0.6), location: 0.25),
-                                .init(color: .black, location: 0.55),
-                                .init(color: .black, location: 1)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    }
-                    .ignoresSafeArea(edges: .bottom)
-                    .allowsHitTesting(false)
-                    .transition(.opacity)
+                LinearGradient(
+                    stops: [
+                        .init(color: .black.opacity(0), location: 0),
+                        .init(color: .black.opacity(0.4), location: 0.35),
+                        .init(color: .black.opacity(0.75), location: 0.7),
+                        .init(color: .black.opacity(0.92), location: 1)
+                    ],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .ignoresSafeArea(edges: .bottom)
+                .allowsHitTesting(false)
+                .transition(.opacity)
             }
         }
         .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { chromeHeight = $0 }
@@ -1023,22 +1047,18 @@ struct PlayerScreen: View {
                 .frame(width: 44, height: 44)
         }
         .tint(.white)
-        .glassCapsule(interactive: true, clear: false)
+    }
+
+    /// Matches `PlayerNativeTrackMenus.trackMenuDivider` — kept as a separate
+    /// tiny copy rather than shared plumbing across the two files/targets.
+    private var trackMenuDivider: some View {
+        Divider()
+            .frame(width: 0.75, height: 22)
+            .overlay(Color.white.opacity(0.18))
     }
 
     private func subtitleDisplayName(for code: String) -> String {
         Locale.current.localizedString(forLanguageCode: code)?.capitalized ?? code.uppercased()
-    }
-
-    @ViewBuilder
-    private func controlPill(icon: String, label: String, isActive: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(isActive ? Color(white: 0.08) : .white.opacity(0.9))
-                .frame(width: 44, height: 44)
-        }
-        .glassCapsuleActive(isActive: isActive)
     }
 
     private var speedLabel: String {
@@ -1107,14 +1127,14 @@ struct PlayerScreen: View {
     private func cancelButton(action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: "xmark")
-                .font(.system(size: 19, weight: .semibold))
+                .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
+                .frame(width: 44, height: 44)
         }
         .glassCircle(clear: false)
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .padding(.top, 14)
     }
 
     private func retryButton() -> some View {
@@ -1124,12 +1144,12 @@ struct PlayerScreen: View {
             Image(systemName: "arrow.triangle.2.circlepath")
                 .font(.system(size: 17, weight: .semibold))
                 .foregroundColor(.white)
-                .frame(width: 50, height: 50)
+                .frame(width: 44, height: 44)
         }
         .glassCircle(clear: false)
         .buttonStyle(.plain)
         .padding(.horizontal, 16)
-        .padding(.top, 12)
+        .padding(.top, 14)
     }
 
     private func retryStream() async {
@@ -1157,7 +1177,8 @@ struct PlayerScreen: View {
         if hasMultiplePlayableSources {
             let candidates = StreamSourceSelector.cachedCandidates(
                 currentUrl: activeLaunch.sourceUrl,
-                from: streamRepo.streams
+                from: streamRepo.streams,
+                preferredAudioLanguage: VideoPlayerPreferenceStore.shared.preferredAudioLanguage
             )
             if let stream = StreamSourceSelector.nextStream(
                 after: currentStream,
@@ -1215,7 +1236,12 @@ struct PlayerScreen: View {
 
         let candidates = isResolvingStream
             ? autoPlayCandidates
-            : StreamSourceSelector.cachedCandidates(currentUrl: failedUrl, from: streamRepo.streams, prefer4K: prefers4K)
+            : StreamSourceSelector.cachedCandidates(
+                currentUrl: failedUrl,
+                from: streamRepo.streams,
+                prefer4K: prefers4K,
+                preferredAudioLanguage: VideoPlayerPreferenceStore.shared.preferredAudioLanguage
+              )
 
         let outcome = await recoveryCoordinator.recover(
             candidates: candidates,
@@ -1506,7 +1532,12 @@ struct PlayerScreen: View {
                 holder.cancellable = streamRepo.$streams
                     .dropFirst()
                     .sink { streams in
-                        if StreamSourceSelector.initialStream(from: streams, prefer4K: prefer4K, installOrder: installOrder) != nil { finish() }
+                        if StreamSourceSelector.initialStream(
+                            from: streams,
+                            prefer4K: prefer4K,
+                            installOrder: installOrder,
+                            preferredAudioLanguage: VideoPlayerPreferenceStore.shared.preferredAudioLanguage
+                        ) != nil { finish() }
                     }
                 // Healthy case: every addon answered, nothing ranked. Don't wait out the ceiling.
                 Task { _ = await bg.result; finish() }
@@ -1525,7 +1556,10 @@ struct PlayerScreen: View {
         // from the user's own enabled addons — the recoverable shape an expired
         // or IP-rejected link actually takes — before finally giving up.
         autoPlayCandidates = StreamSourceSelector.candidatesForAutoPlay(
-            from: streamRepo.streams, prefer4K: prefer4K, installOrder: installOrder
+            from: streamRepo.streams,
+            prefer4K: prefer4K,
+            installOrder: installOrder,
+            preferredAudioLanguage: VideoPlayerPreferenceStore.shared.preferredAudioLanguage
         )
         MainHangDiagnostics.mark("player.preflight")
         var outcome = await recoveryCoordinator.recover(
@@ -2491,19 +2525,3 @@ private struct SubtitleTextOverlay: View {
     }
 }
 
-extension View {
-    @ViewBuilder
-    func glassCapsuleActive(isActive: Bool) -> some View {
-        // Non-interactive glass: the interactive press effect fights the Menu's
-        // own open/highlight animation and flashes matte for a frame. `glassCapsule`
-        // has no tint parameter, so the active state is a plate behind the content,
-        // visible through the glass blur — `isActive` previously had no effect at all.
-        self
-            .background {
-                if isActive {
-                    Capsule(style: .continuous).fill(Color.white.opacity(0.24))
-                }
-            }
-            .glassCapsule(interactive: false, clear: false)
-    }
-}
