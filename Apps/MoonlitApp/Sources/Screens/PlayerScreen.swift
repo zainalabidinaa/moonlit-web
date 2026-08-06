@@ -2220,7 +2220,10 @@ private struct GlassVolumeSlider: View {
             .labelsHidden()
             .tint(.white)
             .controlSize(.regular)
-            .frame(width: 198, height: 28)
+            // Measured against Apple's own player: icon (20) + spacing (10) + this
+            // track + padding (28) should total 204pt to match. 198pt put the total
+            // at 256pt — 52pt, or 25%, wider than Apple's.
+            .frame(width: 146, height: 28)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -2261,7 +2264,9 @@ private struct GlassVolumeSlider: View {
                         }
                 )
             }
-            .frame(width: 198, height: 28)
+            // Matches nativeGlassSlider's width so the pre-iOS-26 fallback isn't the
+            // one variant left oversized.
+            .frame(width: 146, height: 28)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
