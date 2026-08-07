@@ -21,6 +21,9 @@ packages:
   Lottie:
     url: https://github.com/airbnb/lottie-spm.git
     from: "4.6.0"
+  Sparkle:
+    url: https://github.com/sparkle-project/Sparkle.git
+    from: "2.6.4"
 
 targets:
   MoonlitMac:
@@ -34,6 +37,7 @@ targets:
       - package: MoonlitCore
       - package: MPVKit
       - package: Lottie
+      - package: Sparkle
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: "app.trymoonlit"
@@ -43,7 +47,26 @@ targets:
         INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
         INFOPLIST_KEY_NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
-        INFOPLIST_KEY_CFBundleIconFile: "Moonlit"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_LSApplicationCategoryType: "public.app-category.entertainment"
+        # Sparkle's Ed25519 public key, from `generate_keys` (see
+        # Sources/Services/UpdaterService.swift and docs/updates.md). The
+        # matching private key lives in this machine's keychain — `sign_update`
+        # needs to run from here (or wherever the key was exported to) when
+        # cutting a release.
+        INFOPLIST_KEY_SUPublicEDKey: "AjlmmWtXAhJTZDqHfQjp3vNqTo0W40ZmI5liHwJfi7s="
+      configs:
+        # Release-only: Hardened Runtime, required for `notarytool` to accept
+        # the archive. Signing identity stays Automatic even here — rather
+        # than forcing "Developer ID Application" at the project level
+        # (which needs a matching provisioning profile picked manually,
+        # since this target's Sign In with Apple entitlement means it isn't
+        # profile-free), `Scripts/release.sh` re-signs with Developer ID at
+        # the `-exportArchive` step via docs/ExportOptions-DeveloperID.plist.
+        # Xcode manages the Developer ID profile automatically there.
+        # See docs/updates.md for the full archive → notarize → staple flow.
+        Release:
+          ENABLE_HARDENED_RUNTIME: YES
     postBuildScripts:
       - name: Normalize Embedded Frameworks
         script: Scripts/normalize-embedded-frameworks.sh

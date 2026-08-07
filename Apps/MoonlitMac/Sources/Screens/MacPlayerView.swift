@@ -58,6 +58,8 @@ struct MacPlayerView: View {
     @State private var cachedToastTask: Task<Void, Never>?
     @State private var showSourcePicker = false
     @State private var showResumePrompt = false
+    /// Mirrors the subtitle/audio-track popovers owned by `NativeLikePlayerControls`.
+    @State private var isControlsPanelOpen = false
     @State private var didOfferResume = false
     @State private var screenshotToast: String?
     @State private var keyMonitor: Any?
@@ -192,7 +194,8 @@ struct MacPlayerView: View {
                     isPipActive: isPipActive,
                     onTogglePip: togglePip,
                     onDismiss: { dismiss() },
-                    thumbnailer: thumbnailer
+                    thumbnailer: thumbnailer,
+                    isPanelOpen: $isControlsPanelOpen
                 )
             }
             .opacity(visibility.controlsVisible ? 1 : 0)
@@ -349,8 +352,13 @@ struct MacPlayerView: View {
             if !launch.sourceUrl.isEmpty {
                 triedUrls.insert(launch.sourceUrl)
             }
-            // No auto-cascade — show error UI with manual Retry / Next Source buttons.
-            // mpv handles its own buffering and will report genuine failures only.
+            // Auto-cascade re-armed: mpv only reports didEncounterError for a
+            // genuine failure (it already retries transient buffering
+            // internally), so it's safe to act on automatically here. The error
+            // overlay's own "Trying next source…" state keeps this visible
+            // rather than silent, and Retry Stream / Next Source stay available
+            // for whatever the cascade can't recover on its own.
+            tryNextCandidate()
         }
         .onChange(of: engine.currentPosition) { _, pos in
             checkAutoSkipIntro(at: pos)
@@ -370,10 +378,19 @@ struct MacPlayerView: View {
         }
         .onChange(of: engine.isPlaying) { _, playing in
             visibility.setPlayback(isPlaying: playing)
+            PlaybackWakeLock.set(playing)
             if playing {
                 scheduleAutoHideIfNeeded()
             } else {
                 hideTask?.cancel()
+            }
+        }
+        .onChange(of: isAnyPanelOpen) { _, panelOpen in
+            if panelOpen {
+                hideTask?.cancel()
+                showControls()
+            } else {
+                scheduleAutoHideIfNeeded()
             }
         }
         .onDisappear {
@@ -382,6 +399,7 @@ struct MacPlayerView: View {
             thumbnailer.stop()
             removeKeyMonitor()
             NSCursor.unhide()
+            PlaybackWakeLock.set(false)
         }
         .onTapGesture {
             if visibility.controlsVisible {
@@ -747,6 +765,15 @@ struct MacPlayerView: View {
         Task { await fetchAutoPlayCandidates() }
     }
 
+    /// True while any popover/panel that sits on top of the chrome is open —
+    /// the subtitle/audio-track pickers, title info, up next, episode info,
+    /// or the source picker. The auto-hide timer must not fire in this state:
+    /// hiding the chrome also yanks these popovers away mid-interaction.
+    private var isAnyPanelOpen: Bool {
+        isControlsPanelOpen || showTitleInfoPanel || showUpNextPanel
+            || showEpisodeInfoPanel || showSourcePicker || showResumePrompt
+    }
+
     private func showControls() {
         NSCursor.unhide()
         visibility.registerInteraction()
@@ -755,7 +782,7 @@ struct MacPlayerView: View {
 
     private func scheduleAutoHideIfNeeded() {
         hideTask?.cancel()
-        guard visibility.shouldScheduleAutoHide else { return }
+        guard visibility.shouldScheduleAutoHide, !isAnyPanelOpen else { return }
 
         hideTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.4))
@@ -765,7 +792,7 @@ struct MacPlayerView: View {
     }
 
     private func hideControlsIfAllowed() {
-        guard !isSeeking else { return }
+        guard !isSeeking, !isAnyPanelOpen else { return }
         visibility.hideAfterInactivityIfAllowed()
         if !visibility.controlsVisible { NSCursor.hide() }
     }
@@ -900,24 +927,42 @@ struct MacPlayerView: View {
         isTryingNextSource = true
         Task { @MainActor in
             defer { isTryingNextSource = false }
-            while let next = autoPlayCandidates.first {
-                autoPlayCandidates.removeFirst()
-                guard let url = next.url, !url.isEmpty, !triedUrls.contains(url) else { continue }
-                let headers = next.behaviorHints?.proxyHeaders?.request ?? [:]
-                guard await StreamPreflight.isReachable(url: url, headers: headers) else {
+
+            @MainActor func attemptFromQueue() async -> Bool {
+                while let next = autoPlayCandidates.first {
+                    autoPlayCandidates.removeFirst()
+                    guard let url = next.url, !url.isEmpty, !triedUrls.contains(url) else { continue }
+                    let headers = next.behaviorHints?.proxyHeaders?.request ?? [:]
+                    guard await StreamPreflight.isReachable(url: url, headers: headers) else {
+                        triedUrls.insert(url)
+                        // The previous source resolved but wasn't actually playable
+                        // (stub file or incomplete cache) — tell the viewer we're moving on.
+                        flashCachedFallbackToast()
+                        continue
+                    }
                     triedUrls.insert(url)
-                    // The previous source resolved but wasn't actually playable
-                    // (stub file or incomplete cache) — tell the viewer we're moving on.
-                    flashCachedFallbackToast()
-                    continue
+                    engine.loadURL(url, headers: headers)
+                    reconfigureThumbnailer(url: url, headers: headers)
+                    showStartupLoading = true
+                    waitForFirstFrameThenHideOverlay()
+                    return true
                 }
-                triedUrls.insert(url)
-                engine.loadURL(url, headers: headers)
-                reconfigureThumbnailer(url: url, headers: headers)
-                showStartupLoading = true
-                waitForFirstFrameThenHideOverlay()
-                return
+                return false
             }
+
+            if await attemptFromQueue() { return }
+
+            // Known candidates exhausted. If the source that just failed looks
+            // expired or IP-rejected rather than generically dead, the addon may
+            // have a fresh URL for the same title — worth one re-fetch before
+            // finally leaving the manual Retry Stream / Next Source buttons as
+            // the only option.
+            let reason: PlaybackFailureReason? = launch.sourceUrl.isEmpty
+                ? nil
+                : await StreamPreflight.classify(url: launch.sourceUrl, headers: launch.sourceHeaders ?? [:])
+            guard reason == .rejected || reason == .providerError else { return }
+            await fetchAutoPlayCandidates()
+            _ = await attemptFromQueue()
         }
     }
 
@@ -1235,9 +1280,17 @@ private struct NativeLikePlayerControls: View {
     let onTogglePip: () -> Void
     let onDismiss: () -> Void
     var thumbnailer: PlayerThumbnailer? = nil
+    /// Lets the parent's auto-hide timer know a popover owned by this view is
+    /// open, so it doesn't hide the chrome (and the popover along with it)
+    /// out from under the user while they're picking a subtitle/audio track.
+    @Binding var isPanelOpen: Bool
 
-    @State private var showSubtitlePanel = false
-    @State private var showAudioPanel = false
+    @State private var showSubtitlePanel = false {
+        didSet { isPanelOpen = showSubtitlePanel || showAudioPanel }
+    }
+    @State private var showAudioPanel = false {
+        didSet { isPanelOpen = showSubtitlePanel || showAudioPanel }
+    }
 
     private var currentTime: Double {
         isSeeking ? pendingSeekTime : engine.currentPosition
@@ -1349,8 +1402,8 @@ private struct NativeLikePlayerControls: View {
 
                         PlayerControlButton(
                             systemName: engine.isFillingVideo
-                                ? "arrow.down.right.and.arrow.up.left"
-                                : "arrow.up.left.and.arrow.down.right",
+                                ? "rectangle.arrowtriangle.2.inward"
+                                : "rectangle.arrowtriangle.2.outward",
                             size: 17,
                             frameSize: 52,
                             tooltip: engine.isFillingVideo ? "Scale to Fit" : "Scale to Fill"

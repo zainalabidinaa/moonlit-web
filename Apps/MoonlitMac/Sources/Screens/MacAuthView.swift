@@ -10,15 +10,11 @@ struct MacAuthView: View {
     @State private var isSignUp = false
     @State private var isLoading = false
     @State private var errorMessage: String?
-    @StateObject private var appleCoordinator = MacAppleSignInCoordinator()
 
     var body: some View {
         ZStack(alignment: .top) {
-            MacFusionAmbientBackground(
-                ambientColor: .clear,
-                ambientColor2: .clear,
-                isEnabled: true
-            )
+            MacFusionAmbientBackground.baseGradient
+                .ignoresSafeArea()
             HStack(spacing: 0) {
                 Spacer()
 
@@ -104,34 +100,6 @@ struct MacAuthView: View {
                     .buttonStyle(MoonlitPrimaryButtonStyle(cornerRadius: MoonlitTheme.radiusControl))
                     .disabled(isLoading || email.isEmpty || password.isEmpty)
 
-                    HStack(spacing: 10) {
-                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
-                        Text("or")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(MoonlitTheme.textTertiary)
-                        Rectangle().fill(Color.white.opacity(0.08)).frame(height: 1)
-                    }
-                    .frame(width: 320)
-                    .padding(.vertical, 2)
-
-                    Button(action: startAppleSignIn) {
-                        HStack(spacing: 8) {
-                            Image(systemName: "apple.logo")
-                                .font(.system(size: 16, weight: .medium))
-                            Text("Sign in with Apple")
-                                .font(.system(size: 14, weight: .semibold))
-                        }
-                        .frame(width: 320, height: 42)
-                        .foregroundColor(.white)
-                        .background(Color.black, in: RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: MoonlitTheme.radiusControl, style: .continuous)
-                                .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                        )
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(isLoading)
-
                     Button(isSignUp ? "Have an account? Sign In" : "New to Moonlit? Create Account") {
                         isSignUp.toggle()
                         errorMessage = nil
@@ -167,29 +135,6 @@ struct MacAuthView: View {
             }
             isLoading = false
         }
-    }
-
-    private func startAppleSignIn() {
-        isLoading = true
-        errorMessage = nil
-        appleCoordinator.onResult = { result in
-            Task { @MainActor in
-                switch result {
-                case .success(let creds):
-                    do {
-                        try await profileManager.signInWithApple(idToken: creds.idToken, nonce: creds.nonce)
-                    } catch {
-                        NSLog("[Moonlit][AppleSignIn] sign-in failed: %@", String(describing: error))
-                        errorMessage = formatError(error)
-                    }
-                case .failure(let error):
-                    NSLog("[Moonlit][AppleSignIn] authorization failed: %@", String(describing: error))
-                    errorMessage = formatError(error)
-                }
-                isLoading = false
-            }
-        }
-        appleCoordinator.performRequest()
     }
 
     private func formatError(_ error: Error) -> String {

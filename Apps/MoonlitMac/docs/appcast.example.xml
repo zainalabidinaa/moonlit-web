@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">
+  <channel>
+    <title>Moonlit for Mac</title>
+    <link>https://trymoonlit.app/appcast.xml</link>
+    <description>Moonlit for macOS release feed</description>
+    <language>en</language>
+    <item>
+      <title>Version 2.4.0</title>
+      <pubDate>Thu, 06 Aug 2026 00:00:00 +0000</pubDate>
+      <sparkle:version>2.4.0</sparkle:version>
+      <sparkle:shortVersionString>2.4.0</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <description><![CDATA[
+        <h2>What's new</h2>
+        <ul>
+          <li>Live TV catch-up — rewind live channels up to 7 days</li>
+          <li>Faster poster art loading on slower connections</li>
+          <li>Fixed a freeze when scrolling large folders quickly</li>
+        </ul>
+      ]]></description>
+      <enclosure
+        url="https://github.com/zainalabidinaa/moonlit-web/releases/download/2.4.0/Moonlit-2.4.0.zip"
+        sparkle:edSignature="REPLACE_WITH_sign_update_OUTPUT"
+        length="0"
+        type="application/octet-stream" />
+    </item>
+  </channel>
+</rss>

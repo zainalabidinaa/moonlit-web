@@ -1,5 +1,24 @@
 import SwiftUI
+import AppKit
 import MoonlitCore
+
+/// Near-black background + warm glow shared by the cold-launch intro and
+/// session-restore screens, matching iOS's `SessionRestoreView` splash
+/// exactly (same hex values) rather than the app-wide charcoal
+/// `MacFusionAmbientBackground` — the splash is meant to read as pure dark
+/// with a single warm accent, not the tinted-charcoal look used everywhere
+/// else in the app.
+enum MacSplashBackground {
+    static let gradient = LinearGradient(
+        colors: [
+            Color(red: 0.063, green: 0.067, blue: 0.078),  // #101114
+            Color(red: 0.020, green: 0.020, blue: 0.024),  // #050506
+        ],
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    static let glow = Color(red: 1.0, green: 0.541, blue: 0.208)  // #FF8A35
+}
 
 struct MacContentView: View {
     @EnvironmentObject var profileManager: ProfileManager
@@ -7,9 +26,20 @@ struct MacContentView: View {
     @AppStorage("moonlit.hasSeenOnboarding") private var hasSeenOnboarding = false
     @AppStorage("moonlit.guestMode") private var guestMode = false
 
+    /// The launch intro runs once per cold launch. It also covers session
+    /// restore, so `SessionRestoreView` is only reached if restore is somehow
+    /// still pending after the intro has played out.
+    @State private var hasPlayedIntro = false
+    /// A cold launch always lands on the profile picker rather than silently
+    /// resuming the last profile. Flipped once the user picks, so in-session
+    /// switches (PillNavBar / Settings) behave exactly as before.
+    @State private var hasChosenProfileThisLaunch = false
+
     var body: some View {
         Group {
-            if !profileManager.hasRestoredSession {
+            if !hasPlayedIntro {
+                MacLaunchIntroView { hasPlayedIntro = true }
+            } else if !profileManager.hasRestoredSession {
                 SessionRestoreView()
             } else if !hasSeenOnboarding {
                 MacOnboardingView {
@@ -19,10 +49,10 @@ struct MacContentView: View {
                     hasSeenOnboarding = true
                 }
             } else if profileManager.isAuthenticated {
-                if profileManager.currentProfile != nil {
+                if profileManager.currentProfile != nil && hasChosenProfileThisLaunch {
                     MacMainView()
                 } else if !profileManager.profiles.isEmpty {
-                    MacProfilePicker()
+                    MacProfilePicker { hasChosenProfileThisLaunch = true }
                 } else {
                     MacCreateProfile()
                 }
@@ -30,19 +60,112 @@ struct MacContentView: View {
                 MacAuthView()
             }
         }
-        .overlay(alignment: .topTrailing) {
-            // `.hiddenTitleBar` still reserves a top safe area for the native
-            // traffic-light hit region even though we draw our own controls —
-            // without ignoring it here, this padding stacks on top of that
-            // invisible inset and the controls sit far lower than intended.
-            MacWindowControls()
-                .padding(.trailing, 16)
-                .padding(.top, 8)
-                .ignoresSafeArea(.container, edges: .top)
+        .animation(.easeInOut(duration: 0.45), value: hasPlayedIntro)
+        .onChange(of: profileManager.currentProfile) { _, newProfile in
+            // Selecting a profile — whether from the launch picker or a mid-session
+            // switch — is what unlocks the main view.
+            if newProfile != nil { hasChosenProfileThisLaunch = true }
         }
         .onChange(of: profileManager.currentProfile) { _, newProfile in
             roleManager.evaluateRole(profile: newProfile)
         }
+    }
+}
+
+/// Cold-launch intro. Deliberately built on the real Moonlit app icon and
+/// wordmark — the same identity as `SessionRestoreView` and the profile picker —
+/// rather than an abstract lettering animation, so launch looks like the app.
+private struct MacLaunchIntroView: View {
+    let onFinished: () -> Void
+
+    @State private var appeared = false
+    @State private var settled = false
+    @State private var hasFinished = false
+
+    var body: some View {
+        ZStack {
+            MacSplashBackground.gradient
+                .ignoresSafeArea()
+
+            // Soft warm halo behind the mark, breathing up as it settles.
+            RadialGradient(
+                colors: [
+                    MacSplashBackground.glow.opacity(settled ? 0.34 : 0.08),
+                    MacSplashBackground.glow.opacity(settled ? 0.12 : 0.03),
+                    .clear,
+                ],
+                center: .center,
+                startRadius: 20,
+                endRadius: 320
+            )
+            .ignoresSafeArea()
+            .animation(.easeInOut(duration: 1.1), value: settled)
+
+            VStack(spacing: 0) {
+                ZStack {
+                    Circle()
+                        .fill(MacSplashBackground.glow.opacity(settled ? 0.28 : 0.14))
+                        .frame(width: 176, height: 176)
+                        .blur(radius: 34)
+
+                    AppIconView()
+                        .frame(width: 120, height: 120)
+                        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
+                        .shadow(color: MacSplashBackground.glow.opacity(0.34), radius: 34, y: 14)
+                        .shadow(color: .black.opacity(0.45), radius: 34, y: 14)
+                }
+                .scaleEffect(appeared ? 1 : 0.82)
+                .opacity(appeared ? 1 : 0)
+
+                Text("Moonlit")
+                    .font(.system(size: 40, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .tracking(1)
+                    .padding(.top, 24)
+                    .opacity(appeared ? 1 : 0)
+                    .offset(y: appeared ? 0 : 12)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
+        .onTapGesture { finish() }
+        .background(MacIntroKeyCatcher { finish() })
+        .onAppear {
+            withAnimation(.smooth(duration: 0.7).delay(0.1)) { appeared = true }
+            withAnimation(.easeInOut(duration: 0.9).delay(0.5)) { settled = true }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.9) { finish() }
+        }
+    }
+
+    /// Idempotent — the timer and the skip gestures race, first one wins.
+    private func finish() {
+        guard !hasFinished else { return }
+        hasFinished = true
+        onFinished()
+    }
+}
+
+/// Makes the intro skippable with the keyboard. SwiftUI has no "any key"
+/// handler on macOS, so this drops to an `NSView` that takes first responder
+/// and reports the first `keyDown` it sees.
+private struct MacIntroKeyCatcher: NSViewRepresentable {
+    let onKey: () -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = KeyView()
+        view.onKey = onKey
+        DispatchQueue.main.async { view.window?.makeFirstResponder(view) }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        (nsView as? KeyView)?.onKey = onKey
+    }
+
+    final class KeyView: NSView {
+        var onKey: (() -> Void)?
+        override var acceptsFirstResponder: Bool { true }
+        override func keyDown(with event: NSEvent) { onKey?() }
     }
 }
 
@@ -51,11 +174,15 @@ private struct SessionRestoreView: View {
 
     var body: some View {
         ZStack {
-            MoonlitTheme.background
+            MacSplashBackground.gradient
                 .ignoresSafeArea()
 
             RadialGradient(
-                colors: [MoonlitTheme.accent.opacity(0.18), .clear],
+                colors: [
+                    MacSplashBackground.glow.opacity(0.30),
+                    MacSplashBackground.glow.opacity(0.10),
+                    .clear,
+                ],
                 center: .center,
                 startRadius: 20,
                 endRadius: 280
@@ -65,12 +192,20 @@ private struct SessionRestoreView: View {
             VStack(spacing: 0) {
                 Spacer()
 
-                AppIconView()
-                    .frame(width: 96, height: 96)
-                    .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    .shadow(color: .black.opacity(0.35), radius: 32, y: 12)
-                    .scaleEffect(appeared ? 1 : 0.85)
-                    .opacity(appeared ? 1 : 0)
+                ZStack {
+                    Circle()
+                        .fill(MacSplashBackground.glow.opacity(0.30))
+                        .frame(width: 144, height: 144)
+                        .blur(radius: 30)
+
+                    AppIconView()
+                        .frame(width: 96, height: 96)
+                        .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                        .shadow(color: MacSplashBackground.glow.opacity(0.30), radius: 30, y: 12)
+                        .shadow(color: .black.opacity(0.35), radius: 32, y: 12)
+                }
+                .scaleEffect(appeared ? 1 : 0.85)
+                .opacity(appeared ? 1 : 0)
 
                 Text("Moonlit")
                     .font(.system(size: 36, weight: .semibold))
