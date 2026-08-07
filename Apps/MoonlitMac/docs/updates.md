@@ -50,20 +50,45 @@ once per version on first launch after an update lands.
 
 1. Bump `MARKETING_VERSION` / `CURRENT_PROJECT_VERSION` in `project.yml`.
 2. Run `Scripts/release.sh <version>` (e.g. `Scripts/release.sh 2.5.0`). It
-   archives with the Developer ID identity, exports, submits to
-   `notarytool` and waits, staples the ticket, re-zips, signs the zip with
-   Sparkle's key, and prints a ready-to-paste `<item>` block with the
+   archives with the Developer ID identity, exports, notarizes and staples
+   the app, builds a signed + notarized + stapled `.dmg`, signs that dmg
+   with Sparkle's key, and prints a ready-to-paste `<item>` block with the
    `sparkle:edSignature` and `length` already filled in.
-3. Paste that `<item>` into `moonlit-web/public/appcast.xml` (see the
-   template below) and upload the printed zip path as a release asset on
-   `zainalabidinaa/moonlit-web` under a matching version tag.
-4. Update `ReleaseNotesCatalog.current` in `WhatsNewView.swift` to match —
+3. Copy the printed dmg into `moonlit-portal/public/downloads/` and paste
+   the `<item>` into `moonlit-portal/public/appcast.xml` (see the template
+   below).
+4. Point the macOS card in `moonlit-portal/src/routes/public/DownloadPage.tsx`
+   at the new version.
+5. Update `ReleaseNotesCatalog.current` in `WhatsNewView.swift` to match —
    this is what users see in-app, independent of the appcast's own
    `<description>`.
-5. Deploy `moonlit-web` (picks up the new `appcast.xml`) and push the
-   Moonlit for Mac commit. Existing installs pick up the update on their
-   next automatic check (or immediately via Settings → Account → Software
-   Update → Check Now).
+6. Commit + push `moonlit-portal` (Vercel deploys `trymoonlit.app`, which
+   serves both the appcast and the download) and push the Moonlit for Mac
+   commit. Existing installs pick up the update on their next automatic
+   check (or immediately via Settings → Account → Software Update → Check
+   Now).
+
+## Why a .dmg and not a .zip
+
+Ship the disk image. A zip has to be *extracted* by whatever the user's
+browser or unarchiver happens to be, and tools that don't preserve macOS
+extended attributes drop AppleDouble (`._Foo`) sidecar files into the root
+of every embedded framework. That breaks the code signature seal:
+
+```
+codesign --verify --deep --strict /Applications/MoonlitMac.app
+  → unsealed contents present in the root directory of an embedded framework
+```
+
+Gatekeeper then tells the user *"Apple could not verify 'MoonlitMac' is free
+of malware..."* even though the build is correctly signed, notarized and
+stapled. (`ditto -x -k` extracts the same zip perfectly — the corruption
+comes from the user's unarchiver, so it isn't reproducible locally.)
+
+A dmg is a real filesystem, so symlinks, xattrs and the bundle layout
+survive untouched, and the user gets the standard drag-to-Applications
+window. If a user already has a broken install, `find /Applications/MoonlitMac.app
+-name "._*" -delete` restores the signature.
 
 ## appcast.xml template
 
